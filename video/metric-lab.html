@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Metric Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1fr 1.15fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  .mix { display:grid; grid-template-columns: 150px 1fr 48px; gap:6px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .mix input { width:100%; accent-color:var(--amber); }
+  .mix .v { color:var(--amber); text-align:right; }
+  #samples { width:100%; aspect-ratio:1; image-rendering:pixelated; background:var(--elevated); border-radius:8px; }
+  .metrics { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  @media (max-width: 560px) { .metrics { grid-template-columns: 1fr; } }
+  .m { background:var(--canvas); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .m .name { font-family:var(--mono); font-size:12px; color:var(--dust); display:flex; justify-content:space-between; }
+  .m .val { font-family:var(--mono); font-size:26px; color:var(--chalk); margin:2px 0 6px; }
+  .m .bar { height:6px; background:var(--elevated); border-radius:3px; overflow:hidden; }
+  .m .bar i { display:block; height:100%; background:var(--plum); transition:width .4s ease; }
+  .m .ref { font-family:var(--mono); font-size:11px; color:var(--dust); margin-top:6px; }
+  .verdict { margin-top:14px; padding:12px 14px; border-radius:10px; border:1px solid color-mix(in srgb, var(--sage) 35%, transparent); background:color-mix(in srgb, var(--sage) 7%, transparent); font-size:14px; min-height:48px; }
+  .status { font-family:var(--mono); font-size:12px; color:var(--dust); }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+  code, .mono { font-family:var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 04 · playground</div>
+  <h1>The Metric Lab: try to fool the judges</h1>
+  <p class="sub">Mix your own "generator" from ingredients: genuinely new digits, copies of training images, VAE samples, only-ones, static. Add blur. Every metric from the video is recomputed live, on 600 samples, with the same digit network used for features. Can you get a great score from a terrible model?</p>
+
+  <div class="grid">
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">1 · build a model</div>
+      <p class="hint">Sliders are proportions of the 600 samples. Presets recreate the video's suspects.</p>
+      <div class="row">
+        <button data-p="perfect">perfect model</button><button data-p="copier">photocopier</button><button data-p="ones">one-trick pony</button>
+        <button data-p="vae">our VAE</button><button data-p="garbage">99% static</button><button data-p="sneaky">half copied</button>
+      </div>
+      <div class="mix" id="mix"></div>
+      <div class="mix"><span>blur (px)</span><input id="blur" type="range" min="0" max="2" step="0.25" value="0"><span class="v" id="blurv">0</span></div>
+      <canvas id="samples" width="224" height="224"></canvas>
+      <p class="status" id="status">loading the feature network…</p>
+    </section>
+    <section class="card" style="--accent:var(--plum)">
+      <div class="label">2 · the judges</div>
+      <p class="hint">Reference values are for genuinely new real digits (the perfect model).</p>
+      <div class="metrics" id="metrics"></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="label" style="margin-top:20px">3 · challenges</div>
+      <ul class="hint" style="font-size:14px;color:var(--stone);padding-left:18px;line-height:1.8">
+        <li><b>half copied</b>: fool five of six judges with a model that is 50% theft.</li>
+        <li><b>99% static</b>: precision collapses, yet recall stays high. Why? (Each static sample's nearest-neighbour ball is enormous, so it swallows real points: k-NN recall is fooled by outliers.)</li>
+        <li><b>perfect model + blur</b>: slide blur up. Which judge complains first?</li>
+        <li>Mix <b>50% only-ones + 50% new</b>: which metrics even notice half the model is a one-trick pony?</li>
+      </ul>
+    </section>
+  </div>
+  <footer>Python versions of every metric: <code>code/evals.py</code>. Assets: <code>code/export_ep04_lab.py</code>. NN-train here is measured against a 600-image slice of the training set.</footer>
+</main>
+<script src="ep04-lab-assets.js"></script>
+<script>
+const L = window.LAB, N = L.N, $ = id => document.getElementById(id);
+function b64bytes(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function f16(o) { const u = b64bytes(o.f16), dv = new DataView(u.buffer), n = u.length / 2, out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const h = dv.getUint16(i * 2, true), s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, f = h & 1023; out[i] = e === 0 ? s * 2 ** -14 * (f / 1024) : e === 31 ? s * 65504 : s * 2 ** (e - 15) * (1 + f / 1024); }
+  return { a: out, shape: o.shape }; }
+const NET = Object.fromEntries(Object.entries(L.net).map(([k, v]) => [k, f16(v)]));
+function dense(x, W, b, relu) { const [nin, nout] = W.shape, y = new Float32Array(nout); y.set(b.a); for (let i = 0; i < nin; i++) { const xi = x[i]; if (!xi) continue; const r = i * nout; for (let j = 0; j < nout; j++) y[j] += xi * W.a[r + j]; } if (relu) for (let j = 0; j < nout; j++) if (y[j] < 0) y[j] = 0; return y; }
+const feat = x => dense(dense(x, NET.W1, NET.b1, true), NET.W2, NET.b2, true);
+function probs(f) { const z = dense(f, NET.W3, NET.b3, false); let m = -Infinity; for (const v of z) m = Math.max(m, v); let s = 0; for (let j = 0; j < 10; j++) { z[j] = Math.exp(z[j] - m); s += z[j]; } for (let j = 0; j < 10; j++) z[j] /= s; return z; }
+const pool = k => { const u = b64bytes(L.pools[k]), out = []; for (let i = 0; i < N; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; };
+const P = { ref: pool('ref'), new: pool('new'), train: pool('train'), ones: pool('ones'), vae: pool('vae') };
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+P.static = Array.from({ length: N }, () => Float32Array.from({ length: 784 }, rnd));
+P.copies = P.train;   // copies ARE training images
+
+// ── linear algebra helpers
+function meanCov(F) { const d = F[0].length, n = F.length, mu = new Float64Array(d); F.forEach(f => f.forEach((v, j) => mu[j] += v / n));
+  const C = Array.from({ length: d }, () => new Float64Array(d)); F.forEach(f => { for (let i = 0; i < d; i++) { const a = f[i] - mu[i]; if (!a) continue; for (let j = i; j < d; j++) C[i][j] += a * (f[j] - mu[j]); } });
+  for (let i = 0; i < d; i++) for (let j = i; j < d; j++) { C[i][j] /= (n - 1); C[j][i] = C[i][j]; } return { mu, C }; }
+function jacobiEig(A0) { const n = A0.length, A = A0.map(r => Float64Array.from(r)), V = Array.from({ length: n }, (_, i) => { const r = new Float64Array(n); r[i] = 1; return r; });
+  for (let sweep = 0; sweep < 12; sweep++) { let off = 0; for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += A[p][q] ** 2; if (off < 1e-10) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) { if (Math.abs(A[p][q]) < 1e-12) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < n; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+      for (let k = 0; k < n; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+      for (let k = 0; k < n; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; } } }
+  return { w: A.map((r, i) => r[i]), V }; }
+function sqrtm(C) { const { w, V } = jacobiEig(C), n = C.length, R = Array.from({ length: n }, () => new Float64Array(n)); for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { let s = 0; for (let k = 0; k < n; k++) s += V[i][k] * Math.sqrt(Math.max(0, w[k])) * V[j][k]; R[i][j] = s; } return R; }
+const matmul = (A, B) => A.map(r => { const n = B[0].length, o = new Float64Array(n); r.forEach((a, k) => { if (a) for (let j = 0; j < n; j++) o[j] += a * B[k][j]; }); return o; });
+const dist2 = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) { const d = a[i] - b[i]; s += d * d; } return s; };
+const kthRadius = (F, k = 3) => F.map(a => { const d = F.map(b => dist2(a, b)).sort((x, y) => x - y); return d[k]; });
+
+// ── precompute the reference
+let REF, REF_MC, REF_SQ, REF_R;
+function blur(img, s) { if (!s) return img; const r = Math.ceil(2 * s), k = []; let ks = 0; for (let i = -r; i <= r; i++) { const v = Math.exp(-i * i / (2 * s * s)); k.push(v); ks += v; } k.forEach((v, i) => k[i] = v / ks);
+  const tmp = new Float32Array(784), out = new Float32Array(784);
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { let a = 0; for (let i = -r; i <= r; i++) { const xx = x + i; if (xx >= 0 && xx < 28) a += img[y * 28 + xx] * k[i + r]; } tmp[y * 28 + x] = a; }
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { let a = 0; for (let i = -r; i <= r; i++) { const yy = y + i; if (yy >= 0 && yy < 28) a += tmp[yy * 28 + x] * k[i + r]; } out[y * 28 + x] = a; } return out; }
+
+// ── the metrics
+function metrics(imgs) {
+  const F = imgs.map(feat), n = F.length;
+  // Inception score
+  const py = new Float64Array(10), pyx = F.map(probs); pyx.forEach(p => p.forEach((v, j) => py[j] += v / n));
+  let kl = 0; pyx.forEach(p => p.forEach((v, j) => kl += v * (Math.log(v + 1e-12) - Math.log(py[j] + 1e-12)) / n)); const IS = Math.exp(kl);
+  // FID
+  const { mu, C } = meanCov(F); let dm = 0; for (let j = 0; j < mu.length; j++) dm += (mu[j] - REF_MC.mu[j]) ** 2;
+  const Mx = matmul(matmul(REF_SQ, C), REF_SQ), ev = jacobiEig(Mx).w; let tr = 0; for (let i = 0; i < C.length; i++) tr += REF_MC.C[i][i] + C[i][i]; const FID = dm + tr - 2 * ev.reduce((s, v) => s + Math.sqrt(Math.max(0, v)), 0);
+  // precision & recall (k = 3)
+  const R = kthRadius(F);
+  const precision = F.filter(f => REF.some((r, i) => dist2(f, r) <= REF_R[i])).length / n;
+  const recall = REF.filter(r => F.some((f, i) => dist2(r, f) <= R[i])).length / REF.length;
+  // novelty: median pixel distance to the nearest training image (first 200 samples)
+  const nn = imgs.slice(0, 200).map(x => Math.sqrt(Math.min(...P.train.map(t => dist2(x, t))))).sort((a, b) => a - b); const NN = nn[100];
+  // C2ST: logistic regression, real (ref) vs samples, held-out accuracy
+  const X = REF.concat(F), y = REF.map(() => 1).concat(F.map(() => 0)), d = 64, mean = new Float64Array(d), sd = new Float64Array(d);
+  X.forEach(f => f.forEach((v, j) => mean[j] += v / X.length)); X.forEach(f => f.forEach((v, j) => sd[j] += (v - mean[j]) ** 2 / X.length)); for (let j = 0; j < d; j++) sd[j] = Math.sqrt(sd[j]) + 1e-6;
+  const Z = X.map(f => Array.from(f, (v, j) => (v - mean[j]) / sd[j])); let s2 = 11; const r2 = () => (s2 = (s2 * 16807) % 2147483647) / 2147483647;
+  const idx = Z.map((_, i) => i).sort(() => r2() - 0.5), trn = idx.slice(0, idx.length / 2), tst = idx.slice(idx.length / 2);
+  const w = new Float64Array(d); let b = 0;
+  for (let it = 0; it < 250; it++) { const gw = new Float64Array(d); let gb = 0; for (const i of trn) { let z = b; for (let j = 0; j < d; j++) z += w[j] * Z[i][j]; const g = 1 / (1 + Math.exp(-z)) - y[i]; for (let j = 0; j < d; j++) gw[j] += g * Z[i][j]; gb += g; }
+    for (let j = 0; j < d; j++) w[j] -= 0.5 * (gw[j] / trn.length + 1e-3 * w[j]); b -= 0.5 * gb / trn.length; }
+  const C2ST = tst.filter(i => { let z = b; for (let j = 0; j < d; j++) z += w[j] * Z[i][j]; return (z > 0) === (y[i] === 1); }).length / tst.length;
+  return { IS, FID, precision, recall, NN, C2ST };
+}
+
+// ── UI
+const ING = [['new', 'new real digits', 100], ['copies', 'training copies', 0], ['vae', 'VAE samples', 0], ['ones', 'only ones', 0], ['static', 'static', 0]];
+const mixEl = $('mix'); ING.forEach(([k, nm, v]) => mixEl.insertAdjacentHTML('beforeend', `<span>${nm}</span><input type="range" min="0" max="100" value="${v}" data-k="${k}"><span class="v" data-v="${k}">${v}</span>`));
+const PRESETS = { perfect: { new: 100 }, copier: { copies: 100 }, ones: { ones: 100 }, vae: { vae: 100 }, garbage: { static: 99, vae: 1 }, sneaky: { new: 50, copies: 50 } };
+document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const p = PRESETS[b.dataset.p]; mixEl.querySelectorAll('input').forEach(i => { i.value = p[i.dataset.k] || 0; }); $('blur').value = 0; schedule(); });
+mixEl.addEventListener('input', schedule); $('blur').addEventListener('input', schedule);
+function build() { const w = {}; let tot = 0; mixEl.querySelectorAll('input').forEach(i => { w[i.dataset.k] = +i.value; tot += +i.value; document.querySelector(`[data-v="${i.dataset.k}"]`).textContent = i.value; });
+  if (!tot) { w.new = 1; tot = 1; } const out = []; let acc = 0; const keys = Object.keys(w);
+  keys.forEach((k, ki) => { const c = ki === keys.length - 1 ? N - out.length : Math.round(N * w[k] / tot); for (let i = 0; i < c && out.length < N; i++) out.push(P[k][(i * 7 + ki * 13) % N]); acc += c; });
+  const s = +$('blur').value; $('blurv').textContent = s; const imgs = out.map(x => blur(x, s));
+  for (let i = imgs.length - 1; i > 0; i--) { const j = (i * 2654435761 >>> 0) % (i + 1); [imgs[i], imgs[j]] = [imgs[j], imgs[i]]; } return imgs; }
+function drawSamples(imgs) { const g = $('samples').getContext('2d'), d = g.createImageData(224, 224);
+  for (let t = 0; t < 64; t++) { const img = imgs[t], ox = (t % 8) * 28, oy = Math.floor(t / 8) * 28; for (let i = 0; i < 784; i++) { const p = ((oy + Math.floor(i / 28)) * 224 + ox + (i % 28)) * 4, v = Math.min(1, Math.max(0, img[i])); d.data[p] = 196; d.data[p + 1] = 101; d.data[p + 2] = 74; d.data[p + 3] = Math.round(v * 255); } }
+  g.clearRect(0, 0, 224, 224); g.putImageData(d, 0, 0); }
+const SPEC = [['IS', 'Inception Score ↑', v => v.toFixed(2), v => v / 10], ['FID', 'FID ↓', v => v.toFixed(1), v => Math.log10(1 + v) / Math.log10(450)], ['precision', 'precision ↑ (fidelity)', v => Math.round(v * 100) + '%', v => v], ['recall', 'recall ↑ (diversity)', v => Math.round(v * 100) + '%', v => v], ['NN', 'NN-train (0 = copied)', v => v.toFixed(2), v => v / 15], ['C2ST', 'C2ST (50% = perfect)', v => Math.round(v * 100) + '%', v => v]];
+let REFV = null;
+function show(m) { $('metrics').innerHTML = SPEC.map(([k, nm, f, frac]) => `<div class="m"><div class="name"><span>${nm}</span></div><div class="val">${f(m[k])}</div><div class="bar"><i style="width:${Math.max(1, Math.min(100, frac(m[k]) * 100))}%"></i></div><div class="ref">perfect model: ${REFV ? f(REFV[k]) : '…'}</div></div>`).join('');
+  if (!REFV) return; const fooled = [], caught = [];
+  const near = (k, tol) => Math.abs(m[k] - REFV[k]) <= tol;
+  (near('IS', 0.4) ? fooled : caught).push('IS'); (m.FID < REFV.FID + 3 ? fooled : caught).push('FID'); (near('precision', 0.06) ? fooled : caught).push('precision'); (near('recall', 0.06) ? fooled : caught).push('recall');
+  (m.NN > REFV.NN * 0.8 ? fooled : caught).push('NN-train'); (m.C2ST < 0.58 ? fooled : caught).push('C2ST');
+  $('verdict').innerHTML = `Judges that think this looks like a perfect model: <b>${fooled.join(', ') || 'none'}</b>.<br>Judges that notice something is off: <b>${caught.join(', ') || 'none'}</b>.`; }
+let timer = null; function schedule() { clearTimeout(timer); $('status').textContent = 'computing…'; timer = setTimeout(run, 60); }
+function run() { const t0 = performance.now(), imgs = build(); drawSamples(imgs); const m = metrics(imgs); show(m); $('status').textContent = `600 samples · metrics in ${Math.round(performance.now() - t0)} ms`; }
+setTimeout(() => { REF = P.ref.map(feat); REF_MC = meanCov(REF); REF_SQ = sqrtm(REF_MC.C); REF_R = kthRadius(REF); REFV = metrics(P.new); run(); }, 50);
+</script>
+</body>
+</html>

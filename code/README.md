@@ -4,6 +4,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 
 - **Episode 02 · autoregressive:** `ar_counting.py` (pure Python), `ar_neural.py` (numpy)
 - **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
+- **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)
 
 ## Episode 02 — autoregressive generation
 
@@ -83,3 +84,42 @@ trick         z = μ + σ·ε,  ε ~ N(0, I)          ⇒  gradients flow throug
 bound         log p_θ(x) ≥ −L   (the ELBO, for β = 1)
 generate      z ~ N(0, I)  →  x = g_θ(z)
 ```
+
+## Episode 04 — evaluating generative models
+
+| file | what it is |
+|------|------------|
+| `evals.py` | Inception Score, FID, precision/recall (k-NN manifolds), nearest-training-image distance and a classifier two-sample test — all from scratch in numpy — plus a 97.8%-accurate digit network (backprop by hand) used as the feature extractor |
+| `export_ep04_assets.py` | computes every number shown in the video → `../video/ep04-assets.js` |
+| `export_ep04_lab.py` | the feature net + image pools for `../video/metric-lab.html` |
+
+```bash
+python evals.py        # scores five "models" (2,000 samples each) and prints the scorecard
+```
+
+What you should see:
+
+```
+model       IS ↑     FID ↓   prec ↑  recall ↑  NN-train  C2ST (50%=best)
+real        9.52       0.9     0.88      0.88      4.28             50%
+vae         6.45      51.9     0.95      0.00      4.38             91%
+copier      9.55       1.4     0.88      0.88      0.00             52%
+ones        1.03     217.6     0.91      0.12      0.00             94%
+noise       1.76     403.9     0.00      0.00     14.95            100%
+```
+
+The photocopier (training images passed off as samples) ties real data on five of six
+judges; only the nearest-training-image distance catches it. The VAE has *higher* precision
+than real data and almost zero recall: every sample is a safe, average-looking digit.
+
+```
+IS          exp( E_x KL( p(y|x) || p(y) ) )
+FID         ||mu_r - mu_g||^2 + Tr(S_r + S_g - 2 (S_r S_g)^1/2)
+precision   share of samples inside the real k-NN manifold          (fidelity)
+recall      share of real points inside the samples' k-NN manifold  (diversity)
+likelihood  a 1%-good / 99%-noise mixture loses only log 100 ≈ 4.6 nats
+```
+
+One practical gotcha we hit: MNIST's test set is ordered (its two halves were written by
+different groups of people), so always shuffle before splitting "real vs real", or even
+real data looks distinguishable from itself.

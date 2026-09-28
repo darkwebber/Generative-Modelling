@@ -70,6 +70,29 @@ networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
 | 10 | Build it | the VAE in a dozen numpy lines + recap | — |
 | 11 | Hook → evals | three models: blurry, a photocopier, a one-trick pony — every metric can be fooled | → *Episode 04: evaluation*, then GANs |
 
+## Episode 04 — Evaluating generative models (~9:30)
+
+`ep04-evaluation.html` · playground: `metric-lab.html` · code: `../code/evals.py`
+
+Built from `src/ep04-scenes.js` (`python src/build_ep04.py`). Every score on screen comes from
+`ep04-assets.js`, computed by `code/export_ep04_assets.py` on real samples.
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | the three suspects from episode 3; "today we build the judges — and catch them lying" | — |
+| 01 | What is "good"? | a classifier has an answer key; "draw a 7" has infinitely many | p_θ ≈ p_data; fidelity · diversity · novelty |
+| 02 | Likelihood | held-out −log p; VAE ≤ 150.6 nats (0.28 bits/pixel); copier and one-trick pony → ∞ | bits/dim = NLL / (D ln 2) |
+| 03 | How likelihood lies | 99% static + 1% VAE loses only 4.6 nats | log(0.01 p) = log p − log 100 |
+| 04 | A better eye | pixels: a shifted 7 is farther than a 1; features fix it (mostly) | feature distance |
+| 05 | Inception Score | sharp verdicts × spread classes; copier 9.55 ≈ real 9.52 | IS = exp E KL(p(y\|x) ‖ p(y)) |
+| 06 | FID | Gaussian clouds in feature space; copier 1.4 ≈ real 0.9 | ‖μ_r−μ_g‖² + Tr(Σ_r+Σ_g−2(Σ_rΣ_g)^½) |
+| 07 | Precision & recall | k-NN territories; VAE 95% / <1%, one-trick pony 91% / 12% | fidelity vs diversity |
+| 08 | Is it new? | nearest training image: copier 0.00, real 4.28, VAE 4.38; contamination | memorisation |
+| 09 | A judge that learns | classifier two-sample test: VAE 91%, copier 52%, real 50% | C2ST |
+| 10 | Language models | perplexity, benchmarks, LLM-as-judge, preference arenas | exp(−(1/T)Σ log p) |
+| 11 | Scorecard | the full table; Goodhart's law | — |
+| 12 | Hook → GANs | the judge becomes a teacher; forger vs detective; ends at 50% | min_G max_D … → *Episode 05: GANs* |
+
 ## Watch / scrub
 
 Open any episode `.html` in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
@@ -85,6 +108,7 @@ cd video
 WORKERS=4 node render.mjs generative-modelling.html 30 generative-modelling.mp4
 WORKERS=4 node render.mjs ep02-autoregressive.html 30 ep02-autoregressive.mp4
 WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp4
+WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section
