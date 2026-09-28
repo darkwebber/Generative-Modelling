@@ -93,6 +93,45 @@ Built from `src/ep04-scenes.js` (`python src/build_ep04.py`). Every score on scr
 | 11 | Scorecard | the full table; Goodhart's law | — |
 | 12 | Hook → GANs | the judge becomes a teacher; forger vs detective; ends at 50% | min_G max_D … → *Episode 05: GANs* |
 
+## Episode 05 — GANs (~8:30)
+
+`ep05-gans.html` · playground: `gan-arena.html` · code: `../code/gan.py`
+
+Built from `src/ep05-scenes.js` (`python src/build_ep05.py`). The 2-D scenes replay real
+training runs frame by frame (samples, the judge's field and its gradients), and the digit
+scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | digits appear epoch by epoch — from a network that never saw one | — |
+| 01 | Two players | G: z → x, D: x → P(real); real data only flows into D | the game |
+| 02 | The perfect judge | pointwise: max a·log y + b·log(1−y) | D* = p_d / (p_d + p_g) |
+| 03 | What G minimises | plug D* back in; live JSD as p_g slides onto p_data | V = −log 4 + 2·JSD |
+| 04 | Learning via the judge | D's field + gradient arrows; saturating vs non-saturating loss | ∂L/∂θ = ∂L/∂x · ∂x/∂θ |
+| 05 | Watch it train | real 8-Gaussian run: modes found over time | — |
+| 06 | Digits | MNIST GAN epoch by epoch; scored with episode 4's judges vs the VAE | FID, precision, recall, C2ST |
+| 07 | Mode collapse | real mode-hopping run (fast forger, slow judge) | — |
+| 08 | A game is not a hill | GDA on V = x·y spirals out; JSD flat vs Wasserstein slope | radius × √(1+η²); W = \|θ\| |
+| 09 | In the wild | StyleGAN, one-pass sampling, adversarial losses everywhere, deepfakes | — |
+| 10 | Build it | the game in numpy + recap | — |
+| 11 | Hook → flows | GANs can't answer "how likely?"; an invertible warp could | p(x) = p(z)\|det ∂z/∂x\| → *Episode 06: normalizing flows* |
+
+## Series roadmap
+
+| # | Episode | Question it answers | Hook into the next |
+|---|---------|--------------------|--------------------|
+| 01 | Generative modelling | what is p(x)? | … |
+| 02 | Autoregressive | break p(x) into next-piece guesses | can we learn by compressing? |
+| 03 | Autoencoders & VAEs | compress to a latent, sample from it | how do we grade a generator? |
+| 04 | Evaluation | how to measure "good" — and how metrics lie | what if the judge could teach? |
+| 05 | GANs | learn by being judged | can a generator run backwards? |
+| 06 | Normalizing flows | exact likelihood via invertible warps | flows are rigid — what if we skip normalising altogether? |
+| 07 | Energy-based models | any function can be an (unnormalised) density | the partition function is intractable — can we avoid it? |
+| 08 | Score matching & Langevin | learn ∇ log p instead; sample by noisy hill-climbing | scores are bad far from data — add noise at many scales… |
+| 09 | Diffusion | denoise step by step (ties episodes 3, 7, 8 together) | 1,000 steps is slow — straighter paths? |
+| 10 | Flow matching | learn a velocity field; straight paths; flows + diffusion unified | how do we steer what gets generated? |
+| 11 | Conditioning & guidance | p(x \| y), classifier & classifier-free guidance, latent diffusion (the VAE returns) | — the full picture of a modern text-to-image model |
+
 ## Watch / scrub
 
 Open any episode `.html` in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
@@ -109,6 +148,7 @@ WORKERS=4 node render.mjs generative-modelling.html 30 generative-modelling.mp4
 WORKERS=4 node render.mjs ep02-autoregressive.html 30 ep02-autoregressive.mp4
 WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp4
 WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
+WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section

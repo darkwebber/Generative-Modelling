@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAN Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  canvas#arena { width:100%; aspect-ratio:1; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:block; }
+  .knobs { display:grid; grid-template-columns: 170px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; accent-color:var(--amber); }
+  .knobs .v { color:var(--amber); text-align:right; }
+  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  canvas#chart { width:100%; height:140px; display:block; margin-top:10px; }
+  .legend span { font-family:var(--mono); font-size:12px; margin-right:14px; }
+  ul { padding-left:18px; } li { margin:4px 0; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 05 · playground</div>
+  <h1>GAN Arena: a forger and a detective, live</h1>
+  <p class="sub">A real GAN trains in your browser: two tiny neural networks, hand-written backprop, no libraries. Terracotta dots are the generator's fakes. The blue glow is the judge's opinion, where it thinks "real". White rings are the true data. Change the rules and watch what happens.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--ink)">
+      <canvas id="arena" width="720" height="720"></canvas>
+      <div class="row" style="margin-top:12px">
+        <button id="go">❚❚ pause</button><button id="reset">reset</button>
+        <span class="stat">step <b id="step">0</b> · modes found <b id="modes">0</b></span>
+      </div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the rules</div>
+      <div class="row" style="margin:10px 0" id="data">
+        <button data-d="ring" class="on">8 blobs</button><button data-d="grid">25 blobs</button><button data-d="moons">two moons</button><button data-d="spiral">spiral</button>
+      </div>
+      <div class="knobs">
+        <span>forger lr (G)</span><input id="lrg" type="range" min="-4" max="-1.8" step="0.1" value="-3"><span class="v" id="lrgv"></span>
+        <span>judge lr (D)</span><input id="lrd" type="range" min="-4" max="-1.8" step="0.1" value="-3"><span class="v" id="lrdv"></span>
+        <span>speed (steps/frame)</span><input id="spd" type="range" min="1" max="20" step="1" value="6"><span class="v" id="spdv"></span>
+      </div>
+      <label class="stat"><input type="checkbox" id="sat"> original “saturating” loss  log(1 − D(G(z)))</label><br>
+      <label class="stat"><input type="checkbox" id="arrows" checked> show the judge's gradient on the fakes</label>
+      <canvas id="chart" width="480" height="140"></canvas>
+      <div class="legend"><span style="color:var(--ink)">— D(real)</span><span style="color:var(--terracotta)">— D(fake)</span><span style="color:var(--dust)">- - ½</span></div>
+      <div class="label" style="margin-top:18px">try this</div>
+      <ul class="hint" style="color:var(--stone);font-size:14px">
+        <li><b>Fast forger, slow judge</b> (G lr high, D lr low): watch the fakes pile onto one blob, then hop. That's mode collapse.</li>
+        <li><b>25 blobs</b>: how many does it ever find?</li>
+        <li><b>Saturating loss</b> + reset: early learning stalls. The judge wins too easily and the gradient vanishes.</li>
+        <li>Train until both curves approach ½: the judge can no longer tell.</li>
+      </ul>
+    </section>
+  </div>
+  <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/gan.py</span>. Networks: G 2→64→64→2, D 2→64→64→1, LeakyReLU, Adam (β₁ = 0.5).</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+// ── a tiny MLP with hand-written backprop (same as code/gan.py)
+class MLP {
+  constructor(sizes) { this.L = []; for (let i = 0; i < sizes.length - 1; i++) { const a = sizes[i], b = sizes[i + 1], W = new Float32Array(a * b).map(() => gauss() * Math.sqrt(2 / a)); this.L.push({ a, b, W, bb: new Float32Array(b), mW: new Float32Array(a * b), vW: new Float32Array(a * b), mb: new Float32Array(b), vb: new Float32Array(b), gW: new Float32Array(a * b), gb: new Float32Array(b) }); } this.t = 0; }
+  forward(X) { // X: array of Float32Array rows
+    this.acts = [X]; let H = X;
+    this.L.forEach((l, li) => { const out = H.map(h => { const o = Float32Array.from(l.bb); for (let i = 0; i < l.a; i++) { const hi = h[i]; if (!hi) continue; const r = i * l.b; for (let j = 0; j < l.b; j++) o[j] += hi * l.W[r + j]; } if (li < this.L.length - 1) for (let j = 0; j < l.b; j++) if (o[j] < 0) o[j] *= 0.2; return o; }); this.acts.push(out); H = out; });
+    return H; }
+  backward(D) { // D: dL/d(output) per row; accumulates grads, returns dL/d(input)
+    for (let li = this.L.length - 1; li >= 0; li--) { const l = this.L[li], X = this.acts[li], Y = this.acts[li + 1];
+      if (li < this.L.length - 1) D = D.map((d, n) => d.map((v, j) => Y[n][j] > 0 ? v : 0.2 * v));
+      D.forEach((d, n) => { const x = X[n]; for (let i = 0; i < l.a; i++) { const xi = x[i]; if (!xi) continue; const r = i * l.b; for (let j = 0; j < l.b; j++) l.gW[r + j] += xi * d[j]; } for (let j = 0; j < l.b; j++) l.gb[j] += d[j]; });
+      D = D.map(d => { const o = new Float32Array(l.a); for (let i = 0; i < l.a; i++) { let s = 0; const r = i * l.b; for (let j = 0; j < l.b; j++) s += l.W[r + j] * d[j]; o[i] = s; } return o; }); }
+    return D; }
+  zero() { this.L.forEach(l => { l.gW.fill(0); l.gb.fill(0); }); }
+  step(lr) { this.t++; const b1 = 0.5, b2 = 0.999, c1 = 1 - b1 ** this.t, c2 = 1 - b2 ** this.t;
+    this.L.forEach(l => { for (const [p, g, m, v] of [[l.W, l.gW, l.mW, l.vW], [l.bb, l.gb, l.mb, l.vb]]) for (let k = 0; k < p.length; k++) { m[k] = b1 * m[k] + (1 - b1) * g[k]; v[k] = b2 * v[k] + (1 - b2) * g[k] * g[k]; p[k] -= lr * (m[k] / c1) / (Math.sqrt(v[k] / c2) + 1e-8); } }); }
+}
+const sig = x => 1 / (1 + Math.exp(-x));
+// ── data sets
+let dataKind = 'ring';
+const CENTERS = { ring: Array.from({ length: 8 }, (_, k) => [2 * Math.cos(k * Math.PI / 4), 2 * Math.sin(k * Math.PI / 4)]), grid: (() => { const c = []; for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) c.push([i * 1.1, j * 1.1]); return c; })() };
+function realBatch(n) { const out = [];
+  for (let i = 0; i < n; i++) {
+    if (dataKind === 'ring' || dataKind === 'grid') { const c = CENTERS[dataKind][Math.floor(rnd() * CENTERS[dataKind].length)], s = dataKind === 'ring' ? 0.08 : 0.05; out.push(Float32Array.of(c[0] + s * gauss(), c[1] + s * gauss())); }
+    else if (dataKind === 'moons') { const th = Math.PI * rnd(), up = rnd() < 0.5; out.push(Float32Array.of((up ? Math.cos(th) - 0.5 : 0.5 - Math.cos(th)) * 1.4 + 0.08 * gauss(), (up ? Math.sin(th) - 0.25 : 0.25 - Math.sin(th)) * 1.4 + 0.08 * gauss())); }
+    else { const r = Math.sqrt(rnd()) * 2.6, th = r * 3.2; out.push(Float32Array.of(r * Math.cos(th) + 0.07 * gauss(), r * Math.sin(th) + 0.07 * gauss())); } }
+  return out; }
+const noise = n => Array.from({ length: n }, () => Float32Array.of(gauss(), gauss()));
+// ── the game
+let G, D, step, hist, zShow;
+function reset() { seed = 1; G = new MLP([2, 64, 64, 2]); D = new MLP([2, 64, 64, 1]); step = 0; hist = []; zShow = noise(400); }
+function gameStep(lrG, lrD, sat) {
+  const B = 64, xr = realBatch(B), xf = G.forward(noise(B));
+  D.zero(); const lr = D.forward(xr); D.backward(lr.map(l => Float32Array.of((sig(l[0]) - 1) / B)));
+  const lf = D.forward(xf); D.backward(lf.map(l => Float32Array.of(sig(l[0]) / B))); D.step(lrD);
+  const z = noise(B), xg = G.forward(z), l = D.forward(xg);
+  D.zero(); const dx = D.backward(l.map(v => Float32Array.of((sat ? -sig(v[0]) : sig(v[0]) - 1) / B))); D.zero();
+  G.zero(); G.backward(dx); G.step(lrG);
+  step++; if (step % 10 === 0) { hist.push([lr.reduce((s, v) => s + sig(v[0]), 0) / B, lf.reduce((s, v) => s + sig(v[0]), 0) / B]); if (hist.length > 400) hist.shift(); }
+}
+// ── drawing
+const cv = $('arena'), g = cv.getContext('2d'), S = 720, R = 3.2, X = v => (v + R) / (2 * R) * S, Y = v => (R - v) / (2 * R) * S;
+const fieldC = document.createElement('canvas'); fieldC.width = fieldC.height = 60;
+function draw() {
+  const grid = []; for (let j = 0; j < 60; j++) for (let i = 0; i < 60; i++) grid.push(Float32Array.of(-R + (i + 0.5) / 60 * 2 * R, R - (j + 0.5) / 60 * 2 * R));
+  const f = D.forward(grid), fg = fieldC.getContext('2d'), img = fg.createImageData(60, 60);
+  f.forEach((v, k) => { img.data[k * 4] = 104; img.data[k * 4 + 1] = 137; img.data[k * 4 + 2] = 177; img.data[k * 4 + 3] = Math.round(sig(v[0]) * 200); }); fg.putImageData(img, 0, 0);
+  g.fillStyle = '#1c1816'; g.fillRect(0, 0, S, S); g.imageSmoothingEnabled = true; g.drawImage(fieldC, 0, 0, S, S);
+  g.strokeStyle = 'rgba(237,230,219,0.55)'; g.lineWidth = 1.3;
+  if (CENTERS[dataKind]) CENTERS[dataKind].forEach(c => { g.beginPath(); g.arc(X(c[0]), Y(c[1]), 12, 0, 7); g.stroke(); });
+  else { g.fillStyle = 'rgba(237,230,219,0.35)'; realBatch(300).forEach(p => { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 1.6, 0, 7); g.fill(); }); }
+  const xs = G.forward(zShow); g.fillStyle = '#c4654a'; xs.forEach(p => { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 2.6, 0, 7); g.fill(); });
+  if ($('arrows').checked) { const sub = xs.slice(0, 50), l = D.forward(sub); D.zero(); const dx = D.backward(l.map(v => Float32Array.of(sig(v[0]) - 1))); D.zero();
+    g.strokeStyle = '#7a9e7e'; g.lineWidth = 1.6; sub.forEach((p, k) => { const vx = -dx[k][0], vy = -dx[k][1], L = Math.hypot(vx, vy) + 1e-9, s = Math.min(0.45, L * 2) / L; g.beginPath(); g.moveTo(X(p[0]), Y(p[1])); g.lineTo(X(p[0] + vx * s), Y(p[1] + vy * s)); g.stroke(); }); }
+  // modes
+  let modes = '—'; if (CENTERS[dataKind]) { const C = CENTERS[dataKind], cnt = new Array(C.length).fill(0); xs.forEach(p => { let b = -1, bd = dataKind === 'ring' ? 0.35 : 0.25; C.forEach((c, k) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]); if (d < bd) { bd = d; b = k; } }); if (b >= 0) cnt[b]++; }); modes = `${cnt.filter(c => c > 0.02 * xs.length).length}/${C.length}`; }
+  $('step').textContent = step; $('modes').textContent = modes;
+  // chart
+  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H); cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(0, H / 2); cg.lineTo(W, H / 2); cg.stroke(); cg.setLineDash([]);
+  [[0, '#6889b1'], [1, '#c4654a']].forEach(([k, c]) => { cg.strokeStyle = c; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 399 * W, y = H - h[k] * H; i ? cg.lineTo(x, y) : cg.moveTo(x, y); }); cg.stroke(); });
+}
+// ── controls
+let running = true;
+const lrOf = id => Math.pow(10, +$(id).value);
+function labels() { $('lrgv').textContent = lrOf('lrg').toExponential(0); $('lrdv').textContent = lrOf('lrd').toExponential(0); $('spdv').textContent = $('spd').value; }
+['lrg', 'lrd', 'spd'].forEach(id => $(id).oninput = labels);
+$('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause' : '▶ play'; };
+$('reset').onclick = () => { reset(); draw(); };
+document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); reset(); draw(); });
+function loop() { if (running) { const n = +$('spd').value, sat = $('sat').checked; for (let i = 0; i < n; i++) gameStep(lrOf('lrg'), lrOf('lrd'), sat); draw(); } requestAnimationFrame(loop); }
+labels(); reset(); draw(); loop();
+</script>
+</body>
+</html>
