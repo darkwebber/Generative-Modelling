@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flow Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  canvas#lab { width:100%; aspect-ratio:1; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:block; cursor:crosshair; touch-action:none; }
+  .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; accent-color:var(--amber); }
+  .knobs .v { color:var(--amber); text-align:right; }
+  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  canvas#chart { width:100%; height:120px; display:block; margin-top:10px; }
+  #probe { font-family:var(--mono); font-size:13px; background:var(--elevated); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:12px; white-space:pre-wrap; min-height:110px; color:var(--stone); }
+  #probe b { color:var(--chalk); font-weight:400; }
+  ul { padding-left:18px; } li { margin:4px 0; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 06 · playground</div>
+  <h1>Flow Lab: bend space, keep the sand</h1>
+  <p class="sub">A real normalizing flow trains in your browser: a stack of affine coupling layers, each with a tiny neural network, all trained by exact maximum likelihood. Backprop is written by hand; no libraries are used. Watch the density sharpen, scrub through the layers, and click anywhere to see exactly how likely that point is.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--ink)">
+      <canvas id="lab" width="720" height="720"></canvas>
+      <div class="row" style="margin-top:12px" id="view">
+        <button data-v="dens" class="on">exact density p(x)</button><button data-v="samp">samples x = f⁻¹(z)</button><button data-v="grid">warped grid</button><button data-v="layers">layer by layer</button>
+      </div>
+      <div class="knobs" id="scrubRow" style="display:none">
+        <span>layer: data→noise</span><input id="scrub" type="range" min="0" max="8" step="0.02" value="0"><span class="v" id="scrubv"></span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="go">❚❚ pause</button><button id="reset">reset</button>
+        <span class="stat">step <b id="step">0</b> · train −log p <b id="nll">—</b> nats</span>
+      </div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the data</div>
+      <div class="row" style="margin:10px 0" id="data">
+        <button data-d="moons" class="on">two moons</button><button data-d="ring">8 blobs</button><button data-d="spiral">spiral</button><button data-d="checker">checkerboard</button>
+      </div>
+      <div class="knobs">
+        <span>coupling layers</span><input id="nl" type="range" min="1" max="12" step="1" value="8"><span class="v" id="nlv"></span>
+        <span>learning rate</span><input id="lr" type="range" min="-3.7" max="-2" step="0.1" value="-2.7"><span class="v" id="lrv"></span>
+        <span>speed (steps/frame)</span><input id="spd" type="range" min="1" max="12" step="1" value="3"><span class="v" id="spdv"></span>
+      </div>
+      <canvas id="chart" width="480" height="120"></canvas>
+      <div class="hint">training −log p(x), nats per point (lower is better); dashed: the best single Gaussian</div>
+      <div class="label" style="margin-top:14px">probe: click the picture</div>
+      <div id="probe">Click any point to see its exact log-likelihood:
+log p(x) = log N(z) + Σ s</div>
+      <div class="label" style="margin-top:18px">try this</div>
+      <ul class="hint" style="color:var(--stone);font-size:14px">
+        <li><b>1 layer</b>: a single coupling only bends one coordinate. Compare it with 2 and with 8.</li>
+        <li><b>8 blobs</b> + <i>samples</i>: look for the thin bridges. Rubber can't tear.</li>
+        <li><b>Layer by layer</b>: scrub from data to noise and watch the data become a round bell curve.</li>
+        <li>Click on the data, then out in the void, and compare log p. The gap is the whole model.</li>
+      </ul>
+    </section>
+  </div>
+  <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/flow.py</span>. Each layer is b′ = b·e^s(a) + t(a) with s, t from a 1→32→32→2 net (LeakyReLU); s is soft-clamped, s = 2·tanh(raw/2). Adam (β₁ = 0.9), batch 128.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const LOG2PI = Math.log(2 * Math.PI);
+// ── a tiny MLP with hand-written backprop (same as code/gan.py)
+class MLP {
+  constructor(sizes, lastScale = 1) { this.L = []; for (let i = 0; i < sizes.length - 1; i++) { const a = sizes[i], b = sizes[i + 1], sc = (i === sizes.length - 2 ? lastScale : 1) * Math.sqrt(2 / a), W = new Float32Array(a * b).map(() => gauss() * sc); this.L.push({ a, b, W, bb: new Float32Array(b), mW: new Float32Array(a * b), vW: new Float32Array(a * b), mb: new Float32Array(b), vb: new Float32Array(b), gW: new Float32Array(a * b), gb: new Float32Array(b) }); } this.t = 0; }
+  forward(X) {
+    this.acts = [X]; let H = X;
+    this.L.forEach((l, li) => { const out = H.map(h => { const o = Float32Array.from(l.bb); for (let i = 0; i < l.a; i++) { const hi = h[i]; if (!hi) continue; const r = i * l.b; for (let j = 0; j < l.b; j++) o[j] += hi * l.W[r + j]; } if (li < this.L.length - 1) for (let j = 0; j < l.b; j++) if (o[j] < 0) o[j] *= 0.2; return o; }); this.acts.push(out); H = out; });
+    return H; }
+  backward(D) {
+    for (let li = this.L.length - 1; li >= 0; li--) { const l = this.L[li], X = this.acts[li], Y = this.acts[li + 1];
+      if (li < this.L.length - 1) D = D.map((d, n) => d.map((v, j) => Y[n][j] > 0 ? v : 0.2 * v));
+      D.forEach((d, n) => { const x = X[n]; for (let i = 0; i < l.a; i++) { const xi = x[i]; if (!xi) continue; const r = i * l.b; for (let j = 0; j < l.b; j++) l.gW[r + j] += xi * d[j]; } for (let j = 0; j < l.b; j++) l.gb[j] += d[j]; });
+      D = D.map(d => { const o = new Float32Array(l.a); for (let i = 0; i < l.a; i++) { let s = 0; const r = i * l.b; for (let j = 0; j < l.b; j++) s += l.W[r + j] * d[j]; o[i] = s; } return o; }); }
+    return D; }
+  zero() { this.L.forEach(l => { l.gW.fill(0); l.gb.fill(0); }); }
+  step(lr) { this.t++; const b1 = 0.9, b2 = 0.999, c1 = 1 - b1 ** this.t, c2 = 1 - b2 ** this.t;
+    this.L.forEach(l => { for (const [p, g, m, v] of [[l.W, l.gW, l.mW, l.vW], [l.bb, l.gb, l.mb, l.vb]]) for (let k = 0; k < p.length; k++) { m[k] = b1 * m[k] + (1 - b1) * g[k]; v[k] = b2 * v[k] + (1 - b2) * g[k] * g[k]; p[k] -= lr * (m[k] / c1) / (Math.sqrt(v[k] / c2) + 1e-8); } }); }
+}
+// ── the flow: K affine coupling layers
+const st = raw => [2 * Math.tanh(raw[0] / 2), raw[1]];
+class Flow {
+  constructor(K) { this.nets = Array.from({ length: K }, () => new MLP([1, 32, 32, 2], 0.1)); this.masks = this.nets.map((_, k) => k % 2); }
+  forward(X, keep) { // data → noise; returns z, logdet, stages
+    let x = X.map(r => Float32Array.from(r)); const logdet = new Float32Array(x.length), stages = keep ? [x] : null; this.cache = [];
+    this.nets.forEach((net, k) => { const m = this.masks[k], raw = net.forward(x.map(r => Float32Array.of(r[m])));
+      const S = raw.map(st), b = x.map(r => r[1 - m]);
+      x = x.map((r, n) => { const o = Float32Array.from(r); o[1 - m] = r[1 - m] * Math.exp(S[n][0]) + S[n][1]; logdet[n] += S[n][0]; return o; });
+      this.cache.push({ raw, S, b, net }); if (keep) stages.push(x); });
+    return [x, logdet, stages]; }
+  inverse(Z, keep) { // noise → data
+    let z = Z.map(r => Float32Array.from(r)); const stages = keep ? [z] : null;
+    for (let k = this.nets.length - 1; k >= 0; k--) { const m = this.masks[k], S = this.nets[k].forward(z.map(r => Float32Array.of(r[m]))).map(st);
+      z = z.map((r, n) => { const o = Float32Array.from(r); o[1 - m] = (r[1 - m] - S[n][1]) * Math.exp(-S[n][0]); return o; }); if (keep) stages.push(z); }
+    return [z, stages]; }
+  logProb(X) { const [z, ld] = this.forward(X); return z.map((r, n) => -0.5 * (r[0] * r[0] + r[1] * r[1]) - LOG2PI + ld[n]); }
+}
+// training: NLL = mean(½|z|² + log 2π − Σ s), gradients by hand, layer by layer in reverse
+Flow.prototype.trainStep = function (X, lr) {
+  const N = X.length, K = this.nets.length, xs = [X.map(r => Float32Array.from(r))], cache = [];
+  for (let k = 0; k < K; k++) { const m = this.masks[k], x = xs[k], raw = this.nets[k].forward(x.map(r => Float32Array.of(r[m]))), S = raw.map(st);
+    cache.push({ raw, S, acts: this.nets[k].acts }); xs.push(x.map((r, n) => { const o = Float32Array.from(r); o[1 - m] = r[1 - m] * Math.exp(S[n][0]) + S[n][1]; return o; })); }
+  const z = xs[K]; let loss = 0; z.forEach((r, n) => { loss += 0.5 * (r[0] * r[0] + r[1] * r[1]) + LOG2PI; cache.forEach(c => loss -= c.S[n][0]); }); loss /= N;
+  let dx = z.map(r => Float32Array.of(r[0] / N, r[1] / N));
+  for (let k = K - 1; k >= 0; k--) { const m = this.masks[k], { raw, S, acts } = cache[k], x = xs[k], net = this.nets[k];
+    const draw = x.map((r, n) => { const es = Math.exp(S[n][0]), dnb = dx[n][1 - m], ds = dnb * r[1 - m] * es - 1 / N, th = Math.tanh(raw[n][0] / 2); return Float32Array.of(ds * (1 - th * th), dnb); });
+    net.acts = acts; net.zero(); const da = net.backward(draw); net.step(lr);
+    dx = dx.map((d, n) => { const o = new Float32Array(2); o[1 - m] = d[1 - m] * Math.exp(S[n][0]); o[m] = d[m] + da[n][0]; return o; }); }
+  return loss; };
+// ── data sets
+let dataKind = 'moons';
+function batch(n) { const out = [];
+  for (let i = 0; i < n; i++) {
+    if (dataKind === 'moons') { const th = Math.PI * rnd(), up = rnd() < 0.5; out.push(Float32Array.of(((up ? Math.cos(th) - 0.5 : 0.5 - Math.cos(th)) + 0.053 * gauss()) * 1.5, ((up ? Math.sin(th) - 0.25 : 0.25 - Math.sin(th)) + 0.053 * gauss()) * 1.5)); }
+    else if (dataKind === 'ring') { const a = Math.floor(rnd() * 8) * Math.PI / 4; out.push(Float32Array.of(2 * Math.cos(a) + 0.12 * gauss(), 2 * Math.sin(a) + 0.12 * gauss())); }
+    else if (dataKind === 'spiral') { const r = Math.sqrt(rnd()) * 2.7, th = r * 3.0; out.push(Float32Array.of(r * Math.cos(th) + 0.08 * gauss(), r * Math.sin(th) + 0.08 * gauss())); }
+    else { const i = Math.floor(rnd() * 4), j = Math.floor(rnd() * 4); if ((i + j) % 2) { n++; continue; } out.push(Float32Array.of(-2 + i + rnd(), -2 + j + rnd())); } }
+  return out; }
+function gaussBaseline() { const x = batch(4000), N = x.length; let mx = 0, my = 0; x.forEach(p => { mx += p[0]; my += p[1]; }); mx /= N; my /= N;
+  let a = 0, b = 0, c = 0; x.forEach(p => { const u = p[0] - mx, v = p[1] - my; a += u * u; b += u * v; c += v * v; }); a /= N; b /= N; c /= N; return 1 + LOG2PI + 0.5 * Math.log(a * c - b * b); }
+// ── state
+let flow, step, hist, zShow, xShow, gridLines, gBase, ema, densC, densAge;
+const GN = 17, GM = 48;
+function reset() { seed = 7; flow = new Flow(+$('nl').value); step = 0; hist = []; ema = null; gBase = gaussBaseline();
+  zShow = Array.from({ length: 700 }, () => Float32Array.of(gauss(), gauss())); xShow = batch(600);
+  gridLines = []; for (let l = 0; l < GN; l++) { const v = -2.8 + 5.6 * l / (GN - 1); const a = [], b = []; for (let k = 0; k < GM; k++) { const t = -2.8 + 5.6 * k / (GM - 1); a.push(Float32Array.of(v, t)); b.push(Float32Array.of(t, v)); } gridLines.push(a, b); }
+  densAge = 1e9; $('scrub').max = flow.nets.length; }
+// ── drawing
+const cv = $('lab'), g = cv.getContext('2d'), S = 720, R = 3.5, X = v => (v + R) / (2 * R) * S, Y = v => (R - v) / (2 * R) * S;
+const DN = 72, dCanvas = document.createElement('canvas'); dCanvas.width = dCanvas.height = DN;
+const dGrid = []; for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) dGrid.push(Float32Array.of(-R + (i + 0.5) / DN * 2 * R, R - (j + 0.5) / DN * 2 * R));
+let view = 'dens', probe = null;
+function paintDensity() { const lp = flow.logProb(dGrid), p = lp.map(Math.exp), mx = Math.max(...p) || 1, dg = dCanvas.getContext('2d'), img = dg.createImageData(DN, DN);
+  p.forEach((v, k) => { img.data[k * 4] = 104; img.data[k * 4 + 1] = 137; img.data[k * 4 + 2] = 177; img.data[k * 4 + 3] = Math.round(Math.sqrt(v / mx) * 235); }); dg.putImageData(img, 0, 0); densAge = 0; }
+const dot = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(X(x), Y(y), r, 0, 7); g.fill(); };
+function draw() {
+  g.fillStyle = '#1c1816'; g.fillRect(0, 0, S, S);
+  if (view === 'dens') { if (densAge++ > 8 || !running) paintDensity(); g.imageSmoothingEnabled = true; g.drawImage(dCanvas, 0, 0, S, S); }
+  if (view === 'samp') { batch(400).forEach(p => dot(p[0], p[1], 1.5, 'rgba(237,230,219,0.28)')); flow.inverse(zShow)[0].forEach(p => dot(p[0], p[1], 2.3, '#c4654a')); }
+  if (view === 'grid') { const flat = gridLines.flat(), [x] = flow.inverse(flat); g.strokeStyle = 'rgba(168,159,151,0.7)'; g.lineWidth = 1.1;
+    for (let l = 0; l < gridLines.length; l++) { g.beginPath(); for (let k = 0; k < GM; k++) { const p = x[l * GM + k]; k ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1])); } g.stroke(); } }
+  if (view === 'layers') { const f = +$('scrub').value, [, , stg] = flow.forward(xShow, true), i = Math.floor(f), j = Math.min(stg.length - 1, i + 1), u = f - i;
+    g.strokeStyle = 'rgba(107,99,96,0.6)'; g.setLineDash([4, 6]); g.beginPath(); g.arc(X(0), Y(0), 2 / (2 * R) * S, 0, 7); g.stroke(); g.setLineDash([]);
+    stg[i].forEach((p, n) => { const q = stg[j][n]; dot(p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u, 2.3, f / flow.nets.length > 0.5 ? '#b5707e' : '#c4654a'); });
+    $('scrubv').textContent = `${f.toFixed(1)} / ${flow.nets.length}`; }
+  if (probe && view !== 'layers') { g.strokeStyle = '#d4a853'; g.lineWidth = 2; g.beginPath(); g.arc(X(probe[0]), Y(probe[1]), 9, 0, 7); g.stroke(); showProbe(); }
+  $('step').textContent = step; $('nll').textContent = ema === null ? '—' : ema.toFixed(2);
+  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H);
+  if (hist.length > 1) { const lo = Math.min(...hist, gBase) - 0.1, hi = Math.max(gBase + 1, Math.min(Math.max(...hist), gBase + 3)), yy = v => H - (Math.min(v, hi) - lo) / (hi - lo) * (H - 8) - 4;
+    cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(0, yy(gBase)); cg.lineTo(W, yy(gBase)); cg.stroke(); cg.setLineDash([]);
+    cg.strokeStyle = '#8b7bb5'; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 399 * W; i ? cg.lineTo(x, yy(h)) : cg.moveTo(x, yy(h)); }); cg.stroke(); }
+}
+function showProbe() { const [z, ld] = flow.forward([Float32Array.from(probe)]), lN = -0.5 * (z[0][0] ** 2 + z[0][1] ** 2) - LOG2PI, lp = lN + ld[0];
+  $('probe').innerHTML = `x = (<b>${probe[0].toFixed(2)}, ${probe[1].toFixed(2)}</b>)  →  z = (<b>${z[0][0].toFixed(2)}, ${z[0][1].toFixed(2)}</b>)\nlog N(z)      = <b>${lN.toFixed(2)}</b>\nΣ s (stretch) = <b>${(ld[0] >= 0 ? '+' : '') + ld[0].toFixed(2)}</b>\nlog p(x)      = <b style="color:var(--amber)">${lp.toFixed(2)}</b>   (p = ${Math.exp(lp).toExponential(2)})`; }
+// ── controls
+let running = true;
+function labels() { $('nlv').textContent = $('nl').value; $('lrv').textContent = Math.pow(10, +$('lr').value).toExponential(0); $('spdv').textContent = $('spd').value; }
+['lr', 'spd'].forEach(id => $(id).oninput = labels);
+$('nl').oninput = () => { labels(); reset(); draw(); };
+$('scrub').oninput = () => draw();
+$('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause' : '▶ play'; draw(); };
+$('reset').onclick = () => { reset(); draw(); };
+document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); probe = null; reset(); draw(); });
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; document.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); $('scrubRow').style.display = view === 'layers' ? '' : 'none'; densAge = 1e9; draw(); });
+cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); probe = [((e.clientX - r.left) / r.width) * 2 * R - R, R - ((e.clientY - r.top) / r.height) * 2 * R]; draw(); });
+function loop() { if (running) { const n = +$('spd').value, lr = Math.pow(10, +$('lr').value);
+    for (let i = 0; i < n; i++) { const l = flow.trainStep(batch(128), lr); ema = ema === null ? l : 0.97 * ema + 0.03 * l; step++; if (step % 10 === 0) { hist.push(ema); if (hist.length > 400) hist.shift(); } }
+    draw(); } requestAnimationFrame(loop); }
+labels(); reset(); draw(); loop();
+</script>
+</body>
+</html>

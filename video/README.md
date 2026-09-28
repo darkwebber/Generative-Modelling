@@ -116,6 +116,28 @@ scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
 | 10 | Build it | the game in numpy + recap | — |
 | 11 | Hook → flows | GANs can't answer "how likely?"; an invertible warp could | p(x) = p(z)\|det ∂z/∂x\| → *Episode 06: normalizing flows* |
 
+## Episode 06 — Normalizing flows (~7:50)
+
+`ep06-flows.html` · playground: `flow-lab.html` · code: `../code/flow.py`
+
+Built from `src/ep06-scenes.js` (`python src/build_ep06.py`). Every flow on screen is a real
+RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
+the layer-by-layer positions, warped grids and density maps are its actual outputs.
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | noise → moons, then run backwards: every point comes home | — |
+| 01 | Probability is sand | 1-D: a slice dz holds p(z)dz; after the bend it sits in dx | p(x) = p(z)·\|dz/dx\| |
+| 02 | Stretch is a determinant | unit square → parallelogram; real warped grid; the D³ cost | p(x) = p(z)·\|det ∂z/∂x\| |
+| 03 | The coupling trick | keep a, transform b; triangular Jacobian; free inverse; stacking | b′ = b·e^s(a) + t(a), log\|det\| = s(a) |
+| 04 | Exact maximum likelihood | worked on-data vs off-data example; real training curve | log p(x) = log N(f(x)) + Σ sₖ |
+| 05 | Layer by layer | the trained 8-layer flow, forwards and inverse, with its grid | — |
+| 06 | Exact density | the model's p(x) everywhere; 8 layers vs 2 | ∫p = 1 by construction |
+| 07 | The catch | 8 blobs → bridges (rubber can't tear); no compression; shackled layers | — |
+| 08 | Continuous flows | infinitely many thin layers; teaser for episode 10 | d log p/dt = −tr(∂v/∂x) |
+| 09 | Build it | a coupling layer in numpy + recap | — |
+| 10 | Hook → EBMs | throw away the shackles: any network as an energy | p(x) = e^−E(x) / Z → *Episode 07: energy-based models* |
+
 ## Series roadmap
 
 | # | Episode | Question it answers | Hook into the next |
@@ -149,6 +171,7 @@ WORKERS=4 node render.mjs ep02-autoregressive.html 30 ep02-autoregressive.mp4
 WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp4
 WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
+WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section

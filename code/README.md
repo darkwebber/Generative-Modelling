@@ -6,6 +6,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 - **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
 - **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)
 - **Episode 05 · GANs:** `gan.py` (numpy; 2-D rings and MNIST)
+- **Episode 06 · normalizing flows:** `flow.py` (numpy; RealNVP-style couplings in 2-D)
 
 ## Episode 02 — autoregressive generation
 
@@ -157,4 +158,35 @@ game          min_G max_D  E_data[log D(x)] + E_z[log(1 − D(G(z)))]
 perfect judge D*(x) = p_data(x) / (p_data(x) + p_g(x))
 G minimises   V(G, D*) = −log 4 + 2·JSD(p_data ‖ p_g)
 in practice   min_G −log D(G(z))      (non-saturating: strong gradients when fakes are bad)
+```
+
+## Episode 06 — normalizing flows
+
+| file | what it is |
+|------|------------|
+| `flow.py` | a RealNVP-style flow: affine coupling layers (s, t from small MLPs), forward and inverse, exact log-likelihood, and the full backward pass by hand (checked numerically) |
+| `export_ep06_assets.py` | trains the flows shown in the video (moons 8 and 2 layers, 8 blobs) → `../video/ep06-assets.js` |
+| `../video/flow-lab.html` | a flow training live in the browser: density, samples, warped grid, a layer scrubber, and a click-to-probe log p(x) |
+
+```bash
+python flow.py --check                                   # gradients vs numerical; inverse error
+python flow.py --plot                                    # two moons, 8 layers (≈ 1 min)
+python flow.py --layers 2 --plot                         # too shallow to bend the moons
+python flow.py --data ring --steps 12000 --seed 1 --plot # 8 blobs, joined by thin bridges
+```
+
+Held-out −log p(x) of the flows in the video, in nats per point (lower is better) — exact, not a bound:
+
+```
+                      flow    best single Gaussian
+two moons, 8 layers   1.19          2.70
+two moons, 2 layers   1.50          2.70
+8 blobs,   8 layers   1.00          3.54      (a perfect model would score ≈ 0.68)
+```
+
+```
+change of variables   p(x) = p(z) · |det ∂z/∂x|,   z = f(x)
+coupling layer        a′ = a,   b′ = b·e^s(a) + t(a)    →   log|det| = s(a)   (triangular Jacobian)
+inverse               b = (b′ − t(a))·e^−s(a)            (s, t never need inverting)
+training              min  E_x[ ½|f(x)|² + log 2π − Σₖ sₖ(x) ]
 ```
