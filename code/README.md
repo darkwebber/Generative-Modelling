@@ -5,6 +5,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 - **Episode 02 · autoregressive:** `ar_counting.py` (pure Python), `ar_neural.py` (numpy)
 - **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
 - **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)
+- **Episode 05 · GANs:** `gan.py` (numpy; 2-D rings and MNIST)
 
 ## Episode 02 — autoregressive generation
 
@@ -123,3 +124,37 @@ likelihood  a 1%-good / 99%-noise mixture loses only log 100 ≈ 4.6 nats
 One practical gotcha we hit: MNIST's test set is ordered (its two halves were written by
 different groups of people), so always shuffle before splitting "real vs real", or even
 real data looks distinguishable from itself.
+
+## Episode 05 — GANs
+
+| file | what it is |
+|------|------------|
+| `gan.py` | a tiny MLP class with hand-written backprop (checked numerically), the GAN game step (original and non-saturating losses), a 2-D ring-of-Gaussians trainer that tracks modes found, and an MNIST GAN |
+| `export_ep05_assets.py` | trains the runs shown in the video and scores the MNIST GAN with episode 04's judges → `../video/ep05-assets.js` |
+| `../video/gan-arena.html` | a GAN training live in the browser; change the learning rates and cause mode collapse yourself |
+
+```bash
+python gan.py --check                              # hand-written gradients vs numerical ones
+python gan.py --data ring --plot                   # finds the 8 blobs (≈ 5k steps, seconds)
+python gan.py --data ring --lr-g 3e-3 --lr-d 1e-4  # fast forger, slow judge: modes go missing and hop
+python gan.py --data mnist --epochs 40 --plot      # ≈ 17 s per epoch on a laptop CPU
+```
+
+What the video's MNIST GAN scores with episode 04's judges (2,000 samples):
+
+```
+          FID ↓   precision ↑   recall ↑   IS ↑    C2ST → 50%   NN-train
+GAN        21.3       76%          77%      6.59       65%         4.82
+VAE        51.9       95%          <1%      6.45       91%         4.38
+real        0.9       88%          88%      9.52       50%         4.28
+```
+
+The GAN trades a little precision for an enormous gain in recall (diversity) over the VAE,
+and it is not copying (its nearest training image is as far away as a real unseen digit's).
+
+```
+game          min_G max_D  E_data[log D(x)] + E_z[log(1 − D(G(z)))]
+perfect judge D*(x) = p_data(x) / (p_data(x) + p_g(x))
+G minimises   V(G, D*) = −log 4 + 2·JSD(p_data ‖ p_g)
+in practice   min_G −log D(G(z))      (non-saturating: strong gradients when fakes are bad)
+```
