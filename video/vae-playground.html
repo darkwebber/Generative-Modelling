@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Latent Space Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1120px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0 0 24px; max-width:760px; }
+  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .wide { grid-column: 1 / -1; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:8px 14px; font-family:var(--mono); font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  button.on { border-color:var(--rose); color:var(--rose); }
+  canvas { display:block; border-radius:10px; }
+  #map { width:100%; aspect-ratio:1; background:var(--canvas); border:1px solid var(--border); cursor:crosshair; touch-action:none; }
+  #out { width:100%; max-width:320px; aspect-ratio:1; image-rendering:pixelated; background:var(--elevated); margin:0 auto; }
+  #pad { width:100%; max-width:280px; aspect-ratio:1; background:#000; image-rendering:pixelated; cursor:crosshair; touch-action:none; border:1px solid var(--border-light); }
+  #recon { width:100%; max-width:280px; aspect-ratio:1; image-rendering:pixelated; background:var(--elevated); }
+  .mono { font-family:var(--mono); }
+  .readout { font-family:var(--mono); font-size:14px; color:var(--stone); margin-top:10px; text-align:center; }
+  .rose { color:var(--rose); } .amber { color:var(--amber); } .dust { color:var(--dust); } .sage { color:var(--sage); } .terra { color:var(--terracotta); }
+  .strip { display:grid; grid-template-columns:repeat(10, 1fr); gap:6px; margin-top:12px; }
+  .strip canvas { width:100%; aspect-ratio:1; image-rendering:pixelated; background:var(--elevated); }
+  .pair { display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
+  .cap { font-family:var(--mono); font-size:12px; color:var(--dust); text-align:center; margin-top:6px; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 03 · playground</div>
+  <h1>Walk around inside a latent space</h1>
+  <p class="sub">These are the real networks from the video: an autoencoder and a VAE, each squeezing MNIST digits through just <b>2 numbers</b>. Everything runs in your browser.</p>
+
+  <div class="row" style="margin-bottom:16px">
+    <span class="mono dust">model</span>
+    <button id="mVAE" class="on">VAE</button>
+    <button id="mAE">autoencoder</button>
+    <span class="mono dust" id="mnote"></span>
+  </div>
+
+  <div class="grid">
+    <section class="card" style="--accent:var(--rose)">
+      <div class="label">1 · the latent map</div>
+      <p class="hint">Each small numeral is a test digit, placed at its code z. Drag anywhere, including the empty gaps, and the decoder draws what that point means.</p>
+      <canvas id="map" width="720" height="720"></canvas>
+    </section>
+    <section class="card" style="--accent:var(--plum)">
+      <div class="label">2 · decode(z)</div>
+      <p class="hint">What the decoder draws at the point you picked.</p>
+      <canvas id="out" width="28" height="28"></canvas>
+      <div class="readout">z = (<span class="rose" id="z1">0.00</span>, <span class="rose" id="z2">0.00</span>)</div>
+      <div class="row" style="justify-content:center;margin-top:14px">
+        <button id="sample">sample z ~ N(0, I)</button>
+        <button id="walk">walk ▸</button>
+      </div>
+      <p class="hint" id="sampleNote" style="text-align:center;margin-top:12px"></p>
+    </section>
+
+    <section class="card wide" style="--accent:var(--terracotta)">
+      <div class="label">3 · draw a digit, watch it get encoded</div>
+      <p class="hint">Draw in the black box. The encoder maps your drawing to a point on the map (the chalk ring; for the VAE, the dashed ellipse is its cloud, ±2σ), and the decoder rebuilds it from those 2 numbers.</p>
+      <div class="pair">
+        <div><canvas id="pad" width="28" height="28"></canvas><div class="cap">your drawing (x)</div></div>
+        <div><canvas id="recon" width="28" height="28"></canvas><div class="cap">rebuilt from 2 numbers (x̂)</div></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button id="clear">clear</button><span class="mono dust" id="encinfo"></span></div>
+    </section>
+
+    <section class="card wide" style="--accent:var(--sage)">
+      <div class="label">4 · interpolate</div>
+      <p class="hint">A straight line through latent space between two test digits, decoded at 10 steps. Try it with both models: the VAE's path stays on plausible digits.</p>
+      <div class="row"><button id="interp">new pair</button><span class="mono dust" id="interpinfo"></span></div>
+      <div class="strip" id="strip"></div>
+    </section>
+  </div>
+  <footer>Train these yourself: <span class="mono">python code/vae.py --model vae --plot</span> · weights exported by <span class="mono">code/export_ep03_assets.py</span>.</footer>
+</main>
+<script src="ep03-assets.js"></script>
+<script>
+const A = window.EP3, $ = id => document.getElementById(id);
+const COL = { terracotta: [196, 101, 74], rose: '#b5707e', chalk: '#ede6db', ink: '#6889b1', border: '#3a3432' };
+function b64bytes(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function f16(o) { const u = b64bytes(o.f16), dv = new DataView(u.buffer), n = u.length / 2, out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const h = dv.getUint16(i * 2, true), s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, f = h & 1023; out[i] = e === 0 ? s * 2 ** -14 * (f / 1024) : e === 31 ? s * 65504 : s * 2 ** (e - 15) * (1 + f / 1024); }
+  return { a: out, shape: o.shape }; }
+const net = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, f16(v)]));
+function dense(x, W, b, act) { const [nin, nout] = W.shape, y = new Float32Array(nout); y.set(b.a);
+  for (let i = 0; i < nin; i++) { const xi = x[i]; if (!xi) continue; const r = i * nout; for (let j = 0; j < nout; j++) y[j] += xi * W.a[r + j]; }
+  if (act === 'relu') for (let j = 0; j < nout; j++) y[j] = Math.max(0, y[j]); if (act === 'sig') for (let j = 0; j < nout; j++) y[j] = 1 / (1 + Math.exp(-y[j])); return y; }
+const NETS = { vae: net(A.vae), ae: net(A.ae) };
+const decode = (m, z) => dense(dense(z, NETS[m].W3, NETS[m].b3, 'relu'), NETS[m].W4, NETS[m].b4, 'sig');
+function encode(m, x) { const P = NETS[m], h = dense(x, P.W1, P.b1, 'relu'); return m === 'ae' ? { mu: dense(h, P.Wz, P.bz), sig: null } : { mu: dense(h, P.Wmu, P.bmu), sig: Array.from(dense(h, P.Wlv, P.blv), v => Math.exp(v / 2)) }; }
+const TEST = (() => { const u = b64bytes(A.test), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; })();
+function paint(cv, vals) { const g = cv.getContext('2d'), d = g.createImageData(28, 28); for (let i = 0; i < 784; i++) { d.data[i * 4] = COL.terracotta[0]; d.data[i * 4 + 1] = COL.terracotta[1]; d.data[i * 4 + 2] = COL.terracotta[2]; d.data[i * 4 + 3] = Math.round(Math.min(1, Math.max(0, vals[i])) * 255); } g.clearRect(0, 0, 28, 28); g.putImageData(d, 0, 0); }
+
+// ── model + map
+let model = 'vae', z = [0, 0], enc = null;
+const Zs = { vae: A.zVAE, ae: A.zAE };
+function boundsOf(Z) { const q = (arr, f) => arr[Math.floor(f * (arr.length - 1))]; const xs = Z.map(p => p[0]).sort((a, b) => a - b), ys = Z.map(p => p[1]).sort((a, b) => a - b); return [q(xs, .005), q(xs, .995), q(ys, .005), q(ys, .995)]; }
+const B = { vae: [-3.2, 3.2, -3.2, 3.2], ae: (() => { const b = boundsOf(A.zAE), px = (b[1] - b[0]) * .08, py = (b[3] - b[2]) * .08; return [b[0] - px, b[1] + px, b[2] - py, b[3] + py]; })() };
+const map = $('map'), mg = map.getContext('2d'), S = 720;
+function M() { const b = B[model], s = Math.min(S / (b[1] - b[0]), S / (b[3] - b[2])), mx = (b[0] + b[1]) / 2, my = (b[2] + b[3]) / 2; return { X: v => S / 2 + (v - mx) * s, Y: v => S / 2 - (v - my) * s, inv: (px, py) => [(px - S / 2) / s + mx, -(py - S / 2) / s + my], s }; }
+const base = {};
+function baseLayer() { if (base[model]) return base[model]; const c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), m = M();
+  if (model === 'vae') { g.strokeStyle = COL.ink; g.globalAlpha = .6; g.setLineDash([6, 6]); [1, 2].forEach(k => { g.beginPath(); g.arc(m.X(0), m.Y(0), k * m.s, 0, 7); g.stroke(); }); g.setLineDash([]); }
+  g.globalAlpha = 1; g.strokeStyle = COL.border; g.beginPath(); g.moveTo(0, m.Y(0)); g.lineTo(S, m.Y(0)); g.moveTo(m.X(0), 0); g.lineTo(m.X(0), S); g.stroke();
+  g.font = "13px 'JetBrains Mono', monospace"; g.textAlign = 'center'; g.fillStyle = COL.rose; g.globalAlpha = .7;
+  Zs[model].forEach((p, i) => g.fillText(String(A.labels[i]), m.X(p[0]), m.Y(p[1]) + 4));
+  return (base[model] = c); }
+function drawMap() { const m = M(); mg.clearRect(0, 0, S, S); mg.drawImage(baseLayer(), 0, 0);
+  if (enc) { mg.globalAlpha = 1; mg.strokeStyle = COL.chalk; mg.lineWidth = 2; mg.beginPath(); mg.arc(m.X(enc.mu[0]), m.Y(enc.mu[1]), 12, 0, 7); mg.stroke();
+    if (enc.sig) { mg.setLineDash([5, 5]); mg.beginPath(); mg.ellipse(m.X(enc.mu[0]), m.Y(enc.mu[1]), 2 * enc.sig[0] * m.s, 2 * enc.sig[1] * m.s, 0, 0, 7); mg.stroke(); mg.setLineDash([]); } }
+  mg.fillStyle = COL.chalk; mg.shadowColor = COL.rose; mg.shadowBlur = 14; mg.beginPath(); mg.arc(m.X(z[0]), m.Y(z[1]), 7, 0, 7); mg.fill(); mg.shadowBlur = 0; }
+function setZ(nz) { z = nz; paint($('out'), decode(model, z)); $('z1').textContent = z[0].toFixed(2); $('z2').textContent = z[1].toFixed(2); drawMap(); }
+function pick(e) { const r = map.getBoundingClientRect(); setZ(M().inv((e.clientX - r.left) / r.width * S, (e.clientY - r.top) / r.height * S)); }
+let dragging = false;
+map.addEventListener('pointerdown', e => { dragging = true; map.setPointerCapture(e.pointerId); pick(e); });
+map.addEventListener('pointermove', e => { if (dragging) pick(e); });
+map.addEventListener('pointerup', () => dragging = false);
+function setModel(m) { model = m; $('mVAE').classList.toggle('on', m === 'vae'); $('mAE').classList.toggle('on', m === 'ae');
+  $('mnote').textContent = m === 'vae' ? 'codes packed into N(0, I): sample anywhere' : 'codes sprawl at arbitrary scale: gaps everywhere';
+  $('sampleNote').textContent = m === 'vae' ? 'For the VAE, N(0, I) is exactly the shape we trained the codes to fill.' : 'The autoencoder never asked for N(0, I): its codes live elsewhere, so these samples often miss the data.';
+  encodePad(); setZ(m === 'vae' ? [0, 0] : [(B.ae[0] + B.ae[1]) / 2, (B.ae[2] + B.ae[3]) / 2]); interp(); }
+$('mVAE').onclick = () => setModel('vae'); $('mAE').onclick = () => setModel('ae');
+const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+$('sample').onclick = () => setZ([gauss(), gauss()]);
+let walking = null;
+$('walk').onclick = () => { if (walking) { cancelAnimationFrame(walking); walking = null; $('walk').textContent = 'walk ▸'; return; }
+  $('walk').textContent = 'stop ■'; const t0 = performance.now(), b = B[model], cx = (b[0] + b[1]) / 2, cy = (b[2] + b[3]) / 2, rx = (b[1] - b[0]) * .32, ry = (b[3] - b[2]) * .32;
+  const step = now => { const t = (now - t0) / 1000; setZ([cx + rx * Math.sin(.5 * t), cy + ry * Math.sin(.71 * t + 1)]); walking = requestAnimationFrame(step); }; walking = requestAnimationFrame(step); };
+
+// ── draw pad
+const pad = $('pad'), pg = pad.getContext('2d'); let px = new Float32Array(784), drawing = false;
+function brush(e) { const r = pad.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width * 28, cy = (e.clientY - r.top) / r.height * 28;
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + .5 - cx, y + .5 - cy); if (d < 2) px[y * 28 + x] = Math.min(1, px[y * 28 + x] + (d < 1 ? 1 : .35)); }
+  const d = pg.createImageData(28, 28); for (let i = 0; i < 784; i++) { const v = Math.round(px[i] * 255); d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v; d.data[i * 4 + 3] = 255; } pg.putImageData(d, 0, 0); }
+function encodePad() { if (!px.some(v => v > 0)) { enc = null; $('encinfo').textContent = 'draw something…'; paint($('recon'), new Float32Array(784)); drawMap(); return; }
+  enc = encode(model, px); paint($('recon'), decode(model, enc.mu));
+  $('encinfo').innerHTML = `encoded to z = (${enc.mu[0].toFixed(2)}, ${enc.mu[1].toFixed(2)})` + (enc.sig ? `  ·  σ = (${enc.sig[0].toFixed(2)}, ${enc.sig[1].toFixed(2)})` : ''); drawMap(); }
+pad.addEventListener('pointerdown', e => { drawing = true; pad.setPointerCapture(e.pointerId); brush(e); });
+pad.addEventListener('pointermove', e => { if (drawing) brush(e); });
+pad.addEventListener('pointerup', () => { drawing = false; encodePad(); });
+$('clear').onclick = () => { px = new Float32Array(784); pg.fillStyle = '#000'; pg.fillRect(0, 0, 28, 28); encodePad(); };
+
+// ── interpolation
+const strip = $('strip'); const cells = Array.from({ length: 10 }, () => { const c = document.createElement('canvas'); c.width = c.height = 28; strip.appendChild(c); return c; });
+let pair = [3, 18];
+function interp() { const a = encode(model, TEST[pair[0]]).mu, b = encode(model, TEST[pair[1]]).mu;
+  cells.forEach((c, k) => { const s = k / 9; paint(c, decode(model, [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s])); });
+  $('interpinfo').textContent = `from a ${A.testLabels[pair[0]]} to a ${A.testLabels[pair[1]]}`; }
+$('interp').onclick = () => { let i, j; do { i = Math.floor(Math.random() * TEST.length); j = Math.floor(Math.random() * TEST.length); } while (A.testLabels[i] === A.testLabels[j]); pair = [i, j]; interp(); };
+
+$('clear').onclick(); setModel('vae');
+</script>
+</body>
+</html>

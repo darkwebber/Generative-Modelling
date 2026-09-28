@@ -47,6 +47,29 @@ noise/dice, plum = models, sage = insight).
 Every number in the counting scenes (tables, samples, "copied" tags, seen-context counts,
 the "emma" surprise bars) is computed live from the bundled `names.js` dataset.
 
+## Episode 03 — Autoencoders & VAEs (~8:42)
+
+`ep03-autoencoders-vae.html` · playground: `vae-playground.html` · code: `../code/vae.py`
+
+Built from `src/ep03-scenes.js` + the shared engine: `python src/build_ep03.py`. Every image,
+latent map, sample and interpolation is decoded live in the browser from the **real trained
+networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | a digit morphs as two numbers move — "how can 2 numbers hold a picture?" | — |
+| 01 | The compression game | "a seven, leaning right": meaning compresses; real data is a thin sliver | 784 → 2 |
+| 02 | The autoencoder | encoder → 2-number keyhole → decoder; real rebuilds (and honest mistakes) | z = f(x), x̂ = g(z), BCE |
+| 03 | Inside the latent space | 2,500 codes cluster by digit without labels; a probe decodes as it walks | map of meaning |
+| 04 | Holes in the map | random codes decode to hybrids/smudges; arbitrary scale, no shape | why AEs don't generate |
+| 05 | Fuzzy codes on a leash | points → clouds; the cheat (σ → 0); the KL leash packs them into N(0, I) | q(z\|x) = N(μ, σ²) |
+| 06 | The math | two terms, closed-form KL with its minima, log p(x) = log ∫…, ELBO floor, real numbers | KL = ½Σ(μ²+σ²−log σ²−1), ELBO |
+| 07 | Reparameterisation | gradients blocked by a dice roll → moved aside | z = μ + σ·ε, ∂z/∂μ = 1, ∂z/∂σ = ε |
+| 08 | A map you can sample from | AE vs VAE maps, 13×13 decoded grid, fresh samples, interpolation | z ~ N(0, I) → g(z) |
+| 09 | The catch | blur = averaging plausible options; the β tug-of-war | argmin E‖x−x̂‖² = E[x] |
+| 10 | Build it | the VAE in a dozen numpy lines + recap | — |
+| 11 | Hook → evals | three models: blurry, a photocopier, a one-trick pony — every metric can be fooled | → *Episode 04: evaluation*, then GANs |
+
 ## Watch / scrub
 
 Open any episode `.html` in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
@@ -61,6 +84,7 @@ cd video
 ./fetch-fonts.sh                               # cache the Google Fonts locally (once)
 WORKERS=4 node render.mjs generative-modelling.html 30 generative-modelling.mp4
 WORKERS=4 node render.mjs ep02-autoregressive.html 30 ep02-autoregressive.mp4
+WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section

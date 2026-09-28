@@ -1,7 +1,11 @@
-# Episode 02 code — autoregressive generation, by hand
+# Code for the series — every model, by hand
 
-Everything from the video, runnable. Start with counting, then replace the table with a
-neural network. Only the neural version needs a dependency (`pip install numpy`).
+Everything from the videos, runnable, with backprop written out by hand so nothing is hidden.
+
+- **Episode 02 · autoregressive:** `ar_counting.py` (pure Python), `ar_neural.py` (numpy)
+- **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
+
+## Episode 02 — autoregressive generation
 
 | file | what it is |
 |------|------------|
@@ -50,3 +54,32 @@ Counting with add-α smoothing is the maximum-likelihood solution for the table;
 longer contexts `ar_counting.py` blends in shorter ones
 (`p_k = (N_k + β·p_{k−1}) / (N_k,total + β)`), so rare contexts lean on what the model
 knows about shorter ones.
+
+## Episode 03 — autoencoders & VAEs
+
+| file | what it is |
+|------|------------|
+| `vae.py` | an autoencoder **and** a VAE on MNIST (784 → 256 → 2 → 256 → 784) in numpy, every gradient written by hand, plus a gradient checker. ~5 s per epoch on a laptop CPU |
+| `export_ep03_assets.py` | trains both (30 epochs) and exports weights + latent codes to `../video/ep03-assets.js` for the video and playground |
+| `../video/vae-playground.html` | drag through the latent map, draw a digit and watch it get encoded, sample, interpolate |
+
+```bash
+python vae.py --check                     # every hand-written gradient vs a numerical one
+python vae.py --model ae --plot           # autoencoder: gappy, sprawling latent map
+python vae.py --model vae --plot          # VAE: packed N(0, I) map, grid of decodes, fresh samples
+python vae.py --model vae --beta 4 --plot # a tighter leash: tidier map, blurrier digits
+python vae.py --model vae --beta 0.1      # a looser one: sharper, but the map gets holes
+```
+
+What you should see (30 epochs, held-out digits, nats per image): the AE rebuilds at ≈ 144;
+the VAE at ≈ 144.5 reconstruction + ≈ 6.1 KL — almost the same rebuild quality, but a latent
+space you can actually sample from.
+
+```
+autoencoder   z = f_φ(x),  x̂ = g_θ(z),  L = Σ_pixels BCE(x, x̂)
+VAE encoder   q_φ(z|x) = N(μ(x), σ²(x))
+VAE loss      L = E_q[−log p_θ(x|z)] + β·KL(q_φ(z|x) ‖ N(0, I)),   KL = ½ Σ (μ² + σ² − log σ² − 1)
+trick         z = μ + σ·ε,  ε ~ N(0, I)          ⇒  gradients flow through μ and σ
+bound         log p_θ(x) ≥ −L   (the ELBO, for β = 1)
+generate      z ~ N(0, I)  →  x = g_θ(z)
+```
