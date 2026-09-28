@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autoregressive Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1120px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  h2 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:22px; margin:0 0 4px; }
+  .sub { margin:0 0 28px; max-width:720px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px 18px 16px; min-width:0; }
+  .wide { grid-column: 1 / -1; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:8px 14px; font-family:var(--mono); font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  input[type=range] { accent-color:var(--amber); width:160px; }
+  input[type=text], textarea { background:var(--canvas); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-family:var(--mono); font-size:14px; width:100%; }
+  textarea { min-height:90px; resize:vertical; }
+  .knob { font-family:var(--mono); font-size:13px; color:var(--amber); display:flex; align-items:center; gap:8px; }
+  .tiles { display:flex; flex-wrap:wrap; gap:6px; min-height:52px; margin:12px 0; }
+  .tile { width:44px; height:48px; border-radius:9px; display:grid; place-items:center; font-family:var(--mono); font-size:24px; color:var(--chalk);
+    background:color-mix(in srgb, var(--terracotta) 12%, transparent); border:1.5px solid color-mix(in srgb, var(--terracotta) 65%, transparent); animation:enter .35s ease-out; }
+  .tile.dot { color:var(--dust); }
+  .tile.cursor { border-style:dashed; border-color:var(--border-light); background:none; color:var(--dust); animation:none; }
+  @keyframes enter { from { opacity:0; transform:scale(.8) translateY(-8px);} to { opacity:1; transform:none; } }
+  .bars { display:grid; grid-template-columns:repeat(27, 1fr); gap:2px; align-items:end; height:170px; margin-top:8px; }
+  .bar { position:relative; background:var(--ink); opacity:.8; border-radius:3px 3px 0 0; min-height:1px; cursor:pointer; transition:height .35s ease, background .2s; }
+  .bar:hover { opacity:1; outline:1px solid var(--chalk); }
+  .bar.hi { background:var(--terracotta); opacity:1; }
+  .blabels { display:grid; grid-template-columns:repeat(27, 1fr); gap:2px; font-family:var(--mono); font-size:11px; color:var(--dust); text-align:center; }
+  .strip { position:relative; height:34px; border-radius:6px; overflow:hidden; display:flex; margin-top:14px; background:var(--elevated); }
+  .strip span { height:100%; display:grid; place-items:center; font-family:var(--mono); font-size:11px; color:var(--chalk); border-right:1px solid var(--canvas); overflow:hidden; }
+  .pointer { position:absolute; top:-6px; bottom:-6px; width:3px; background:var(--rose); box-shadow:0 0 10px var(--rose); transition:left .9s cubic-bezier(.2,.8,.2,1); }
+  .mono { font-family:var(--mono); }
+  .readout { font-family:var(--mono); font-size:13px; margin-top:10px; color:var(--stone); min-height:22px; }
+  .readout b { font-weight:400; color:var(--chalk); }
+  .ink { color:var(--ink); } .amber { color:var(--amber); } .rose { color:var(--rose); } .terra { color:var(--terracotta); } .sage { color:var(--sage); } .plum { color:var(--plum); } .dust { color:var(--dust); }
+  .names { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .name { font-family:var(--mono); font-size:15px; padding:4px 12px; border-radius:20px; color:var(--chalk); background:color-mix(in srgb, var(--terracotta) 10%, transparent); border:1px solid color-mix(in srgb, var(--terracotta) 40%, transparent); }
+  .name.copy { color:var(--dust); border-color:var(--border); background:none; }
+  .name.copy::after { content:" · copied"; font-size:11px; }
+  .surprise { display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px; align-items:center; font-family:var(--mono); font-size:13px; margin-top:12px; }
+  .surprise .sb { height:14px; background:var(--plum); border-radius:3px; }
+  canvas#heat { width:100%; max-width:560px; aspect-ratio:1; display:block; margin-top:10px; image-rendering:pixelated; cursor:crosshair; }
+  .math { font-family:var(--mono); font-size:14px; background:color-mix(in srgb, var(--canvas) 70%, transparent); border:1px solid var(--border); border-left:2px solid color-mix(in srgb, var(--ink) 60%, transparent); border-radius:10px; padding:10px 14px; margin-top:10px; overflow-x:auto; white-space:nowrap; }
+  .stat { font-family:var(--mono); color:var(--chalk); font-size:22px; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 02 · playground</div>
+  <h1>Build an autoregressive model with your hands</h1>
+  <p class="sub">A character-level n-gram model, trained by counting, running live in your browser. Change the knobs, step through the generation loop, force letters yourself, and watch the probabilities respond.</p>
+
+  <div class="grid">
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">1 · the knobs</div>
+      <p class="hint">Context length is how many previous letters the model sees. Temperature τ reshapes the distribution before sampling.</p>
+      <div class="row" style="gap:22px">
+        <label class="knob">context k <input id="k" type="range" min="1" max="5" step="1" value="2"><span id="kv">2</span></label>
+        <label class="knob">τ <input id="tau" type="range" min="0.1" max="3" step="0.05" value="1"><span id="tv">1.00</span></label>
+      </div>
+      <div class="math" id="formula"></div>
+      <div class="readout" id="fit"></div>
+    </section>
+
+    <section class="card" style="--accent:var(--terracotta)">
+      <div class="label">2 · training data</div>
+      <p class="hint">Any list of words works — one per line or space-separated. Only a–z is kept.</p>
+      <textarea id="data" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="train">train on this</button>
+        <button id="restore">restore names</button>
+        <span class="mono dust" id="dstat"></span>
+      </div>
+    </section>
+
+    <section class="card wide" style="--accent:var(--ink)">
+      <div class="label">3 · the generation loop, one step at a time</div>
+      <p class="hint">Press <b>step</b>: the model looks at the last k letters, shows p(next | context), then rolls the dice. Click any bar to force that letter instead and see how the context changes the next distribution.</p>
+      <div class="tiles" id="tiles"></div>
+      <div class="row">
+        <button class="primary" id="step">step ▸</button>
+        <button id="auto">auto ▸▸</button>
+        <button id="reset">reset</button>
+        <span class="mono dust">context: <span class="terra" id="ctxv"></span></span>
+      </div>
+      <div class="bars" id="bars"></div>
+      <div class="blabels" id="blabels"></div>
+      <div class="strip" id="strip"><div class="pointer" id="pointer" style="left:-10px"></div></div>
+      <div class="readout" id="stepinfo">&nbsp;</div>
+      <div class="readout" id="lp">&nbsp;</div>
+    </section>
+
+    <section class="card" style="--accent:var(--terracotta)">
+      <div class="label">4 · sample many</div>
+      <p class="hint">Twenty fresh samples. Grey ones already exist in the training data: the model memorised them.</p>
+      <div class="row"><button class="primary" id="many">generate 20</button><span class="mono dust" id="novel"></span></div>
+      <div class="names" id="names"></div>
+    </section>
+
+    <section class="card" style="--accent:var(--plum)">
+      <div class="label">5 · how surprised is the model?</div>
+      <p class="hint">Type any name. Each bar is −log p of that letter given the ones before it. Their sum is −log p(name).</p>
+      <input type="text" id="probe" value="emma" maxlength="20" spellcheck="false">
+      <div class="surprise" id="surprise"></div>
+      <div class="readout" id="probeout"></div>
+    </section>
+
+    <section class="card wide" style="--accent:var(--amber)">
+      <div class="label">6 · the bigram count table</div>
+      <p class="hint">Row = previous letter, column = next letter, brightness = count N(a, b). Hover a cell to read it. This table <i>is</i> the k = 1 model.</p>
+      <canvas id="heat" width="540" height="540"></canvas>
+      <div class="readout" id="heatinfo">&nbsp;</div>
+    </section>
+  </div>
+  <footer>The same model in ~20 lines of Python is in <span class="mono">code/ar_counting.py</span>; a neural version is in <span class="mono">code/ar_neural.py</span>.</footer>
+</main>
+<script src="names.js"></script>
+<script>
+const VOC = '.abcdefghijklmnopqrstuvwxyz'; const ix = c => VOC.indexOf(c);
+const $ = id => document.getElementById(id);
+let WORDS = [], WSET = new Set(), NG = {}, K = 2, TAUV = 1, ALPHA = 0.05;
+let seq = '', lpSum = 0, auto = null;
+
+function parseWords(s) { return [...new Set(s.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 2))]; }
+function train(words) {
+  WORDS = words; WSET = new Set(words); NG = {};
+  for (let k = 1; k <= 5; k++) { const m = new Map(); for (const w of words) { const s = '.'.repeat(k) + w + '.'; for (let i = 0; i + k < s.length; i++) { const c = s.slice(i, i + k); let a = m.get(c); if (!a) { a = new Float64Array(27); m.set(c, a); } a[ix(s[i + k])]++; } } NG[k] = m; }
+  $('dstat').textContent = `${words.length} words · ${words.reduce((a, w) => a + w.length + 1, 0)} next-letter examples`;
+  resetSeq(); drawHeat(); probe(); updateFit(); $('names').innerHTML = ''; $('novel').textContent = '';
+}
+// p(next | context): add-α bigram, then blend in each longer context that was seen
+//   p_j = (N_j + β·p_{j−1}) / (N_j total + β)      — then temperature τ
+function dist(context, k = K, tau = TAUV, beta = 1) {
+  const s = '.'.repeat(k) + context;
+  const r1 = NG[1].get(s.slice(-1)) || new Float64Array(27), t1 = r1.reduce((a, b) => a + b, 0);
+  let p = Array.from(r1, v => (v + ALPHA) / (t1 + 27 * ALPHA)), used = 1;
+  for (let j = 2; j <= k; j++) { const row = NG[j].get(s.slice(-j)); if (!row) break; const tot = row.reduce((a, b) => a + b, 0); p = p.map((v, i) => (row[i] + beta * v) / (tot + beta)); used = j; }
+  const lg = p.map(v => Math.log(v) / tau), mx = Math.max(...lg);
+  const e = lg.map(v => Math.exp(v - mx)), sum = e.reduce((a, b) => a + b, 0);
+  return { p: e.map(v => v / sum), used, ctx: s.slice(-used) };
+}
+function pick(p, u) { let acc = 0; for (let j = 0; j < 27; j++) { acc += p[j]; if (u < acc) return j; } return 26; }
+function sample() { let s = ''; for (let i = 0; i < 20; i++) { const j = pick(dist(s).p, Math.random()); if (j === 0) break; s += VOC[j]; } return s; }
+
+// ── UI: knobs
+function updateFormula() {
+  const ctxs = K === 1 ? 'x<sub>t−1</sub>' : `x<sub>t−${K}</sub>, …, x<sub>t−1</sub>`;
+  $('formula').innerHTML = `<span class="ink">p</span>(<span class="terra">x<sub>t</sub></span> | <span class="terra">${ctxs}</span>) ∝ [ (<span class="amber">N</span> + β·<span class="ink">p<sub>shorter</sub></span>) / (<span class="amber">N<sub>total</sub></span> + β) ]<sup class="amber">1/τ</sup>   <span class="dust">k = ${K}, τ = ${TAUV.toFixed(2)}</span>`;
+}
+function updateFit() {
+  // average surprise per letter on the training data (τ = 1)
+  let tot = 0, n = 0; for (const w of WORDS) { let s = ''; for (const ch of w + '.') { tot -= Math.log(dist(s, K, 1).p[ix(ch)]); n++; if (ch !== '.') s += ch; } }
+  const nll = tot / n;
+  $('fit').innerHTML = `training loss (avg −log p per letter): <b>${nll.toFixed(3)}</b> <span class="dust">· uniform guessing would be ${Math.log(27).toFixed(3)}</span>`;
+}
+$('k').oninput = e => { K = +e.target.value; $('kv').textContent = K; updateFormula(); updateFit(); showDist(); probe(); };
+$('tau').oninput = e => { TAUV = +e.target.value; $('tv').textContent = TAUV.toFixed(2); updateFormula(); showDist(); };
+
+// ── UI: generation loop
+const bars = $('bars'), blabels = $('blabels'), strip = $('strip'), pointer = $('pointer');
+for (let j = 0; j < 27; j++) {
+  const b = document.createElement('div'); b.className = 'bar'; b.title = VOC[j]; b.onclick = () => append(j, null); bars.appendChild(b);
+  const l = document.createElement('div'); l.textContent = VOC[j] === '.' ? 'end' : VOC[j]; if (j === 0) l.style.fontSize = '9px'; blabels.appendChild(l);
+}
+function renderTiles(done) {
+  const t = $('tiles'); t.innerHTML = '';
+  const add = (c, cls = '') => { const d = document.createElement('div'); d.className = 'tile ' + cls; d.textContent = c; t.appendChild(d); };
+  add('.', 'dot'); for (const c of seq) add(c); if (done) add('.', 'dot'); else add('?', 'cursor');
+}
+let cur = null, finished = false;
+function showDist(hi = -1) {
+  if (finished) return;
+  cur = dist(seq); const mx = Math.max(...cur.p);
+  [...bars.children].forEach((b, j) => { b.style.height = (cur.p[j] / mx * 100) + '%'; b.classList.toggle('hi', j === hi); b.title = `${VOC[j] === '.' ? 'end' : VOC[j]}: p = ${cur.p[j].toFixed(4)}`; });
+  strip.querySelectorAll('span').forEach(s => s.remove());
+  cur.p.forEach((p, j) => { const s = document.createElement('span'); s.style.width = (p * 100) + '%'; s.style.background = j === hi ? 'var(--terracotta)' : (j % 2 ? 'color-mix(in srgb, var(--ink) 55%, var(--elevated))' : 'color-mix(in srgb, var(--ink) 35%, var(--elevated))'); if (p > 0.035) s.textContent = VOC[j] === '.' ? '·' : VOC[j]; strip.insertBefore(s, pointer); });
+  $('ctxv').textContent = `“${cur.ctx}”` + (cur.used < K ? ` (backed off to ${cur.used}: longer context never seen)` : '');
+}
+function append(j, u) {
+  if (finished) return;
+  const p = cur.p[j]; lpSum += Math.log(p);
+  $('stepinfo').innerHTML = (u == null ? `you forced <span class="terra">“${VOC[j] === '.' ? 'end' : VOC[j]}”</span>` : `dice <span class="rose">u = ${u.toFixed(3)}</span> landed on <span class="terra">“${VOC[j] === '.' ? 'end' : VOC[j]}”</span>`) + ` · p = <span class="ink">${p.toFixed(4)}</span> · surprise −log p = <span class="plum">${(-Math.log(p)).toFixed(2)}</span>`;
+  if (j === 0 || seq.length >= 20) { finished = true; renderTiles(true); $('lp').innerHTML = `log p(“${seq}”) = <b>${lpSum.toFixed(2)}</b> → p = ${Math.exp(lpSum).toExponential(2)} ${WSET.has(seq) ? '<span class="dust">· this name is in the training data</span>' : '<span class="sage">· a brand-new name ✓</span>'}`; return; }
+  seq += VOC[j]; renderTiles(false); showDist();
+  $('lp').innerHTML = `running log p = <b>${lpSum.toFixed(2)}</b> <span class="dust">(sum of the log-probabilities so far)</span>`;
+}
+function step(then) {
+  if (finished) { resetSeq(); }
+  const u = Math.random(), j = pick(cur.p, u);
+  pointer.style.left = `calc(${(u * 100).toFixed(2)}% - 1px)`;
+  showDist(j);
+  setTimeout(() => { append(j, u); if (then) then(); }, 950);
+}
+function resetSeq() { seq = ''; lpSum = 0; finished = false; renderTiles(false); showDist(); pointer.style.left = '-10px'; $('stepinfo').innerHTML = '&nbsp;'; $('lp').innerHTML = '&nbsp;'; }
+$('step').onclick = () => { if (!auto) step(); };
+$('reset').onclick = () => { stopAuto(); resetSeq(); };
+function stopAuto() { auto = null; $('auto').textContent = 'auto ▸▸'; }
+$('auto').onclick = () => { if (auto) return stopAuto(); if (finished) resetSeq(); auto = true; $('auto').textContent = 'stop ■'; const go = () => { if (!auto) return; if (finished) return stopAuto(); step(() => setTimeout(go, 250)); }; go(); };
+
+// ── UI: many samples
+$('many').onclick = () => {
+  const list = Array.from({ length: 20 }, sample).filter(Boolean); const box = $('names'); box.innerHTML = '';
+  list.forEach(n => { const d = document.createElement('span'); d.className = 'name' + (WSET.has(n) ? ' copy' : ''); d.textContent = n; box.appendChild(d); });
+  const novel = list.filter(n => !WSET.has(n)).length; $('novel').textContent = `${novel}/${list.length} are new`;
+};
+
+// ── UI: surprise probe
+function probe() {
+  const w = $('probe').value.toLowerCase().replace(/[^a-z]/g, ''); const box = $('surprise'); box.innerHTML = '';
+  let s = '', tot = 0; const rows = [];
+  for (const ch of w + '.') { const p = dist(s, K, 1).p[ix(ch)]; rows.push([s.slice(-K) || '.', ch, p]); tot -= Math.log(p); if (ch !== '.') s += ch; }
+  rows.forEach(([c, ch, p]) => { const sp = -Math.log(p);
+    box.insertAdjacentHTML('beforeend', `<span class="terra">${c.slice(-3)}→${ch === '.' ? 'end' : ch}</span><div><div class="sb" style="width:${Math.min(100, sp / 8 * 100)}%"></div></div><span>${sp.toFixed(2)}</span>`); });
+  $('probeout').innerHTML = `−log p(“${w}”) = <b>${tot.toFixed(2)}</b> · p = ${Math.exp(-tot).toExponential(2)} <span class="dust">(τ = 1)</span>`;
+}
+$('probe').oninput = probe;
+
+// ── UI: heat map
+function drawHeat() {
+  const c = $('heat'), g = c.getContext('2d'), cs = 20; g.clearRect(0, 0, 540, 540);
+  const m = NG[1]; let mx = 1; m.forEach(a => a.forEach(v => { if (v > mx) mx = v; }));
+  for (let a = 0; a < 27; a++) { const row = m.get(VOC[a]); for (let b = 0; b < 27; b++) { const v = row ? row[b] : 0; g.fillStyle = v ? `rgba(212,168,83,${0.12 + 0.88 * Math.sqrt(v / mx)})` : '#1c1816'; g.fillRect(b * cs + 1, a * cs + 1, cs - 2, cs - 2); } }
+}
+$('heat').onmousemove = e => { const r = e.target.getBoundingClientRect(); const b = Math.floor((e.clientX - r.left) / r.width * 27), a = Math.floor((e.clientY - r.top) / r.height * 27); if (a < 0 || b < 0 || a > 26 || b > 26) return;
+  const row = NG[1].get(VOC[a]); const n = row ? row[b] : 0, tot = row ? row.reduce((x, y) => x + y, 0) : 0; const name = c => c === '.' ? '.' : c;
+  $('heatinfo').innerHTML = `N(<span class="terra">${name(VOC[a])}</span>, <span class="terra">${name(VOC[b])}</span>) = <b>${n}</b> · p(${name(VOC[b])} | ${name(VOC[a])}) = N / ${tot} = <span class="ink">${tot ? (n / tot).toFixed(3) : '—'}</span>`; };
+
+// ── data box
+$('data').value = window.NAMES.join('\n');
+$('train').onclick = () => { const w = parseWords($('data').value); if (w.length < 5) { $('dstat').textContent = 'need at least 5 words'; return; } train(w); };
+$('restore').onclick = () => { $('data').value = window.NAMES.join('\n'); train(window.NAMES.slice()); };
+updateFormula(); train(window.NAMES.slice());
+</script>
+</body>
+</html>

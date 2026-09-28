@@ -1,0 +1,29 @@
+// A small, bundled dataset of first names (lowercase a–z only).
+// Shared by the episode-02 video and the autoregressive playground.
+window.NAMES_STR = `
+emma olivia ava isabella sophia charlotte mia amelia harper evelyn abigail emily elizabeth mila ella avery
+sofia camila aria scarlett victoria madison luna grace chloe penelope layla riley zoey nora lily eleanor
+hannah lillian addison aubrey ellie stella natalie zoe leah hazel violet aurora savannah audrey brooklyn
+bella claire skylar lucy paisley everly anna caroline nova genesis emilia kennedy samantha maya willow
+kinsley naomi aaliyah elena sarah ariana allison gabriella alice madelyn cora ruby eva serenity autumn
+adeline hailey gianna valentina isla eliana quinn nevaeh ivy sadie piper lydia alexa josephine emery julia
+delilah arianna vivian kaylee sophie brielle madeline peyton rylee clara hadley melanie mackenzie reagan
+liam noah william james oliver benjamin elijah lucas mason logan alexander ethan jacob michael daniel henry
+jackson sebastian aiden matthew samuel david joseph carter owen wyatt john jack luke jayden dylan grayson
+levi isaac gabriel julian mateo anthony jaxon lincoln joshua christopher andrew theodore caleb ryan asher
+nathan thomas leo isaiah charles josiah hudson christian hunter connor eli ezra aaron landon adrian
+jonathan nolan jeremiah easton elias colton cameron carson robert angel maverick nicholas dominic greyson
+adam ian austin santiago jordan cooper brayden roman evan ezekiel xavier jose jace jameson leonardo bryson
+axel everett parker kayden miles sawyer jason declan weston micah ayden wesley luca vincent damian zachary
+silas gavin chase kai emmett harrison nathaniel kingston cole tyler bennett bentley ryker tristan brandon
+kevin luis george ashton rowan braxton ryder gael ivan diego maxwell max carlos kaiden juan maddox justin
+waylon calvin giovanni jonah abel jayce jesus amir king beau camden alex jasper malachi brody jude blake
+emmanuel eric brooks elliot antonio abraham timothy finn rhett elliott edward august xander alan dean
+aarav vivaan aditya arjun reyansh krishna ishaan ananya diya saanvi aadhya pari anika navya kiara myra
+riya priya rohan rahul kavya meera tara zara omar yusuf fatima hana yuki kenji hiro sakura mei lin wei
+chen jun min seo hoon lucia martina valeria pablo javier marta ines marco giulia chiara francesca matteo
+lorenzo hugo lea louis jules manon lina lukas jonas leon felix emil ida freya astrid lars erik ingrid sven
+rosa sienna daisy phoebe matilda imogen florence poppy esme beatrice thea mabel edith iris margot ada
+arthur alfie archie freddie teddie reggie albert frank otto rafael rosalie juliet marisol anaya amara
+`;
+window.NAMES = [...new Set(window.NAMES_STR.split(/\s+/).filter(w => /^[a-z]+$/.test(w)))];

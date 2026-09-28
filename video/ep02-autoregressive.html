@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autoregressive Generation Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
+  .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
+  button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  input[type=range] { flex:1; accent-color:var(--terracotta); min-width:0; }
+  .time { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--dust); min-width:104px; text-align:right; }
+  .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
+  .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
+  body.capture .ctl, body.capture .chapters { display:none; }
+  body.capture .wrap { padding:0; max-width:none; }
+  body.capture canvas { width:1920px; border-radius:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="1920" height="1080" aria-label="Autoregressive generation explainer animation"></canvas>
+  <div class="ctl">
+    <button id="play">▶ play</button>
+    <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
+    <span class="time" id="time">0:00 / 0:00</span>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+<script src="names.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────
+//  Midnight Atelier tokens + engine (shared with episode 01)
+// ─────────────────────────────────────────────────────────────
+const P = {
+  canvas:"#13100e", surface:"#1c1816", elevated:"#272220", border:"#3a3432", borderLight:"#4d4540",
+  chalk:"#ede6db", stone:"#a89f97", dust:"#6b6360",
+  terracotta:"#c4654a", sage:"#7a9e7e", ink:"#6889b1", amber:"#d4a853", clay:"#a0735c", rose:"#b5707e", plum:"#8b7bb5",
+};
+const F = { serif:"'Newsreader', Georgia, serif", sans:"'Karla', sans-serif", mono:"'JetBrains Mono', monospace" };
+const W = 1920, H = 1080;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+const prog = (t, a, d) => clamp((t - a) / d);
+const ease = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const eout = x => { x = clamp(x); return 1 - Math.pow(1 - x, 3); };
+const ein = x => { x = clamp(x); return x * x * x; };
+const pop = x => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const HX = {};
+function hx(h) { return HX[h] || (HX[h] = (n => [n >> 16, (n >> 8) & 255, n & 255])(parseInt(h.slice(1), 16))); }
+function rgba(h, a) { const c = hx(h); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function mixc(a, b, u) { const A = hx(a), B = hx(b); return `rgb(${Math.round(A[0] + (B[0] - A[0]) * u)},${Math.round(A[1] + (B[1] - A[1]) * u)},${Math.round(A[2] + (B[2] - A[2]) * u)})`; }
+
+let GA = 1;
+const setA = a => { ctx.globalAlpha = clamp(GA * a); };
+function text(s, x, y, o = {}) {
+  const { font = F.sans, size = 28, color = P.stone, align = 'left', a = 1, italic = false, weight = 400, ls = 0 } = o;
+  ctx.font = `${italic ? 'italic ' : ''}${weight} ${size}px ${font}`;
+  ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.fillStyle = color; setA(a);
+  ctx.fillText(s, x, y); ctx.letterSpacing = '0px'; ctx.textAlign = 'left'; setA(1);
+}
+function wrap(str, maxW, font) {
+  ctx.font = font; const words = str.split(' '); const lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines;
+}
+function para(str, x, y, maxW, o = {}) {
+  const { size = 24, lh = 1.45, color = P.stone, a = 1, font = F.sans, italic = false } = o;
+  const lines = wrap(str, maxW, `${italic ? 'italic ' : ''}400 ${size}px ${font}`);
+  lines.forEach((l, i) => text(l, x, y + i * size * lh, { font, size, color, a, italic }));
+  return lines.length * size * lh;
+}
+const CM = { d:P.terracotta, p:P.ink, a:P.amber, n:P.rose, m:P.plum, s:P.sage, k:P.dust, w:P.chalk, c:P.clay, t:P.stone };
+const MCACHE = new Map();
+function parseM(str) {
+  if (MCACHE.has(str)) return MCACHE.get(str);
+  const out = []; const re = /\[([a-z])([_^B]?)\|([^\]]*)\]/g; let last = 0, m;
+  while ((m = re.exec(str))) {
+    if (m.index > last) out.push([str.slice(last, m.index), P.stone, '']);
+    out.push([m[3], CM[m[1]], m[2] === '_' ? 's' : m[2] === '^' ? 'S' : m[2] === 'B' ? 'b' : '']);
+    last = re.lastIndex;
+  }
+  if (last < str.length) out.push([str.slice(last), P.stone, '']);
+  MCACHE.set(str, out); return out;
+}
+function M(str, x, y, size = 34, o = {}) {
+  const { align = 'left', a = 1 } = o;
+  const parts = parseM(str).map(([s, col, mod]) => {
+    const sz = mod === 's' || mod === 'S' ? size * 0.66 : mod === 'b' ? size * 1.3 : size;
+    ctx.font = `400 ${sz}px ${F.mono}`;
+    return { s, col, sz, dy: mod === 's' ? size * 0.26 : mod === 'S' ? -size * 0.42 : mod === 'b' ? size * 0.1 : 0, w: ctx.measureText(s).width };
+  });
+  const total = parts.reduce((acc, p) => acc + p.w, 0);
+  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+  setA(a); ctx.textAlign = 'left';
+  for (const p of parts) { ctx.font = `400 ${p.sz}px ${F.mono}`; ctx.fillStyle = p.col; ctx.fillText(p.s, cx, y + p.dy); cx += p.w; }
+  setA(1); return total;
+}
+function dot(x, y, r, col, a = 1) { setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.fill(); setA(1); }
+function glow(x, y, r, col, a = 1) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = r * 3.5; dot(x, y, r, col, a); ctx.restore(); }
+function ring(x, y, r, col, a = 1, lw = 2) { setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.stroke(); setA(1); }
+function line(x1, y1, x2, y2, col, lw = 2, a = 1, dash = null) { setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); setA(1); }
+function arrow(x1, y1, x2, y2, col, lw = 2, a = 1) {
+  line(x1, y1, x2, y2, col, lw, a);
+  const ang = Math.atan2(y2 - y1, x2 - x1), L = 12;
+  setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - L * Math.cos(ang - 0.4), y2 - L * Math.sin(ang - 0.4));
+  ctx.lineTo(x2 - L * Math.cos(ang + 0.4), y2 - L * Math.sin(ang + 0.4)); ctx.fill(); setA(1);
+}
+function rbox(x, y, w, h, r, fill, stroke, a = 1, lw = 1.5) { setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, r); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } setA(1); }
+function card(x, y, w, h, accent, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 18); ctx.fillStyle = rgba(P.surface, 0.86); ctx.fill();
+  ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.clip(); ctx.fillStyle = rgba(accent, 0.6); ctx.fillRect(x, y, 4, h);
+  ctx.restore(); setA(1);
+}
+function label(s, x, y, a = 1, color = P.terracotta) { text(s.toUpperCase(), x, y, { font: F.mono, size: 16, color, a, ls: 2 }); }
+function tag(x, y, color, s, a = 1, size = 19) {
+  ctx.font = `400 ${size}px ${F.mono}`; const w = ctx.measureText(s).width + size * 2.1; const h = size * 1.75;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = rgba(color, 0.08); ctx.fill();
+  ctx.strokeStyle = rgba(color, 0.3); ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x + size * 0.8, y + h / 2, size * 0.22, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillText(s, x + size * 1.35, y + h * 0.68);
+  ctx.restore(); setA(1); return w;
+}
+function pill(x, y, s, color, a = 1, o = {}) {
+  const { size = 20, align = 'left', font = F.mono } = o;
+  ctx.font = `400 ${size}px ${font}`; const w = ctx.measureText(s).width + size * 1.2, h = size * 1.7;
+  const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, h / 2);
+  ctx.fillStyle = rgba(P.canvas, 0.85); ctx.fill(); ctx.strokeStyle = rgba(color, 0.45); ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.fillStyle = color; ctx.fillText(s, x0 + size * 0.6, y + size * 0.35); ctx.restore(); setA(1);
+  return w;
+}
+function insight(x, y, w, s, a = 1, head = 'intuition') {
+  if (a <= 0) return 0;
+  const lines = wrap(s, w - 48, `400 25px ${F.sans}`); const h = 70 + lines.length * 35;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, 16);
+  ctx.fillStyle = rgba(P.sage, 0.07); ctx.fill(); ctx.strokeStyle = rgba(P.sage, 0.3); ctx.lineWidth = 1.3; ctx.stroke(); ctx.restore();
+  text(head, x + 24, y + 38, { font: F.serif, italic: true, size: 22, color: P.sage, a });
+  lines.forEach((l, i) => text(l, x + 24, y + 76 + i * 35, { size: 25, color: P.stone, a }));
+  return h;
+}
+// a letter tile (data)
+function tile(ch, x, y, s = 64, a = 1, o = {}) {
+  const { col = P.terracotta, glowOn = false, fs = s * 0.58 } = o;
+  if (a <= 0) return;
+  ctx.save(); setA(a);
+  if (glowOn) { ctx.shadowColor = col; ctx.shadowBlur = 18; }
+  ctx.beginPath(); ctx.roundRect(x - s / 2, y - s / 2, s, s, s * 0.18); ctx.fillStyle = rgba(col, 0.12); ctx.fill();
+  ctx.strokeStyle = rgba(col, 0.7); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  text(ch, x, y + fs * 0.36, { font: F.mono, size: fs, color: ch === '.' ? P.dust : P.chalk, align: 'center', a });
+}
+// bar chart over the 27 symbols
+function bars27(p, x, y, w, h, o = {}) {
+  const { a = 1, col = P.ink, hi = -1, hiCol = P.terracotta, labels = true, maxP = null, lab = 16 } = o;
+  const mx = maxP || Math.max(...p); const bw = w / 27;
+  for (let j = 0; j < 27; j++) {
+    const bh = p[j] / mx * h; const isHi = j === hi;
+    setA(a * (isHi ? 0.95 : 0.75)); ctx.fillStyle = isHi ? hiCol : col; ctx.fillRect(x + j * bw + 2, y - bh, bw - 4, bh);
+    if (labels) text(VOC[j], x + j * bw + bw / 2, y + lab + 8, { font: F.mono, size: lab, color: isHi ? hiCol : P.dust, align: 'center', a });
+  }
+  setA(a); line(x, y, x + w, y, P.borderLight, 1.5, a);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  The language model maths — real counts on real names
+// ─────────────────────────────────────────────────────────────
+const NAMES = window.NAMES; const NAMESET = new Set(NAMES);
+const VOC = '.abcdefghijklmnopqrstuvwxyz';
+const ix = c => VOC.indexOf(c);
+function buildNgram(k) {
+  const m = new Map();
+  for (const w of NAMES) { const s = '.'.repeat(k) + w + '.'; for (let i = 0; i + k < s.length; i++) { const c = s.slice(i, i + k); let a = m.get(c); if (!a) { a = new Float64Array(27); m.set(c, a); } a[ix(s[i + k])]++; } }
+  return m;
+}
+const NG = { 1: buildNgram(1), 2: buildNgram(2), 3: buildNgram(3), 4: buildNgram(4) };
+// p(next | context): add-α bigram, then blend in longer contexts (interpolated back-off), temperature τ
+function dist(k, context, tau = 1, alpha = 0.05, beta = 1) {
+  const s = '.'.repeat(k) + context;
+  const r1 = NG[1].get(s.slice(-1)) || new Float64Array(27); const t1 = r1.reduce((a, b) => a + b, 0);
+  let p = Array.from(r1, v => (v + alpha) / (t1 + 27 * alpha));
+  for (let j = 2; j <= k; j++) { const row = NG[j].get(s.slice(-j)); if (!row) break; const tot = row.reduce((a, b) => a + b, 0); p = p.map((v, i) => (row[i] + beta * v) / (tot + beta)); }
+  const lg = p.map(v => Math.log(v) / tau); const mx = Math.max(...lg);
+  const e = lg.map(v => Math.exp(v - mx)); const Z = e.reduce((a, b) => a + b, 0); return e.map(v => v / Z);
+}
+function pick(p, u) { let acc = 0; for (let j = 0; j < 27; j++) { acc += p[j]; if (u < acc) return j; } return 26; }
+function sampleName(k, r, tau = 1, maxLen = 14) {
+  let context = '.'.repeat(k), out = ''; const steps = []; let lp = 0;
+  for (let i = 0; i < maxLen; i++) {
+    const p = dist(k, context, tau), u = r(), j = pick(p, u);
+    steps.push({ ctx: context.slice(-k), p, u, j }); lp += Math.log(p[j]);
+    if (j === 0) break; out += VOC[j]; context += VOC[j];
+  }
+  return { name: out, steps, lp };
+}
+function names(k, seed, n, tau = 1) { const r = rng(seed), out = []; let guard = 0; while (out.length < n && guard++ < 500) { const s = sampleName(k, r, tau); if (s.name.length >= 2) out.push(s.name); } return out; }
+const BIGRAM = (() => { const P2 = []; for (let a = 0; a < 27; a++) P2.push(dist(1, VOC[a])); return P2; })();
+
+// the name we generate slowly in scene 06
+const DEMO = (() => { for (let s = 1; s < 400; s++) { const r = rng(1000 + s); const x = sampleName(1, r); if (x.name.length >= 4 && x.name.length <= 6 && !NAMESET.has(x.name)) return x; } return sampleName(1, rng(1)); })();
+const FAST_NAMES = names(1, 200, 14);
+const CTX_NAMES = [1, 2, 3].map(k => names(k, 300 + k, 8));
+const TEMP_NAMES = [0.3, 1, 2].map((tau, i) => names(3, 500 + i, 6, tau));
+
+// every bigram event, in dataset order (scene 05)
+const EVENTS = []; NAMES.forEach((w, ni) => { const s = '.' + w + '.'; for (let i = 0; i < s.length - 1; i++) EVENTS.push([ix(s[i]), ix(s[i + 1]), ni, i]); });
+const E3 = EVENTS.findIndex(e => e[2] === 3);
+const CMAX = (() => { const c = new Array(729).fill(0); for (const e of EVENTS) c[e[0] * 27 + e[1]]++; return Math.max(...c); })();
+
+// letter embeddings: PCA of each letter's (sqrt) next-letter distribution
+const EMB = (() => {
+  const X = BIGRAM.map(r => r.map(Math.sqrt)); const mean = new Array(27).fill(0);
+  X.forEach(r => r.forEach((v, j) => mean[j] += v / 27)); const Xc = X.map(r => r.map((v, j) => v - mean[j]));
+  const C = Array.from({ length: 27 }, (_, i) => Array.from({ length: 27 }, (_, j) => Xc.reduce((s, r) => s + r[i] * r[j], 0)));
+  const power = (C, seed) => { let v = Array.from({ length: 27 }, (_, i) => Math.sin(i * seed + 1)); for (let it = 0; it < 200; it++) { const w = C.map(row => row.reduce((s, c, j) => s + c * v[j], 0)); const n = Math.hypot(...w); v = w.map(x => x / n); } return v; };
+  const v1 = power(C, 1.3); const l1 = v1.reduce((s, _, i) => s + v1[i] * C[i].reduce((a, c, j) => a + c * v1[j], 0), 0);
+  const C2 = C.map((row, i) => row.map((c, j) => c - l1 * v1[i] * v1[j])); const v2 = power(C2, 2.7);
+  const pts = Xc.map(r => [r.reduce((s, x, j) => s + x * v1[j], 0), r.reduce((s, x, j) => s + x * v2[j], 0)]);
+  const m = Math.max(...pts.flat().map(Math.abs)); return pts.map(([a, b]) => [a / m, b / m]);
+})();
+
+// pixel digits (scene 12)
+function makeDigit(ch) {
+  const c = document.createElement('canvas'); c.width = 28; c.height = 28; const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, 28, 28); g.translate(14, 15); g.rotate(0.1);
+  g.fillStyle = '#fff'; g.font = 'bold 25px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 0, 1);
+  const d = g.getImageData(0, 0, 28, 28).data; const v = new Float32Array(784);
+  for (let i = 0; i < 784; i++) v[i] = d[i * 4] / 255; return v;
+}
+let DIG = null;
+function pixelGrid(x, y, cell, vals, col, a = 1, gap = 1) {
+  setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x - 4, y - 4, cell * 28 + 8, cell * 28 + 8);
+  for (let i = 0; i < 784; i++) { const v = vals(i); if (v < 0.02) continue; setA(a * v); ctx.fillStyle = col; ctx.fillRect(x + (i % 28) * cell, y + Math.floor(i / 28) * cell, cell - gap, cell - gap); }
+  setA(1);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SCENES
+// ─────────────────────────────────────────────────────────────
+const SC = [];
+
+// 00 — cold open
+const OPEN_TEXT = 'Once upon a time, a machine learned to write';
+SC.push({ dur: 24, chapter: 'intro',
+  caps: [[0.6, 5, 'This sentence is being written by a machine — one letter at a time.'],
+         [5, 10.5, 'Before every single letter, it answers the same question. One question, over and over.'],
+         [10.5, 15.5, 'That one question is the engine behind ChatGPT and a whole family of generators.'],
+         [15.5, 20, 'What is the question? And why is answering it enough to create?'],
+         [20, 23.6, "Let's find out — and then build one ourselves."]],
+  draw(t) {
+    const n = Math.min(OPEN_TEXT.length, Math.floor(Math.max(0, t - 0.8) * 3.4));
+    const up = ease(prog(t, 15, 1.6)), dim = lerp(1, 0.22, up);
+    const y = lerp(560, 300, up), size = 60; ctx.font = `400 ${size}px ${F.mono}`;
+    const cw = ctx.measureText('M').width, x0 = 960 - OPEN_TEXT.length * cw / 2;
+    for (let i = 0; i < n; i++) text(OPEN_TEXT[i], x0 + i * cw, y, { font: F.mono, size, color: P.terracotta, a: dim });
+    if (n < OPEN_TEXT.length) {
+      const cx = x0 + n * cw; setA(0.5 + 0.5 * Math.sin(t * 12)); ctx.fillStyle = P.chalk; ctx.fillRect(cx + 2, y - size * 0.8, 4, size * 0.95); setA(1);
+      // the "distribution" the machine consults before each letter (illustrative)
+      const r = rng(n * 131 + 7), next = OPEN_TEXT[n].toLowerCase(), cand = [next];
+      while (cand.length < 7) { const c = 'etaoinshrdlucmfwyp '[Math.floor(r() * 19)]; if (!cand.includes(c)) cand.push(c); }
+      const hs = cand.map((_, i) => i === 0 ? 1 : 0.15 + 0.5 * r()); const order = cand.map((c, i) => [c, hs[i]]).sort(() => r() - 0.5);
+      const bx = cx - 7 * 22 / 2, by = y - 110, wob = 0.85 + 0.15 * Math.sin(t * 20);
+      order.forEach(([c, h], i) => { const isN = c === next; setA(0.85 * dim); ctx.fillStyle = isN ? P.terracotta : P.ink; ctx.fillRect(bx + i * 22, by - h * 90 * (isN ? 1 : wob), 16, h * 90 * (isN ? 1 : wob)); text(c === ' ' ? '␣' : c, bx + i * 22 + 8, by + 20, { font: F.mono, size: 14, color: P.dust, align: 'center', a: dim }); });
+      text('?', cx + 70, by - 60, { font: F.serif, italic: true, size: 40, color: P.chalk, a: dim * clamp(Math.sin(t * 3) * 0.5 + 0.5) });
+    }
+    const a = eout(prog(t, 15.6, 1.4));
+    text('EPISODE 02', 960, 430, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a, ls: 4 });
+    text('Autoregressive Generation', 960, 540 + (1 - a) * 16, { font: F.serif, size: 118, color: P.chalk, align: 'center', a, ls: -1 });
+    text('writing the future, one piece at a time', 960, 612, { size: 34, color: P.stone, align: 'center', a: eout(prog(t, 16.4, 1.2)) });
+    const tg = [[P.terracotta, 'x  tokens / data'], [P.ink, 'p  distributions'], [P.amber, 'θ, τ  knobs'], [P.rose, 'u  dice'], [P.plum, 'model']];
+    ctx.font = `400 21px ${F.mono}`; let tw = tg.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 21 * 2.1 + 14, -14);
+    let cx = 960 - tw / 2; tg.forEach(([c, s], i) => { cx += tag(cx, 670, c, s, eout(prog(t, 18.5 + i * 0.35, 0.6)), 21) + 14; });
+  } });
+
+// 01 — recap and the problem
+SC.push({ dur: 36, chapter: 'recap', title: 'Where we left off', sub: 'A generative model learns p(x) — then samples from it.',
+  caps: [[1, 7, 'Last time: a generative model learns p(x), a probability for every possible x — then samples from it.'],
+         [7, 13, "But what is x for text? Take a 5-letter word. Each slot holds one of 27 symbols: a–z, plus an 'end' marker."],
+         [13, 20, "That's 27⁵ — over 14 million possible strings. A table with one probability for each? Already painful."],
+         [20, 28, 'A 100-character sentence has 27¹⁰⁰ ≈ 10¹⁴³ possibilities. The observable universe has only about 10⁸⁰ atoms.'],
+         [28, 35.6, "We can't write p(x) down directly. We need to break it into small, manageable pieces."]],
+  draw(t) {
+    const c0 = eout(prog(t, 0.8, 0.8)) * (1 - ease(prog(t, 6.5, 0.8)));
+    if (c0 > 0) { card(460, 360, 1000, 220, P.ink, c0); label('episode 01 in one line', 500, 410, c0);
+      M('learn  [p|p][a_|θ]([d|x]) ≈ [p|p][k_|data]([d|x])    then    [d|x][d_|new] ∼ [p|p][a_|θ]', 500, 500, 34, { a: c0 }); }
+    const s = eout(prog(t, 7, 0.8)); const word = 'hello';
+    const settle = i => prog(t, 9 + i * 0.6, 0.3);
+    const sy = lerp(470, 330, ease(prog(t, 13, 1)));
+    for (let i = 0; i < 5; i++) {
+      const x = 960 + (i - 2) * 110, u = settle(i);
+      const ch = u >= 1 ? word[i] : VOC[1 + Math.floor((t * 23 + i * 7) % 26)];
+      const split = ease(prog(t, 28.5, 1.5)); const dx = (i - 2) * 60 * split, dy = Math.sin(i * 1.7) * 30 * split;
+      tile(ch, x + dx, sy + dy, 90, s, { glowOn: u >= 1 && t < 13 });
+      if (u < 1) text('× 27', x, sy + 80, { font: F.mono, size: 18, color: P.dust, align: 'center', a: s });
+    }
+    const a1 = eout(prog(t, 13.5, 0.8)) * (1 - ease(prog(t, 27.5, 0.8)));
+    if (a1 > 0) {
+      M('27 × 27 × 27 × 27 × 27 = 27⁵ = [d|14,348,907]', 960, 470, 40, { align: 'center', a: a1 });
+      // scrolling table
+      const rows = 9, off = (t - 13.5) * 40;
+      for (let r = 0; r < rows; r++) {
+        const idx = Math.floor(off) + r; let s = '', n = idx; for (let k = 0; k < 5; k++) { s = VOC[1 + n % 26] + s; n = Math.floor(n / 26); }
+        const yy = 540 + r * 34 - (off % 1) * 34;
+        text(s, 820, yy, { font: F.mono, size: 22, color: P.stone, a: a1 * (0.25 + 0.6 * Math.sin(Math.PI * (r + 1 - off % 1) / (rows + 1))) });
+        text(`p = ?`, 1000, yy, { font: F.mono, size: 22, color: P.ink, a: a1 * 0.5 * Math.sin(Math.PI * (r + 1 - off % 1) / (rows + 1)) });
+      }
+    }
+    const a2 = eout(prog(t, 20, 0.8)) * (1 - ease(prog(t, 27.5, 0.8)));
+    if (a2 > 0) {
+      GA = a2; const bx = 1220, by = 560;
+      card(bx, by - 60, 600, 290, P.rose, 1);
+      text('possible 100-letter strings', bx + 30, by, { size: 22, color: P.stone });
+      const grow = ease(prog(t, 20.5, 2));
+      setA(1); ctx.fillStyle = P.terracotta; ctx.fillRect(bx + 30, by + 16, 540 * grow, 26); text('10¹⁴³', bx + 30 + 540 * grow - 8, by + 38, { font: F.mono, size: 20, color: P.canvas, align: 'right' });
+      text('atoms in the observable universe', bx + 30, by + 100, { size: 22, color: P.stone });
+      ctx.fillStyle = P.ink; ctx.fillRect(bx + 30, by + 116, 540 * 80 / 143 * grow, 26); text('10⁸⁰', bx + 30 + 540 * 80 / 143 * grow - 8, by + 138, { font: F.mono, size: 20, color: P.canvas, align: 'right' });
+      text('(log scale — each step is ×10)', bx + 30, by + 200, { font: F.mono, size: 16, color: P.dust });
+      GA = 1;
+    }
+    const a3 = eout(prog(t, 29.5, 1));
+    if (a3 > 0) text('break it into pieces', 960, 560, { font: F.serif, italic: true, size: 48, color: P.sage, align: 'center', a: a3 });
+  } });
+
+// 02 — the guessing game
+const GAME = [
+  { ctx: '', top: [['t', .16], ['s', .11], ['a', .1], ['h', .06], ['w', .06], ['b', .05]], pick: 'h', p: 0.06 },
+  { ctx: 'h', top: [['e', .30], ['a', .25], ['o', .2], ['i', .14], ['u', .06], ['y', .03]], pick: 'e', p: 0.30 },
+  { ctx: 'he', top: [['l', .25], ['a', .22], ['r', .2], ['n', .1], ['s', .08], ['m', .06]], pick: 'l', p: 0.25 },
+  { ctx: 'hel', top: [['l', .45], ['p', .3], ['m', .1], ['d', .06], ['i', .05], ['o', .03]], pick: 'l', p: 0.45 },
+  { ctx: 'hell', top: [['o', .80], ['s', .08], ['y', .05], ['i', .04], ['a', .03], ['.', .01]], pick: 'o', p: 0.80 },
+];
+SC.push({ dur: 40, chapter: 'guessing game', title: 'A game you already know how to play', sub: 'Guessing a whole word is hard. Guessing the next letter is easy.',
+  caps: [[1, 7, "Let's play a game. I'm thinking of a 5-letter word. Guess it in one shot? Almost hopeless."],
+         [7, 14, "Now: it starts with 'h'. What's the next letter? You'd bet on a vowel. That's a small, easy guess."],
+         [14, 21, "'he…' — now 'l', 'a' or 'r' look likely. 'hel…' — surely 'l' or 'p'."],
+         [21, 28, "'hell…' — and 'o' is almost certain. Each guess only ever chooses among 27 options."],
+         [28, 35, 'One impossible question has become a chain of small, easy ones.'],
+         [35, 39.6, "And here's the beautiful part: this is not an approximation. It's exact."]],
+  draw(t) {
+    const step = t < 7 ? 0 : t < 14 ? 1 : t < 17.5 ? 2 : t < 21 ? 3 : 4;
+    const known = t < 5 ? 0 : step;
+    for (let i = 0; i < 5; i++) {
+      const x = 960 + (i - 2) * 110, y = 320;
+      if (i < known) tile('hello'[i], x, y, 90, 1, { glowOn: i === known - 1 && t < 28 });
+      else { rbox(x - 45, y - 45, 90, 90, 16, rgba(P.surface, 0.8), P.border, eout(prog(t, 0.5, 0.8)), 2); text(i === known ? '?' : '_', x, y + 18, { font: F.mono, size: 48, color: i === known ? P.chalk : P.dust, align: 'center', a: eout(prog(t, 0.5, 0.8)) }); }
+    }
+    if (t >= 5 && t < 28.5) {
+      const g = GAME[step], a = eout(prog(t, [5, 7.5, 14, 17.5, 21][step], 0.8)) * (1 - ease(prog(t, 28, 0.5)));
+      text(`your guess for the next letter after “${g.ctx || '…'}”`, 960, 440, { size: 24, color: P.stone, align: 'center', a });
+      g.top.forEach(([c, p], k) => { const x = 620 + k * 120, h = p / 0.8 * 260 * eout(prog(t, [5, 7.5, 14, 17.5, 21][step] + k * 0.08, 0.6));
+        const isP = c === g.pick && t > [5, 7.5, 14, 17.5, 21][step] + 2.2;
+        setA(a * 0.85); ctx.fillStyle = isP ? P.terracotta : P.ink; ctx.fillRect(x - 40, 760 - h, 80, h); setA(1);
+        text(c === '.' ? 'end' : c, x, 800, { font: F.mono, size: 30, color: isP ? P.terracotta : P.chalk, align: 'center', a });
+        text(p.toFixed(2), x, 750 - h, { font: F.mono, size: 20, color: P.ink, align: 'center', a }); });
+      text('… 21 more', 1370, 760, { font: F.mono, size: 18, color: P.dust, a });
+    }
+    // collected probabilities
+    const got = GAME.filter((g, i) => t > [5, 7.5, 14, 17.5, 21][i] + 2.2);
+    got.forEach((g, i) => { const a = eout(prog(t, [5, 7.5, 14, 17.5, 21][i] + 2.2, 0.6)); const tx = g.ctx ? `[p|p]([d|${g.pick}] | [d|${g.ctx}]) = ${g.p.toFixed(2)}` : `[p|p]([d|${g.pick}]) = ${g.p.toFixed(2)}`;
+      M(tx, 1560, 470 + i * 56, 24, { a: a * (1 - 0.0 * ease(prog(t, 28, 1))) }); });
+    if (t > 28) {
+      const a = eout(prog(t, 28.5, 1));
+      text('one 14-million-way question', 560, 560, { font: F.serif, italic: true, size: 40, color: P.dust, align: 'center', a });
+      arrow(830, 548, 1000, 548, P.dust, 2, a);
+      text('five 27-way questions', 1240, 560, { font: F.serif, italic: true, size: 40, color: P.sage, align: 'center', a });
+      text('and it is exact.', 960, 700, { font: F.serif, italic: true, size: 54, color: P.chalk, align: 'center', a: eout(prog(t, 35, 1)) });
+    }
+  } });
+
+// 03 — the chain rule, as nested slices
+SC.push({ dur: 45, chapter: 'chain rule', title: 'The chain rule of probability', sub: 'Why multiplying small guesses gives the exact probability of the whole.',
+  caps: [[1, 8, 'Picture every possible word as one bar, with total probability 1.'],
+         [8, 15, "Split it by the first letter. Words starting with 'h' get a slice — about 6%."],
+         [15, 22, "Zoom into that slice and split it again by the second letter. 'he' takes 30% of the 'h' slice."],
+         [22, 29, 'Keep zooming. Each step keeps a fraction of what was left — so the fractions multiply.'],
+         [29, 37, 'Written down: p(hello) = p(h) · p(e | h) · p(l | he) · p(l | hel) · p(o | hell).'],
+         [37, 44.6, "For any sequence, p(x) is the product of each piece given everything before it. That's autoregression."]],
+  draw(t) {
+    const x0 = 160, x1 = 1760, Wd = x1 - x0, rowH = 44, gapY = 70, ytop = 250;
+    const stepT = [3, 9, 15.5, 19, 22.5, 26];
+    let prodv = 1;
+    for (let r = 0; r < 5; r++) {
+      const a = eout(prog(t, stepT[r], 0.9)); if (a <= 0) break;
+      const g = GAME[r], y = ytop + r * (rowH + gapY);
+      // segments: the listed guesses + "other"
+      const segs = g.top.slice(); const rest = 1 - segs.reduce((s, [, p]) => s + p, 0); segs.push(['…', rest]);
+      let cx = x0;
+      segs.forEach(([c, p], k) => { const w = p * Wd * eout(prog(t, stepT[r] + 0.2, 0.8)); const isP = c === g.pick;
+        setA(a * (isP ? 0.9 : 0.35 + 0.1 * (k % 2))); ctx.fillStyle = isP ? P.terracotta : P.ink; ctx.fillRect(cx + 1, y, w - 2, rowH); setA(1);
+        if (w > 30) text(c === '.' ? 'end' : c, cx + w / 2, y + 30, { font: F.mono, size: 22, color: isP ? P.chalk : P.stone, align: 'center', a });
+        if (isP) {
+          const nextA = eout(prog(t, stepT[r + 1] - 0.9, 0.9));
+          if (r < 4 && nextA > 0) { setA(nextA * 0.14); ctx.fillStyle = P.terracotta; ctx.beginPath(); ctx.moveTo(cx, y + rowH); ctx.lineTo(cx + w, y + rowH); ctx.lineTo(x1, y + rowH + gapY); ctx.lineTo(x0, y + rowH + gapY); ctx.fill(); setA(1);
+            line(cx, y + rowH, x0, y + rowH + gapY, P.terracotta, 1, nextA * 0.6); line(cx + w, y + rowH, x1, y + rowH + gapY, P.terracotta, 1, nextA * 0.6); }
+        }
+        cx += w; });
+      prodv *= g.p;
+      const ctxLabel = g.ctx ? `p(${g.pick} | ${g.ctx})` : `p(${g.pick})`;
+      text(`× ${g.p.toFixed(2)}`, x0 - 20, y + 30, { font: F.mono, size: 22, color: P.ink, align: 'right', a });
+      text(ctxLabel, x1 + 16, y + 30, { font: F.mono, size: 18, color: P.dust, a });
+      text(`running product = ${prodv.toPrecision(3)}`, x1 - 6, y + rowH + 28, { font: F.mono, size: 18, color: P.terracotta, align: 'right', a: a * (1 - ease(prog(t, 29, 1))) });
+    }
+    const fa = eout(prog(t, 29, 1));
+    if (fa > 0) {
+      setA(fa); ctx.fillStyle = rgba(P.canvas, 0.94); ctx.fillRect(0, 230, W, 700); setA(1);
+      M('[p|p]([d|h],[d|e],[d|l],[d|l],[d|o]) = [p|p]([d|h]) · [p|p]([d|e]|[d|h]) · [p|p]([d|l]|[d|he]) · [p|p]([d|l]|[d|hel]) · [p|p]([d|o]|[d|hell])', 960, 420, 34, { align: 'center', a: fa });
+      text(`= 0.06 × 0.30 × 0.25 × 0.45 × 0.80 = ${(0.06 * 0.3 * 0.25 * 0.45 * 0.8).toFixed(5)}`, 960, 480, { font: F.mono, size: 24, color: P.dust, align: 'center', a: eout(prog(t, 31, 1)) });
+      const ga = eout(prog(t, 37, 1));
+      card(460, 560, 1000, 250, P.ink, ga); label('the chain rule — exact, for any sequence', 500, 606, ga);
+      M('[p|p]([d|x][d_|1], … , [d|x][d_|T]) = [kB|∏][k_|t=1][k^|T] [p|p]([d|x][d_|t] | [d|x][d_|<t])', 960, 700, 42, { align: 'center', a: ga });
+      M('[d|x][d_|<t] = everything before position t', 960, 770, 22, { align: 'center', a: eout(prog(t, 39, 1)) });
+    }
+  } });
+
+// 04 — the one question
+SC.push({ dur: 28, chapter: 'question', title: 'The one question', sub: 'Given everything so far — what comes next?',
+  caps: [[1, 7, 'So the question from the opening was simply: given everything so far, what comes next?'],
+         [7, 14, 'A model pθ takes the context x<t and returns a probability for each of the 27 possible next symbols.'],
+         [14, 21, 'Pick one, append it, and feed the longer context back in. Its own output becomes its next input.'],
+         [21, 27.6, "That feedback loop is what 'auto-regressive' means: the model regresses on its own past."]],
+  draw(t) {
+    const a = eout(prog(t, 0.6, 0.8));
+    // loop: context grows each cycle
+    const seq = 'hello.'; const cyc = t < 14 ? 0 : Math.min(3, Math.floor((t - 14) / 3.2) + 1);
+    const cur = 'hel'.slice(0, 3) + 'lo.'.slice(0, cyc);
+    const tx = 170;
+    cur.split('').forEach((c, i) => tile(c, tx + i * 74, 560, 64, a));
+    text('context  x<t', tx - 30, 480, { font: F.mono, size: 20, color: P.terracotta, a });
+    arrow(tx + cur.length * 74, 560, 780, 560, P.dust, 2, a);
+    // model box
+    const ba = eout(prog(t, 5, 0.8));
+    rbox(790, 470, 260, 180, 20, rgba(P.plum, 0.12), rgba(P.plum, 0.7), ba, 2.5);
+    M('[p|p][a_|θ]', 920, 575, 54, { align: 'center', a: ba });
+    text('model', 920, 630, { font: F.mono, size: 16, color: P.plum, align: 'center', a: ba });
+    arrow(1060, 560, 1120, 560, P.dust, 2, ba);
+    const G4 = { hel: GAME[3].top, hell: GAME[4].top, hello: [['.', .7], ['s', .1], ['w', .05], ['a', .05]] };
+    const top = G4[cur.replace(/\./g, '')] || G4.hello; const p = new Array(27).fill(0);
+    const rest = (1 - top.reduce((s, [, v]) => s + v, 0)) / (27 - top.length);
+    for (let j = 0; j < 27; j++) p[j] = rest; top.forEach(([c, v]) => p[ix(c)] = v);
+    const nextCh = seq[3 + cyc]; const hi = ix(nextCh);
+    const bA = eout(prog(t, 8, 1));
+    bars27(p, 1140, 680, 660, 220, { a: bA, hi: t > 14 ? hi : -1 });
+    M('[p|p][a_|θ]( · | [d|x][d_|<t])', 1470, 420, 28, { align: 'center', a: bA });
+    // feedback arrow
+    const fa = eout(prog(t, 14, 0.8));
+    if (fa > 0) {
+      setA(fa); ctx.strokeStyle = P.rose; ctx.lineWidth = 2.5; ctx.setLineDash([10, 8]); ctx.beginPath(); ctx.moveTo(1470, 760); ctx.bezierCurveTo(1470, 880, 400, 880, tx + cur.length * 74 - 20, 610); ctx.stroke(); ctx.setLineDash([]); setA(1);
+      text('sample · append · repeat', 940, 860, { font: F.mono, size: 20, color: P.rose, align: 'center', a: fa });
+      const ph = ((t - 14) % 3.2) / 3.2; if (cyc < 3) { const u = ease(ph); const bx = lerp(1140 + (hi + 0.5) * 660 / 27, tx + cur.length * 74, u), by = lerp(700, 560, u) - Math.sin(Math.PI * u) * 260; tile(nextCh, bx, by, 50, fa * clamp(ph * 4)); }
+    }
+    const qa = eout(prog(t, 21, 1));
+    card(560, 250, 800, 130, P.sage, qa);
+    text('auto-regressive  =  regressing on its own outputs', 960, 330, { font: F.serif, italic: true, size: 36, color: P.chalk, align: 'center', a: qa });
+  } });
+
+// 05 — counting: the bigram model
+SC.push({ dur: 52, chapter: 'counting', title: 'The simplest model: just count', sub: `A dataset of ${NAMES.length} first names, and a table of letter pairs.`,
+  caps: [[1, 7, "Let's build the simplest version. Our data: a few hundred first names."],
+         [7, 14, 'Mark the start and end of each name with a dot. Then slide a window along, two letters at a time.'],
+         [14, 21, "Each pair is a clue: after '.', we saw 'e'. After 'e', 'm'. After 'm', 'm'. Tally them in a 27 × 27 table."],
+         [21, 28, 'Do this for every name, and the table lights up with the patterns of the language.'],
+         [28, 36, "Read one row — say, after 'a' — and normalise it. That row is a probability distribution for the next letter."],
+         [36, 44, "p(b | a) = count(a, b) divided by the row total. That's the entire model."],
+         [44, 51.6, 'And remember episode 1: this simple counting is exactly the maximum-likelihood answer.']],
+  draw(t) {
+    const mx0 = 1150, my0 = 260, cs = 22;
+    // how many events processed
+    let n = 0; if (t > 14) n = t < 21 ? Math.floor(E3 * prog(t, 14, 7)) : E3 + Math.floor((EVENTS.length - E3) * ease(prog(t, 21, 6)));
+    const cnt = new Float32Array(729); for (let i = 0; i < n; i++) cnt[EVENTS[i][0] * 27 + EVENTS[i][1]]++;
+    const ma = eout(prog(t, 7, 1));
+    text('next letter →', mx0, my0 - 34, { font: F.mono, size: 16, color: P.dust, a: ma });
+    ctx.save(); ctx.translate(mx0 - 34, my0 + 27 * cs); ctx.rotate(-Math.PI / 2); text('previous letter →', 0, 0, { font: F.mono, size: 16, color: P.dust, a: ma }); ctx.restore();
+    for (let j = 0; j < 27; j++) { text(VOC[j], mx0 + j * cs + cs / 2, my0 - 8, { font: F.mono, size: 13, color: P.dust, align: 'center', a: ma }); text(VOC[j], mx0 - 12, my0 + j * cs + 16, { font: F.mono, size: 13, color: P.dust, align: 'center', a: ma }); }
+    setA(ma); ctx.fillStyle = P.surface; ctx.fillRect(mx0, my0, 27 * cs, 27 * cs); setA(1);
+    for (let k = 0; k < 729; k++) { if (!cnt[k]) continue; setA(ma * (0.15 + 0.85 * Math.sqrt(cnt[k] / CMAX))); ctx.fillStyle = P.amber; ctx.fillRect(mx0 + (k % 27) * cs + 1, my0 + Math.floor(k / 27) * cs + 1, cs - 2, cs - 2); }
+    setA(1);
+    text(`pairs counted: ${n.toLocaleString('en-US')}`, mx0, my0 + 27 * cs + 36, { font: F.mono, size: 18, color: P.amber, a: ma });
+    // left: the current name with the sliding window
+    const la = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 27.5, 0.8)));
+    if (la > 0) {
+      const cur = n < EVENTS.length ? EVENTS[Math.min(n, EVENTS.length - 1)] : EVENTS[EVENTS.length - 1];
+      const ni = t < 14 ? 0 : cur[2]; const w = '.' + NAMES[ni] + '.'; const dotsA = eout(prog(t, 7.5, 0.8));
+      const shown = t < 7.5 ? NAMES[ni] : w; const cw = 62;
+      shown.split('').forEach((c, i) => tile(c, 180 + i * cw, 330, 54, la));
+      if (t > 9 && t < 27.5) { const pos = t < 14 ? Math.floor((t - 9) * 1.2) % (w.length - 1) : cur[3];
+        rbox(180 + pos * cw - 34, 296, cw + 68, 68, 14, null, P.amber, la, 3);
+        if (t >= 14 && t < 21) { const e = EVENTS[Math.max(0, n - 1)]; const fu = (E3 * prog(t, 14, 7)) % 1; const sx = 180 + e[3] * cw + cw / 2, sy = 330, ex = mx0 + e[1] * cs + cs / 2, ey = my0 + e[0] * cs + cs / 2;
+          const u = eout(fu); text(VOC[e[0]] + VOC[e[1]], lerp(sx, ex, u), lerp(sy, ey, u) - Math.sin(Math.PI * u) * 80, { font: F.mono, size: 26, color: P.amber, align: 'center', a: la * (1 - u * 0.5) }); }
+      }
+      // names list
+      NAMES.slice(0, 60).forEach((nm, i) => { const col = i % 4, row = Math.floor(i / 4); const done = t > 14 && (ni > i || (n >= EVENTS.length));
+        text(nm, 180 + col * 200, 460 + row * 30 - Math.max(0, ni - 20) / 4 * 30 * 0, { font: F.mono, size: 20, color: done ? P.terracotta : P.dust, a: la * (row < 14 ? 1 : 0) * eout(prog(t, 1.2 + i * 0.02, 0.5)) }); });
+      text(`… and ${NAMES.length - 56} more`, 180, 460 + 14 * 30 + 10, { font: F.mono, size: 18, color: P.dust, a: la });
+    }
+    // row "a" → distribution
+    const ra = eout(prog(t, 28, 1));
+    if (ra > 0) {
+      rbox(mx0 - 3, my0 + 1 * cs - 3, 27 * cs + 6, cs + 6, 6, null, P.ink, ra, 3);
+      const pr = BIGRAM[1];
+      text('p( next | a )', 140, 470, { font: F.mono, size: 26, color: P.ink, a: ra });
+      bars27(pr, 140, 820, 900, 300, { a: ra, labels: true });
+      const top = pr.map((p, j) => [p, j]).sort((a, b) => b[0] - a[0]).slice(0, 3);
+      top.forEach(([p, j], k) => text(`${VOC[j] === '.' ? 'end' : VOC[j]}: ${p.toFixed(2)}`, 1040, 520 + k * 34, { font: F.mono, size: 20, color: P.ink, align: 'right', a: ra }));
+    }
+    const fa = eout(prog(t, 36, 0.8));
+    card(140, 250, 900, 180, P.amber, fa);
+    M('[p|p]([d|b] | [d|a]) = [a|N]([d|a], [d|b]) / [kB|Σ][k_|b′] [a|N]([d|a], [d|b′])', 180, 330, 34, { a: fa });
+    M('counting  =  argmax[a_|θ] [kB|Σ] log [p|p][a_|θ]([d|x])   ✓', 180, 395, 24, { a: eout(prog(t, 44, 0.8)) });
+  } });
+
+// 06 — generate!
+SC.push({ dur: 50, chapter: 'sampling', title: "Let's generate some names", sub: 'Look up a row, roll the dice, append, repeat.',
+  caps: [[1, 7, "Start with the start marker '.', and look up its row: which letters tend to begin a name?"],
+         [7, 14, 'Now roll the dice. A random number u between 0 and 1 lands in one letter’s slice — wider slices get hit more often.'],
+         [14, 21, 'Append that letter. It becomes the new context: look up its row, roll again.'],
+         [21, 29, 'Repeat until we roll the end marker. We just generated a name nobody wrote!'],
+         [29, 37, 'Run it again and again: every run takes a different random path.'],
+         [37, 44, 'Some are charming. Many are nonsense. Why? The model only ever sees one letter back.'],
+         [44, 49.6, "After 'n' it has no idea whether it's at the start, middle or end of a name."]],
+  draw(t) {
+    const steps = DEMO.steps; const S = k => (k === 0 ? 3 : 10 + (k - 1) * 2.6), D = k => (k === 0 ? 7 : 2.6);
+    let k = 0; for (let i = 0; i < steps.length; i++) if (t >= S(i)) k = i;
+    const st = steps[k], s0 = S(k), d = D(k);
+    const fade = 1 - ease(prog(t, 28.5, 1));
+    // output string
+    const out = '.' + DEMO.name + '.'; const done = steps.filter((_, i) => t >= S(i) + D(i)).length;
+    GA = fade;
+    out.slice(0, 1 + done).split('').forEach((c, i) => tile(c, 960 + (i - out.length / 2) * 80, 320, 70, 1, { glowOn: i === done && t < S(done - 1) + D(done - 1) + 0.6 }));
+    text('generated so far', 960, 250, { font: F.mono, size: 18, color: P.dust, align: 'center' });
+    // strip
+    const x0 = 160, Wd = 1600, y = 520, h = 80; const ra = eout(prog(t, s0, 0.4));
+    let cx = x0; const segX = [];
+    st.p.forEach((p, j) => { const w = p * Wd; segX.push([cx, w]); setA(ra * (j % 2 ? 0.45 : 0.3)); ctx.fillStyle = P.ink; ctx.fillRect(cx, y, w, h); if (w > 24) text(VOC[j] === '.' ? '·' : VOC[j], cx + w / 2, y + h / 2 + 10, { font: F.mono, size: 24, color: P.chalk, align: 'center', a: ra }); cx += w; });
+    setA(1);
+    text(`row for context “${st.ctx}”  —  p( next | ${st.ctx} )`, x0, y - 22, { font: F.mono, size: 22, color: P.ink, a: ra });
+    text('0', x0, y + h + 30, { font: F.mono, size: 18, color: P.dust, align: 'center' }); text('1', x0 + Wd, y + h + 30, { font: F.mono, size: 18, color: P.dust, align: 'center' });
+    // dice pointer
+    const spin0 = s0 + d - 2.2, spinU = prog(t, spin0, 1.6);
+    if (t > spin0) {
+      const wob = (1 - ease(spinU)) * Math.sin((t - spin0) * 9) * 0.45; const u = clamp(st.u + wob * (1 - spinU), 0, 1);
+      const px = x0 + u * Wd; line(px, y - 30, px, y + h + 10, P.rose, 4); setA(1); ctx.fillStyle = P.rose; ctx.beginPath(); ctx.moveTo(px, y - 30); ctx.lineTo(px - 12, y - 52); ctx.lineTo(px + 12, y - 52); ctx.fill();
+      text(`u = ${u.toFixed(3)}`, px, y - 62, { font: F.mono, size: 22, color: P.rose, align: 'center' });
+      if (spinU >= 1) { const [sx, sw] = segX[st.j]; rbox(sx, y - 4, Math.max(sw, 6), h + 8, 6, null, P.terracotta, 1, 4);
+        text(`picked “${VOC[st.j] === '.' ? 'end' : VOC[st.j]}”  with p = ${st.p[st.j].toFixed(3)}`, 960, y + h + 80, { font: F.mono, size: 24, color: P.terracotta, align: 'center' }); }
+    }
+    if (t > 23) text(`“${DEMO.name}” — not in the training data`, 960, 440, { font: F.serif, italic: true, size: 34, color: P.sage, align: 'center', a: eout(prog(t, 23, 0.8)) });
+    GA = 1;
+    // fast names
+    const fa = eout(prog(t, 29, 0.8));
+    if (fa > 0) {
+      text('more samples from the same 27 × 27 table', 160, 290, { font: F.mono, size: 20, color: P.dust, a: fa });
+      let px = 160, py = 370;
+      FAST_NAMES.forEach((nm, i) => { const t0 = 29.5 + i * 0.95; if (t < t0) return; const shown = nm.slice(0, Math.floor((t - t0) * 14) + 1);
+        ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(nm).width + 60; if (px + w > 1760) { px = 160; py += 80; }
+        rbox(px, py - 40, w, 60, 30, rgba(P.terracotta, 0.08), rgba(P.terracotta, 0.4), fa);
+        text(shown, px + 30, py + 2, { font: F.mono, size: 34, color: P.chalk, a: fa }); px += w + 18; });
+      const na = eout(prog(t, 37, 0.8));
+      card(160, 690, 1600, 170, P.rose, na); label('the problem', 196, 736, na, P.rose);
+      M('[p|p]([d|x][d_|t] | [d|x][d_|<t]) ≈ [p|p]([d|x][d_|t] | [d|x][d_|t−1])    ← only one letter of memory', 196, 810, 30, { a: na });
+    }
+  } });
+
+// 07 — more context
+const CTXSIZE = [1, 2, 3, 4].map(k => ({ k, seen: NG[k].size, all: Math.pow(27, k) }));
+SC.push({ dur: 42, chapter: 'more context', title: 'More context, better names — and a new explosion', sub: 'Condition on the last 2, 3, 4 letters instead of one.',
+  caps: [[1, 7, "Fix: let the model look further back. Count triples, quadruples…"],
+         [7, 14, 'Context of 1 letter: gibberish-ish. 2 letters: name-like. 3 letters: surprisingly good.'],
+         [14, 21, "But look closer: with long contexts, many 'new' names are just copies of the training data."],
+         [21, 28, 'And the table explodes again: 27 rows, then 729, then 19,683, then 531,441.'],
+         [28, 35, 'Almost all of those rows are empty — contexts we never saw. For them, counting has nothing to say.'],
+         [35, 41.6, 'Counting memorises; it cannot generalise. We need a model that knows similar contexts behave similarly.']],
+  draw(t) {
+    const A = 1 - ease(prog(t, 20.5, 1));
+    if (A > 0) {
+      GA = A;
+      CTX_NAMES.forEach((list, c) => {
+        const x = 170 + c * 560, a = eout(prog(t, 1 + c * 0.8, 0.8));
+        card(x, 250, 500, 640, P.plum, a);
+        text(`context = ${c + 1}`, x + 34, 306, { font: F.serif, size: 38, color: P.chalk, a });
+        M(`[p|p]([d|x][d_|t] | ${['[d|x][d_|t−1]', '[d|x][d_|t−2], [d|x][d_|t−1]', '[d|x][d_|t−3], …, [d|x][d_|t−1]'][c]})`, x + 34, 352, 20, { a });
+        list.forEach((nm, i) => { const ai = eout(prog(t, 7 + c * 1.5 + i * 0.18, 0.5)); const copy = NAMESET.has(nm);
+          text(nm, x + 34, 420 + i * 54, { font: F.mono, size: 32, color: copy && t > 14 ? P.dust : P.terracotta, a: ai });
+          if (copy) pill(x + 466, 410 + i * 54, 'copied', P.dust, ai * eout(prog(t, 14.5 + i * 0.1, 0.5)), { align: 'right', size: 17 }); });
+      });
+      GA = 1;
+    }
+    const B = eout(prog(t, 21, 1));
+    if (B > 0) {
+      GA = B;
+      text('contexts', 170, 290, { font: F.mono, size: 18, color: P.dust }); text('possible', 560, 290, { font: F.mono, size: 18, color: P.dust }); text('actually seen', 830, 290, { font: F.mono, size: 18, color: P.dust }); text('seen ■   never seen □  (bar = all possible)', 1130, 290, { font: F.mono, size: 18, color: P.dust });
+      CTXSIZE.forEach(({ k, seen, all }, i) => {
+        const y = 370 + i * 120, a = eout(prog(t, 21.5 + i * 1.3, 0.8));
+        M(`last [d|${k}] letter${k > 1 ? 's' : ''}`, 170, y, 28, { a });
+        text(all.toLocaleString('en-US'), 560, y, { font: F.mono, size: 34, color: P.chalk, a });
+        text(seen.toLocaleString('en-US'), 830, y, { font: F.mono, size: 34, color: P.terracotta, a });
+        rbox(1130, y - 30, 640, 40, 6, P.surface, P.border, a);
+        setA(a); ctx.fillStyle = P.terracotta; ctx.fillRect(1130, y - 30, Math.max(3, 640 * seen / all), 40); setA(1);
+        text(`${(100 * (1 - seen / all)).toFixed(k === 1 ? 0 : 1)}% empty`, 1770, y + 40, { font: F.mono, size: 18, color: P.dust, align: 'right', a: a * eout(prog(t, 28, 0.8)) });
+      });
+      insight(170, 820 - 20, 1600, "Counting treats 'emm' and 'imm' as unrelated strangers. A better model should share what it learns between similar contexts.", eout(prog(t, 35, 0.8)));
+      GA = 1;
+    }
+  } });
+
+// 08 — neural next-letter model
+const VOWELS = ['a', 'e', 'i', 'o', 'u', 'y'];
+const EMM = dist(3, 'emm', 1, 0.3), EMM_Z = EMM.map(Math.log), EMM_ZC = (() => { const m = EMM_Z.reduce((a, b) => a + b, 0) / 27; return EMM_Z.map(z => z - m); })();
+const SURPRISE = (() => { const w = '.emma.'; const out = []; for (let i = 0; i < w.length - 1; i++) { const p = BIGRAM[ix(w[i])][ix(w[i + 1])]; out.push([w[i], w[i + 1], p, -Math.log(p)]); } return out; })();
+SC.push({ dur: 56, chapter: 'neural net', title: 'Replace the table with a function', sub: 'Embeddings, a neural network, and a softmax.',
+  caps: [[1, 8, 'Instead of one row per context, give each letter a vector of numbers — an embedding. Letters become points in space.'],
+         [8, 17, 'Letters that behave alike land close together. Here the vowels cluster — found purely from which letters follow them.'],
+         [17, 24, "Feed the context's embeddings into a neural network. Out come 27 raw scores, called logits."],
+         [24, 31, 'Softmax turns scores into probabilities: exponentiate to make them positive, then divide by the total so they sum to 1.'],
+         [31, 38, 'How do we train it? Show it real names and, at each step, measure its surprise at the true next letter: −log p.'],
+         [38, 46, 'Confident and right: tiny loss. Confident and wrong: huge loss. Gradient descent turns the knobs θ to shrink it.'],
+         [46, 55.6, 'Add the surprise over a whole name and you get −log pθ(x). Minimising it is maximum likelihood — again!']],
+  draw(t) {
+    // A: embedding space
+    const A = 1 - ease(prog(t, 16.5, 1));
+    if (A > 0) {
+      GA = A; const cx = 700, cy = 590, s = 290, a0 = eout(prog(t, 1, 1));
+      line(cx - s - 40, cy, cx + s + 40, cy, P.border, 1.5, a0); line(cx, cy - s - 20, cx, cy + s + 20, P.border, 1.5, a0);
+      const vs = VOWELS.map(v => EMB[ix(v)]); const vcx = vs.reduce((a, p) => a + p[0], 0) / vs.length, vcy = vs.reduce((a, p) => a + p[1], 0) / vs.length;
+      const vr = Math.max(...vs.map(p => Math.hypot(p[0] - vcx, p[1] - vcy))) * s + 40;
+      const ca = eout(prog(t, 9, 1)); setA(ca * 0.08); ctx.fillStyle = P.sage; ctx.beginPath(); ctx.arc(cx + vcx * s, cy - vcy * s, vr, 0, TAU); ctx.fill(); setA(1); ring(cx + vcx * s, cy - vcy * s, vr, P.sage, ca * 0.8, 2);
+      text('vowels', cx + vcx * s, cy - vcy * s - vr - 14, { font: F.serif, italic: true, size: 28, color: P.sage, align: 'center', a: ca });
+      EMB.forEach(([ex, ey], j) => { const a = eout(prog(t, 1.5 + j * 0.08, 0.5)); const X = cx + ex * s, Y = cy - ey * s; glow(X, Y, 6, P.terracotta, a); text(VOC[j] === '.' ? '·' : VOC[j], X + 12, Y - 10, { font: F.mono, size: 26, color: P.chalk, a }); });
+      card(1260, 280, 560, 220, P.terracotta, eout(prog(t, 3, 0.8))); label('embedding', 1296, 326, eout(prog(t, 3, 0.8)));
+      M('[d|e]([d|c]) ∈ ℝ[d^|d]', 1296, 410, 44, { a: eout(prog(t, 3, 0.8)) });
+      text('one learned vector per letter', 1296, 462, { size: 24, color: P.stone, a: eout(prog(t, 3, 0.8)) });
+      text('(here: 2-D, found from which letters follow which)', 1260, 540, { font: F.mono, size: 16, color: P.dust, a: eout(prog(t, 5, 0.8)) });
+      GA = 1;
+    }
+    // B: pipeline + softmax
+    const B = eout(prog(t, 17, 1)) * (1 - ease(prog(t, 30.5, 1)));
+    if (B > 0) {
+      GA = B; const y = 560;
+      'emm'.split('').forEach((c, i) => tile(c, 150 + i * 72, y, 60, 1));
+      arrow(332, y, 372, y, P.dust, 2);
+      for (let i = 0; i < 3; i++) for (let k = 0; k < 6; k++) { const v = Math.sin((ix('emm'[i]) + 1) * (k + 1) * 1.7) * 0.5 + 0.5; setA(0.2 + 0.8 * v); ctx.fillStyle = P.terracotta; ctx.fillRect(385 + i * 34, y - 90 + k * 30, 26, 26); }
+      setA(1); text('embeddings', 436, y + 120, { font: F.mono, size: 16, color: P.dust, align: 'center' });
+      arrow(490, y, 515, y, P.dust, 2);
+      rbox(520, y - 110, 230, 220, 20, rgba(P.plum, 0.12), rgba(P.plum, 0.7), 1, 2.5);
+      text('neural net', 635, y - 10, { font: F.serif, size: 34, color: P.chalk, align: 'center' }); M('[a|W], [a|b]  =  [a|θ]', 635, y + 40, 22, { align: 'center' });
+      arrow(760, y, 820, y, P.dust, 2);
+      // morphing bars: logits → exp → probs
+      const ph1 = ease(prog(t, 25, 2)), ph2 = ease(prog(t, 28, 1.5));
+      const bx = 840, bw = 960 / 27, base = y + 60;
+      const ez = EMM_ZC.map(Math.exp), ezm = Math.max(...ez), pm = Math.max(...EMM);
+      for (let j = 0; j < 27; j++) {
+        const hz = EMM_ZC[j] * 34, he = ez[j] / ezm * 260, hp = EMM[j] / pm * 260 * (1 - 0.25 * ph2);
+        const hgt = ph1 < 1 ? lerp(hz, he, ph1) : lerp(he, hp, ph2);
+        const col = ph1 < 0.5 ? P.plum : P.ink;
+        setA(0.85); ctx.fillStyle = col; if (hgt >= 0) ctx.fillRect(bx + j * bw + 2, base - hgt, bw - 4, hgt); else ctx.fillRect(bx + j * bw + 2, base, bw - 4, -hgt);
+        text(VOC[j], bx + j * bw + bw / 2, base + 128, { font: F.mono, size: 14, color: P.dust, align: 'center' });
+      }
+      setA(1); line(bx, base, bx + 960, base, P.borderLight, 1.5);
+      const lab = ph1 < 0.5 ? '[m|z]  logits: any real number' : ph2 < 0.5 ? '[m|e][m^|z]  exponentiate: all positive' : '[p|p] = [m|e][m^|z] / [kB|Σ] [m|e][m^|z]  normalise: sums to 1';
+      M(lab, bx, y - 190, 26);
+      card(840, 800 - 20, 960, 110, P.ink, eout(prog(t, 24, 0.8)));
+      M('softmax:  [p|p][d_|i] = [m|e][m^|zᵢ] / [kB|Σ][k_|j] [m|e][m^|zⱼ]', 880, 846, 32, { a: eout(prog(t, 24, 0.8)) });
+      GA = 1;
+    }
+    // C: surprise
+    const C = eout(prog(t, 31, 1));
+    if (C > 0) {
+      GA = C;
+      const x0 = 170, x1 = 880, y0 = 820, y1 = 300, L = p => -Math.log(p);
+      const X = p => x0 + p * (x1 - x0), Y = l => y0 - l / 5 * (y0 - y1);
+      line(x0, y0, x1 + 20, y0, P.borderLight, 2); line(x0, y0, x0, y1 - 20, P.borderLight, 2);
+      text('p(true next letter)', x1, y0 + 40, { font: F.mono, size: 18, color: P.ink, align: 'right' }); text('surprise  −log p', x0 + 10, y1 - 30, { font: F.mono, size: 18, color: P.plum });
+      text('0', x0, y0 + 26, { font: F.mono, size: 16, color: P.dust, align: 'center' }); text('1', x1, y0 + 26, { font: F.mono, size: 16, color: P.dust, align: 'center' });
+      const cu = ease(prog(t, 31.5, 2));
+      setA(1); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 200 * cu; i++) { const p = 0.0067 + (1 - 0.0067) * i / 200; i ? ctx.lineTo(X(p), Y(L(p))) : ctx.moveTo(X(p), Y(L(p))); } ctx.stroke();
+      const ra = eout(prog(t, 38, 0.8)), wa = eout(prog(t, 40, 0.8));
+      glow(X(0.9), Y(L(0.9)), 8, P.sage, ra); pill(X(0.9) - 20, Y(L(0.9)) - 44, 'p = 0.9 → 0.11', P.sage, ra, { align: 'right' });
+      glow(X(0.01), Y(L(0.01)), 8, P.rose, wa); pill(X(0.01) + 24, Y(L(0.01)), 'p = 0.01 → 4.61', P.rose, wa);
+      // per-letter surprise of "emma"
+      const sa = eout(prog(t, 46, 0.8));
+      card(1000, 260, 820, 600, P.plum, eout(prog(t, 33, 0.8)));
+      label('cross-entropy loss', 1036, 306, eout(prog(t, 33, 0.8)), P.plum);
+      M('[m|L]([a|θ]) = − [kB|Σ][k_|t] log [p|p][a_|θ]([d|x][d_|t] | [d|x][d_|<t])', 1036, 380, 28, { a: eout(prog(t, 34, 0.8)) });
+      text('surprise at each letter of “emma” (bigram model):', 1036, 450, { font: F.mono, size: 17, color: P.dust, a: sa });
+      SURPRISE.forEach(([a, b, p, s], i) => { const y = 500 + i * 52, ai = eout(prog(t, 46.5 + i * 0.35, 0.5));
+        text(`${a}→${b === '.' ? 'end' : b}`, 1036, y + 8, { font: F.mono, size: 22, color: P.terracotta, a: ai });
+        setA(ai * 0.85); ctx.fillStyle = P.plum; ctx.fillRect(1160, y - 12, s * 110, 26); setA(1);
+        text(s.toFixed(2), 1170 + s * 110, y + 8, { font: F.mono, size: 18, color: P.stone, a: ai }); });
+      const tot = SURPRISE.reduce((a, r) => a + r[3], 0);
+      M(`total = [m|${tot.toFixed(2)}] = −log [p|p]([d|emma])`, 1036, 800, 26, { a: eout(prog(t, 49, 0.8)) });
+      GA = 1;
+    }
+  } });
+
+// 09 — temperature
+const TK = [[0, 1], [8, 1], [11, 0.3], [15, 0.3], [18, 2.5], [22, 2.5], [25, 1]];
+function tauAt(t) { for (let i = 0; i < TK.length - 1; i++) if (t < TK[i + 1][0]) return lerp(TK[i][1], TK[i + 1][1], ease((t - TK[i][0]) / (TK[i + 1][0] - TK[i][0]))); return TK[TK.length - 1][1]; }
+SC.push({ dur: 38, chapter: 'temperature', title: 'Temperature: the creativity knob', sub: 'Divide the logits by τ before the softmax.',
+  caps: [[1, 7, "One more knob — the one you've seen in chatbot settings: temperature, τ."],
+         [7, 14, 'Divide the logits by τ before the softmax. Low τ sharpens the distribution: the favourite almost always wins.'],
+         [14, 21, 'High τ flattens it: unlikely letters get a real chance.'],
+         [21, 29, 'Too cold: safe and repetitive. Too hot: chaos. τ = 1: the distribution exactly as learned.'],
+         [29, 37.6, 'Same model, same knowledge. Temperature only changes how boldly we sample from it.']],
+  draw(t) {
+    const tau = tauAt(t); const base = BIGRAM[1].map(Math.log);
+    const e = base.map(z => Math.exp(z / tau)); const s = e.reduce((a, b) => a + b, 0); const p = e.map(v => v / s);
+    const a = eout(prog(t, 0.6, 0.8));
+    text(`p( next | a )  at  τ = ${tau.toFixed(2)}`, 160, 320, { font: F.mono, size: 24, color: P.ink, a });
+    bars27(p, 160, 760, 980, 380, { a, maxP: Math.max(0.9, ...p) });
+    // slider
+    const sx = 160, sw = 980, sy = 860; const pos = (Math.log(tau) - Math.log(0.2)) / (Math.log(3) - Math.log(0.2));
+    rbox(sx, sy - 4, sw, 8, 4, P.elevated, null, a); rbox(sx, sy - 4, sw * pos, 8, 4, rgba(P.amber, 0.6), null, a);
+    glow(sx + sw * pos, sy, 13, P.amber, a); text('cold', sx, sy + 40, { font: F.mono, size: 16, color: P.dust, a }); text('hot', sx + sw, sy + 40, { font: F.mono, size: 16, color: P.dust, align: 'right', a });
+    text(`τ = ${tau.toFixed(2)}`, sx + sw * pos, sy - 24, { font: F.mono, size: 24, color: P.amber, align: 'center', a });
+    const ca = eout(prog(t, 7, 0.8));
+    card(1240, 250, 590, 170, P.amber, ca); label('temperature', 1276, 296, ca, P.amber);
+    M('[p|p][d_|i] = [m|e][m^|zᵢ/τ] / [kB|Σ][k_|j] [m|e][m^|zⱼ/τ]', 1276, 372, 32, { a: ca });
+    [0.3, 1, 2].forEach((tt, c) => { const x = 1240 + c * 200, aa = eout(prog(t, 21 + c * 0.6, 0.8));
+      text(`τ = ${tt}`, x + 10, 480, { font: F.mono, size: 22, color: P.amber, a: aa });
+      TEMP_NAMES[c].forEach((nm, i) => text(nm.length > 10 ? nm.slice(0, 10) + '…' : nm, x + 10, 530 + i * 44, { font: F.mono, size: 24, color: P.terracotta, a: aa * eout(prog(t, 21.5 + c * 0.6 + i * 0.15, 0.4)) })); });
+    ['boring', 'balanced', 'wild'].forEach((w, c) => text(w, 1250 + c * 200, 820, { font: F.serif, italic: true, size: 24, color: P.dust, a: eout(prog(t, 24, 0.8)) }));
+  } });
+
+// 10 — scaling up
+SC.push({ dur: 42, chapter: 'scaling up', title: 'From baby names to ChatGPT', sub: 'Same loop. Bigger pieces, longer memory, a better function.',
+  caps: [[1, 8, 'Real language models make three upgrades. First, the pieces are tokens — chunks of words — from a vocabulary of ~100,000.'],
+         [8, 16, 'Second, the context is not 3 letters but thousands of tokens: whole conversations, whole documents.'],
+         [16, 25, 'Third, the function is a Transformer. Its attention lets every position look back at all earlier ones — never ahead.'],
+         [25, 33, "And it's not just text. Put an image's pixels, or a sound's samples, in an order — and the same chain rule applies."],
+         [33, 41.6, 'But the loop is identical: predict a distribution, sample, append, repeat. That is the whole engine.']],
+  draw(t) {
+    const dimAll = 1 - 0.75 * ease(prog(t, 33, 1));
+    const panels = [[110, 240, 'tokens', 1], [990, 240, 'context', 8], [110, 590, 'attention', 16], [990, 590, 'any sequence', 25]];
+    panels.forEach(([x, y, nm, t0], pi) => {
+      const a = eout(prog(t, t0, 0.8)) * dimAll; if (a <= 0) return; GA = a;
+      card(x, y, 820, 320, P.plum, 1); label(nm, x + 34, y + 44);
+      const lt = t - t0;
+      if (pi === 0) {
+        const word = 'unbelievable', parts = ['un', 'believ', 'able']; const m = ease(prog(lt, 2, 1.5));
+        let cx = x + 50; let ci = 0;
+        parts.forEach(pt => { const w = pt.length * 40; rbox(cx - 4 + 0, y + 110, w + 8 - 0, 70, 12, rgba(P.terracotta, 0.12 * m), rgba(P.terracotta, 0.7 * m), 1, 2);
+          pt.split('').forEach((c, k) => { rbox(cx + k * 40 + 2, y + 116, 36, 58, 8, null, rgba(P.terracotta, 0.6 * (1 - m)), 1, 1.5); text(c, cx + k * 40 + 20, y + 156, { font: F.mono, size: 30, color: P.chalk, align: 'center' }); ci++; });
+          cx += w + 20 * m + 6; });
+        text(`12 letters  →  ${m > 0.5 ? '3 tokens' : '12 steps'}`, x + 50, y + 240, { font: F.mono, size: 22, color: P.stone });
+        M('vocabulary:  27  →  ~100,000', x + 50, y + 284, 22);
+      }
+      if (pi === 1) {
+        const g = ease(prog(lt, 1, 4)); const lg = lerp(Math.log10(3), Math.log10(128000), g);
+        rbox(x + 50, y + 120, 720, 40, 8, P.surface, P.border, 1); setA(1); ctx.fillStyle = P.terracotta; ctx.fillRect(x + 50, y + 120, 720 * lg / Math.log10(128000), 40);
+        text(`${Math.round(Math.pow(10, lg)).toLocaleString('en-US')} tokens of context`, x + 50, y + 210, { font: F.mono, size: 30, color: P.chalk });
+        text('(log scale)   our name model: 3 letters', x + 50, y + 260, { font: F.mono, size: 18, color: P.dust });
+      }
+      if (pi === 2) {
+        const n = 8, cs = 24, gx = x + 50, gy = y + 70; const row = Math.floor((lt * 1.6) % n);
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const ok = j <= i; setA(ok ? (i === row ? 0.9 : 0.3) : 0.06); ctx.fillStyle = ok ? P.plum : P.stone; ctx.fillRect(gx + j * cs, gy + i * cs, cs - 3, cs - 3); }
+        setA(1); text('row = position, column = what it can look at', gx, gy + n * cs + 26, { font: F.mono, size: 15, color: P.dust });
+        para('Each token gathers information from every earlier token. The upper triangle is masked: no peeking at the future.', x + 330, y + 110, 440, { size: 23 });
+      }
+      if (pi === 3) {
+        const n = Math.floor(784 * ((lt / 6) % 1)); pixelGrid(x + 50, y + 80, 7, i => i < n ? DIG['3'][i] : 0, P.terracotta, 1, 0);
+        const pi2 = Math.min(783, n); setA(1); ctx.strokeStyle = P.chalk; ctx.lineWidth = 1.5; ctx.strokeRect(x + 50 + (pi2 % 28) * 7 - 1, y + 80 + Math.floor(pi2 / 28) * 7 - 1, 9, 9);
+        text('pixels, in raster order', x + 50, y + 300, { font: F.mono, size: 15, color: P.dust });
+        const m = Math.floor(120 * ((lt / 5) % 1)); setA(1); for (let i = 0; i < m; i++) { const v = Math.sin(i * 0.35) * Math.sin(i * 0.05) * 60; ctx.fillStyle = P.terracotta; ctx.fillRect(x + 330 + i * 3.6, y + 180 - Math.max(0, v), 2.4, Math.abs(v) + 1); }
+        text('audio samples, one at a time', x + 330, y + 300, { font: F.mono, size: 15, color: P.dust });
+        text('PixelCNN · WaveNet', x + 560, y + 44, { font: F.mono, size: 16, color: P.dust });
+      }
+      GA = 1;
+    });
+    const fa = eout(prog(t, 33.5, 1));
+    if (fa > 0) { card(360, 430, 1200, 230, P.sage, fa);
+      M('[p|p][a_|θ]([d|x]) = [kB|∏][k_|t] [p|p][a_|θ]([d|x][d_|t] | [d|x][d_|<t])', 960, 530, 46, { align: 'center', a: fa });
+      text('predict  ·  sample  ·  append  ·  repeat', 960, 610, { font: F.serif, italic: true, size: 34, color: P.sage, align: 'center', a: fa }); }
+  } });
+
+// 11 — build it yourself
+const CODE = [
+  '[m|import] random',
+  "[d|words] = open([s|'names.txt']).read().split()",
+  "[d|chars] = [s|'.abcdefghijklmnopqrstuvwxyz']",
+  '',
+  '[k|# 1. count every pair of letters]',
+  '[a|N] = {a: {b: [a|0] [m|for] b [m|in] [d|chars]} [m|for] a [m|in] [d|chars]}',
+  '[m|for] w [m|in] [d|words]:',
+  "    w = [s|'.'] + w + [s|'.']",
+  '    [m|for] a, b [m|in] [p|zip](w, w[1:]):',
+  '        [a|N][a][b] += [a|1]',
+  '',
+  '[k|# 2. generate: look up the row, roll the dice]',
+  '[m|def] [p|sample]([a|tau]=[a|1.0]):',
+  "    out, prev = [s|''], [s|'.']",
+  '    [m|while] [m|True]:',
+  '        w = [(N[prev][c] + [a|0.1]) ** ([a|1]/[a|tau]) [m|for] c [m|in] [d|chars]]',
+  '        prev = random.[n|choices]([d|chars], w)[0]',
+  "        [m|if] prev == [s|'.']: [m|return] out",
+  '        out += prev',
+  '',
+  '[m|for] _ [m|in] [p|range]([a|10]): [p|print]([p|sample]())',
+];
+SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'Everything in the counting model fits in twenty lines of Python.',
+  caps: [[1, 8, 'Everything you just saw fits in about twenty lines of Python. The code is linked below — run it, break it, play with it.'],
+         [8, 16, 'Change the context length, the temperature, or the training data. Train it on cities, Pokémon, or your own writing.'],
+         [16, 31.6, 'Recap: split p(x) with the chain rule, learn p(next | past), then sample one piece at a time.']],
+  draw(t) {
+    const a = eout(prog(t, 0.6, 0.8));
+    card(110, 240, 1010, 690, P.plum, a);
+    CODE.forEach((l, i) => { if (l) M(l, 150, 290 + i * 30, 19, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
+    const ra = eout(prog(t, 16, 0.8));
+    card(1170, 240, 650, 690, P.sage, ra); label('the whole episode', 1206, 290, ra, P.sage);
+    const lines = [['chain rule', '[p|p]([d|x]) = [kB|∏][k_|t] [p|p]([d|x][d_|t] | [d|x][d_|<t])'], ['model', '[p|p][a_|θ](·|[d|x][d_|<t]) = softmax([m|z])'], ['learn', '[m|L] = −[kB|Σ][k_|t] log [p|p][a_|θ]([d|x][d_|t] | [d|x][d_|<t])'], ['sample', '[d|x][d_|t] ∼ [p|p][a_|θ](·|[d|x][d_|<t])[k^|1/τ]']];
+    lines.forEach(([nm, m], i) => { const ai = eout(prog(t, 17 + i * 2.2, 0.8)); text(nm, 1206, 380 + i * 140, { font: F.serif, italic: true, size: 26, color: P.dust, a: ai }); M(m, 1206, 430 + i * 140, 26, { a: ai }); });
+  } });
+
+// 12 — the hook for episode 3
+SC.push({ dur: 42, chapter: 'next', title: 'But something is missing…', sub: 'Painting a picture one pixel at a time.',
+  caps: [[1, 7, 'Autoregressive models are brilliant. But watch one draw an image: one pixel, then the next, then the next…'],
+         [7, 14, 'A 1024 × 1024 colour photo is about three million sequential steps. And that pixel order is something we made up.'],
+         [14, 21, "Deeper still: there's no single place where the 'idea' of the image lives. Just a long chain of local guesses."],
+         [21, 29, 'What if we could squeeze an image into a handful of numbers — a compact code that captures its essence…'],
+         [29, 35, '…and then turn those numbers like knobs to create new images?'],
+         [35, 41.6, 'Can a machine learn by compressing? That is the next episode: autoencoders and VAEs.']],
+  draw(t) {
+    const A = 1 - ease(prog(t, 20.5, 1));
+    if (A > 0) {
+      GA = A; const n = Math.floor(784 * prog(t, 1, 18));
+      pixelGrid(200, 290, 20, i => i < n ? DIG['3'][i] : 0, P.terracotta, 1);
+      if (n < 784) { setA(1); ctx.strokeStyle = P.chalk; ctx.lineWidth = 2; ctx.strokeRect(200 + (n % 28) * 20 - 1, 290 + Math.floor(n / 28) * 20 - 1, 21, 21); }
+      text(`step ${n} / 784`, 200, 890, { font: F.mono, size: 26, color: P.chalk });
+      const a1 = eout(prog(t, 7, 0.8));
+      text('a 1024 × 1024 × 3 photo', 900, 380, { size: 30, color: P.stone, a: a1 });
+      text('3,145,728 steps', 900, 460, { font: F.mono, size: 64, color: P.terracotta, a: a1 });
+      text('one after another — no shortcuts', 900, 510, { font: F.mono, size: 20, color: P.dust, a: a1 });
+      const a2 = eout(prog(t, 14, 0.8));
+      text('where does the idea of “a 3” live?', 900, 660, { font: F.serif, italic: true, size: 48, color: P.chalk, a: a2 });
+      GA = 1;
+    }
+    const B = eout(prog(t, 21, 1)) * (1 - ease(prog(t, 35, 1)));
+    if (B > 0) {
+      GA = B;
+      pixelGrid(150, 330, 14, i => DIG['3'][i], P.terracotta, 1);
+      text('784 numbers', 346, 780, { font: F.mono, size: 20, color: P.dust, align: 'center' });
+      // encoder funnel
+      setA(0.14); ctx.fillStyle = P.plum; ctx.beginPath(); ctx.moveTo(580, 330); ctx.lineTo(820, 490); ctx.lineTo(820, 630); ctx.lineTo(580, 720); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1100, 330); ctx.lineTo(1100 - 240, 490); ctx.lineTo(1100 - 240, 630); ctx.lineTo(1100, 720); ctx.fill(); setA(1);
+      text('squeeze', 660, 310, { font: F.serif, italic: true, size: 26, color: P.plum, align: 'center' }); text('rebuild', 1030, 310, { font: F.serif, italic: true, size: 26, color: P.plum, align: 'center' });
+      // two knobs
+      const k1 = t < 29 ? 0 : 0.5 + 0.5 * Math.sin((t - 29) * 1.3 - Math.PI / 2), k2 = t < 29 ? 0 : 0.5 + 0.5 * Math.sin((t - 29) * 0.8 - Math.PI / 2);
+      [[k1, 'z₁'], [k2, 'z₂']].forEach(([k, nm], i) => { const y = 520 + i * 80; rbox(830, y - 4, 60, 8, 4, P.elevated, null, 1); glow(830 + 60 * k, y, 10, P.rose, 1); text(nm, 840 + 20, y - 18, { font: F.mono, size: 22, color: P.rose, align: 'center' }); });
+      // blended digit: corners 3, 8, 0, 6
+      const w3 = (1 - k1) * (1 - k2), w8 = k1 * (1 - k2), w0 = (1 - k1) * k2, w6 = k1 * k2;
+      pixelGrid(1150, 330, 14, i => clamp(w3 * DIG['3'][i] + w8 * DIG['8'][i] + w0 * DIG['0'][i] + w6 * DIG['6'][i]), P.terracotta, 1);
+      text('a handful of numbers', 860, 800, { font: F.mono, size: 20, color: P.rose, align: 'center', a: eout(prog(t, 23, 0.8)) });
+      text('(a teaser, not a trained model yet)', 1346, 800, { font: F.mono, size: 16, color: P.dust, align: 'center', a: eout(prog(t, 29, 0.8)) });
+      GA = 1;
+    }
+    const C = eout(prog(t, 35.5, 1.2));
+    if (C > 0) {
+      text('Can a machine learn by compressing?', 960, 500, { font: F.serif, size: 78, color: P.chalk, align: 'center', a: C });
+      text('NEXT  ·  EPISODE 03', 960, 600, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 37, 1)), ls: 4 });
+      text('Autoencoders, latent spaces & VAEs', 960, 660, { font: F.serif, italic: true, size: 44, color: P.stone, align: 'center', a: eout(prog(t, 37.5, 1)) });
+    }
+  } });
+
+// ─────────────────────────────────────────────────────────────
+//  Timeline, chrome, grain, player
+// ─────────────────────────────────────────────────────────────
+let acc = 0; SC.forEach(s => { s.start = acc; acc += s.dur; });
+const DURATION = acc;
+const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); const img = g.createImageData(256, 256); const r = rng(1234);
+  for (let i = 0; i < 256 * 256; i++) { const v = Math.floor(r() * 255); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; } g.putImageData(img, 0, 0); return c; })();
+let GRAIN_PAT = null, VIGNETTE = null;
+function header(i, s, t) {
+  const a = eout(prog(t, 0.15, 0.8));
+  text(`EP 02  ·  SCENE ${String(i).padStart(2, '0')}`, 80, 82, { font: F.serif, italic: true, size: 21, color: P.terracotta, a, ls: 3 });
+  text(s.title, 80 + (1 - a) * -16, 142, { font: F.serif, size: 58, color: P.chalk, a, ls: -0.5 });
+  text(s.sub, 80, 188, { size: 26, color: P.stone, a: eout(prog(t, 0.5, 0.8)) });
+}
+function captions(s, t) {
+  for (const [a, b, str] of s.caps) {
+    if (t < a || t > b) continue;
+    const al = Math.min(clamp((t - a) / 0.35), clamp((b - t) / 0.35));
+    const lines = wrap(str, 1560, `400 34px ${F.sans}`); const ys = lines.length === 1 ? [992] : [972, 1014];
+    ctx.save(); ctx.shadowColor = 'rgba(10,8,7,0.95)'; ctx.shadowBlur = 14;
+    lines.slice(0, 2).forEach((l, k) => text(l, 960, ys[k], { size: 34, color: P.chalk, align: 'center', a: al * 0.95 }));
+    ctx.restore();
+  }
+}
+function progressBar(T, idx) {
+  const x0 = 80, x1 = 1840, y = 1040;
+  ctx.fillStyle = P.border; setA(1); ctx.fillRect(x0, y, x1 - x0, 2);
+  ctx.fillStyle = rgba(P.terracotta, 0.85); ctx.fillRect(x0, y, (x1 - x0) * T / DURATION, 2);
+  SC.forEach((s, j) => { const x = x0 + (x1 - x0) * s.start / DURATION; line(x, y - 4, x, y + 6, j === idx ? P.terracotta : P.borderLight, 1.5);
+    text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: 11, color: j === idx ? P.terracotta : P.dust, ls: 0.5 }); });
+}
+function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
+function render(T) {
+  T = clamp(T, 0, DURATION - 1e-3);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
+  ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
+  const i = sceneAt(T), s = SC[i], t = T - s.start;
+  ctx.save(); s.draw(t); ctx.restore(); GA = 1;
+  if (s.title) header(i, s, t);
+  captions(s, t);
+  const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
+  if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
+  ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
+  progressBar(T, i);
+  if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
+  const fr = Math.floor(T * 24), r = rng(fr + 7);
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
+  ctx.fillStyle = GRAIN_PAT; ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore();
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+const capture = new URLSearchParams(location.search).has('capture');
+if (capture) document.body.classList.add('capture');
+let now = 0, playing = false, lastTs = null;
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); }; chapEl.appendChild(b); });
+function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+function loop(ts) { if (!playing) return; if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); if (playing) requestAnimationFrame(loop); }
+function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; if (playing) requestAnimationFrame(loop); }
+playBtn.onclick = toggle;
+scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); } });
+window.DURATION = DURATION;
+window.renderAt = T => render(T);
+(async () => {
+  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  DIG = { '3': makeDigit('3'), '8': makeDigit('8'), '0': makeDigit('0'), '6': makeDigit('6') };
+  draw(); window.READY = true;
+})();
+</script>
+</body>
+</html>
