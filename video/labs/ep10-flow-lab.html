@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flow Matching Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab-kit.css">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5; --clay:#a0735c;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+    color-scheme: dark;
+  }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; text-wrap:balance; }
+  .grid { display:grid; grid-template-columns: 1.1fr 1fr; gap:18px; }
+  .wide { grid-column: 1 / -1; }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  canvas { display:block; }
+  canvas.sq { width:100%; aspect-ratio:1; border-radius:10px; border:1px solid var(--border); background:var(--surface); }
+  canvas#wind { cursor:crosshair; }
+  canvas#dg { width:100%; aspect-ratio:1; border-radius:10px; border:1px solid var(--border); background:var(--surface); image-rendering:pixelated; }
+  .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; }
+  .blobs button { min-width:38px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .knobs { grid-template-columns: 110px 1fr 56px; } }
+</style>
+<script src="lab-kit.js"></script>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 10 · playground</div>
+  <h1>Flow Matching Lab: straight roads from noise to data</h1>
+  <p class="sub">The real flow-matching networks from the video run in your browser. Each one is a learned wind, v<sub>θ</sub>(x, t): drop noise points in at t = 0 and follow the wind with Euler steps to t = 1. Count how few steps you can get away with, and watch reflow straighten the roads until one step is enough.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--terracotta)">
+      <canvas id="arena" class="sq" width="560" height="560" aria-label="noise points flowing to eight blobs"></canvas>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="go">flow ▶</button><button id="paths" class="on">roads: on</button><button id="seed">new noise</button>
+        <span class="stat" id="prog">ready</span>
+      </div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the model</div>
+      <div class="row" style="margin:10px 0" id="model"><button data-m="ring1" class="on">round 1 (random pairs)</button><button data-m="ring2">after reflow</button></div>
+      <div class="knobs"><span>Euler steps</span><input id="steps" type="range" min="1" max="64" step="1" value="8"><span class="v" id="stepsv"></span></div>
+      <p class="hint">Each step reads the arrow v<sub>θ</sub>(x, t) at every point and moves Δt = 1/K along it. One step jumps straight along the very first arrow.</p>
+      <div class="stat">network calls per point: <b id="calls">0</b></div>
+      <div class="stat">landed on a blob: <b id="landed">–</b></div>
+      <div class="stat">straightness of the roads: <b id="straight">–</b> <span class="hint">(1 = a ruler)</span></div>
+      <div class="label" style="margin-top:14px">what to look for</div>
+      <p class="hint" style="color:var(--stone);font-size:14px">With <b>round 1</b> and <b>1 step</b>, everything lands in the middle: the first arrow points at the average of all the data. After <b>reflow</b> the roads are nearly straight, so one step lands on the ring.</p>
+    </section>
+    <section class="card" style="--accent:var(--sage)">
+      <div class="label">the wind at time t</div>
+      <p class="hint">Arrows: the learned velocity field at the chosen moment. Click anywhere to drop a point at t = 0 and trace its road with both models.</p>
+      <canvas id="wind" class="sq" width="560" height="560" aria-label="the learned velocity field"></canvas>
+      <div class="knobs"><span>time t</span><input id="tt" type="range" min="0" max="1" step="0.01" value="0"><span class="v" id="ttv"></span></div>
+    </section>
+    <section class="card" style="--accent:var(--plum)">
+      <div class="label">ask for a blob (a preview of episode 11)</div>
+      <p class="hint">A third network also sees a label: v<sub>θ</sub>(x, t, y). Ask for one blob, and turn the guidance dial: v = v<sub>∅</sub> + w·(v<sub>y</sub> − v<sub>∅</sub>).</p>
+      <div class="row blobs" id="ask"></div>
+      <div class="knobs"><span>guidance w</span><input id="gw" type="range" min="0" max="5" step="0.25" value="1"><span class="v" id="gwv"></span></div>
+      <canvas id="cond" class="sq" width="560" height="560" aria-label="a label-conditioned flow"></canvas>
+      <div class="stat">on the requested blob: <b id="hit">–</b></div>
+    </section>
+    <section class="card wide" style="--accent:var(--terracotta)">
+      <div class="label">digits in a handful of steps</div>
+      <p class="hint">The MNIST network: 2.7 million weights (8-bit here). It guesses the finished digit x̂, and the wind is v = (x̂ − x)/(1 − t).</p>
+      <div class="grid" style="grid-template-columns:minmax(0,420px) 1fr">
+        <canvas id="dg" width="448" height="448" aria-label="sixteen digits flowing out of noise"></canvas>
+        <div>
+          <div class="knobs"><span>Euler steps</span><input id="dsteps" type="range" min="1" max="32" step="1" value="8"><span class="v" id="dstepsv"></span></div>
+          <div class="row"><button class="primary" id="dgo">flow 16 digits</button><button id="dview">view: xₜ</button><button id="dseed">new noise</button></div>
+          <div class="stat" id="dprog">ready</div>
+          <p class="hint" style="color:var(--stone);font-size:14px">1 step gives the average digit: a blur. By 8 steps the digits are readable; 32 look finished. Episode 9’s diffusion sampler used 1,000.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer>The same models in Python: <span style="font-family:var(--mono)">code/flow_matching.py</span>, exported by <span style="font-family:var(--mono)">code/export/export_ep10_assets.py</span>. 2-D nets: [x (2), sinusoidal embedding of t (64)] → 256 → 256 → 256 → 2, swish, t fed into every hidden layer, trained on straight roads xₜ = (1 − t)·z + t·x with target x − z; the reflowed net was trained on pairs (z, where round 1 sends z). MNIST net: 784 → 1024 → 1024 → 784 with an x̂ head.</footer>
+</main>
+<script src="ep10-model.js"></script>
+<script>
+const $ = id => document.getElementById(id), MD = window.EP10M;
+function b64f32(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Float32Array(u.buffer); }
+function b64i8(s) { const bin = atob(s), u = new Int8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = (bin.charCodeAt(i) << 24) >> 24; return u; }
+const f32 = w => ({ a: w.shape[0], b: w.shape[1] || 1, w: b64f32(w.f) });
+const deq = w => { const [a, b] = w.shape, q = b64i8(w.q), o = new Float32Array(a * b); for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) o[i * b + j] = q[i * b + j] * w.s[j]; return { a, b, w: o }; };
+function temb(t, ED) { const h = ED / 2, e = new Float32Array(ED); for (let k = 0; k < h; k++) { const f = Math.exp(-Math.log(1000) * k / h), a = (t + 1) * f; e[k] = Math.sin(a); e[k + h] = Math.cos(a); } return e; }
+function matvec(v, L, out) { const { a, b, w } = L; for (let i = 0; i < a; i++) { const vi = v[i]; if (!vi) continue; const r = i * b; for (let j = 0; j < b; j++) out[j] += vi * w[r + j]; } return out; }
+function makeNet(N, quant) { const W = N.W.map(quant ? deq : f32), U = N.U.map(quant ? deq : f32), B = N.b.map(v => quant ? Float32Array.from(v) : b64f32(v.f)), WO = quant ? deq(N.Wo) : f32(N.Wo), BO = quant ? Float32Array.from(N.bo) : b64f32(N.bo.f);
+  return { W, U, B, WO, BO, ed: N.ed, cond: N.cond || 0,
+    // F(x, t) for a list of inputs (each a Float32Array); t in [0, 1] (the embedding expects t·999)
+    run(xs, t) { const e = temb(t * 999, this.ed), eu = this.U.map((u, l) => matvec(e, u, Float32Array.from(this.B[l])));
+      return xs.map(x => { let h = x; for (let l = 0; l < this.W.length; l++) { const z = matvec(h, this.W[l], Float32Array.from(eu[l])); for (let j = 0; j < z.length; j++) z[j] = z[j] / (1 + Math.exp(-z[j])); h = z; } return matvec(h, this.WO, Float32Array.from(this.BO)); }); } }; }
+const NETS = { ring1: makeNet(MD.ring1), ring2: makeNet(MD.ring2), cond: makeNet(MD.cond) };
+let MN = null; const mnist = () => MN || (MN = makeNet(MD.mnist, true));
+// the wind for 2-D points [x, y]; label y (conditional net) — 8 means "no label"
+function wind2(net, pts, t, y = null) { const xs = pts.map(p => { if (!net.cond) return Float32Array.from(p); const v = new Float32Array(2 + net.cond + 1); v[0] = p[0]; v[1] = p[1]; v[2 + (y == null ? net.cond : y)] = 1; return v; }); return net.run(xs, t); }
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const BL = Array.from({ length: 8 }, (_, k) => [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)]);
+const COL = ['#c4654a', '#d4a853', '#7a9e7e', '#6889b1', '#8b7bb5', '#b5707e', '#a0735c', '#ede6db'];
+const R = 2.3, toPx = (c, v, i) => i ? (R - v) / (2 * R) * c.height : (v + R) / (2 * R) * c.width;
+function backdrop(g, c, hl = -1) { g.fillStyle = '#1c1816'; g.fillRect(0, 0, c.width, c.height); g.lineWidth = 1.5;
+  BL.forEach((b, k) => { g.strokeStyle = COL[k]; g.globalAlpha = hl < 0 || hl === k ? 0.6 : 0.2; g.beginPath(); g.arc(toPx(c, b[0], 0), toPx(c, b[1], 1), 16, 0, 2 * Math.PI); g.stroke(); }); g.globalAlpha = 1; }
+const nearest = p => { let b = 0, d = 1e9; BL.forEach((q, k) => { const e = Math.hypot(p[0] - q[0], p[1] - q[1]); if (e < d) { d = e; b = k; } }); return [b, d]; };
+const mix = (a, b, u) => { const h = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)), A = h(a), B = h(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * u)).join(',')})`; };
+
+// ── the arena: flow N points with K Euler steps, hop by hop
+const arena = $('arena'), ag = arena.getContext('2d'); let model = 'ring1', Z = [], traj = null, running = false, showPaths = true, lastRun = null, oneCollapse = false, oneReflow = false;
+const newNoise = () => { Z = Array.from({ length: 500 }, () => [gauss(), gauss()]); traj = null; };
+newNoise();
+function posAt(f) { const K = traj.length - 1; if (f >= K) return traj[K]; const i = Math.floor(f), u = f - i; return traj[i].map((p, k) => [p[0] + (traj[i + 1][k][0] - p[0]) * u, p[1] + (traj[i + 1][k][1] - p[1]) * u]); }
+function drawArena(f = 0) { backdrop(ag, arena); const K = traj ? traj.length - 1 : 0, pts = traj ? posAt(f) : Z;
+  if (traj && showPaths) { ag.strokeStyle = '#7a9e7e'; ag.globalAlpha = 0.35; ag.lineWidth = 1; for (let k = 0; k < Z.length; k += 4) { ag.beginPath(); const n = Math.min(K, Math.floor(f)); ag.moveTo(toPx(arena, traj[0][k][0], 0), toPx(arena, traj[0][k][1], 1)); for (let s = 1; s <= n; s++) ag.lineTo(toPx(arena, traj[s][k][0], 0), toPx(arena, traj[s][k][1], 1)); if (n < K) ag.lineTo(toPx(arena, pts[k][0], 0), toPx(arena, pts[k][1], 1)); ag.stroke(); } ag.globalAlpha = 1; }
+  const u = traj ? Math.min(1, f / K) : 0; ag.fillStyle = mix('#b5707e', '#c4654a', u); pts.forEach(p => { ag.beginPath(); ag.arc(toPx(arena, p[0], 0), toPx(arena, p[1], 1), 2.4, 0, 2 * Math.PI); ag.fill(); }); }
+function flow() { if (running) return; running = true; const K = +$('steps').value, net = NETS[model]; traj = [Z.map(p => p.slice())]; LabKit.sfx.whoosh(0.5);
+  let k = 0; const step = () => { const x = traj[k], v = wind2(net, x, k / K); traj.push(x.map((p, i) => [p[0] + v[i][0] / K, p[1] + v[i][1] / K])); k++; LabKit.sfx.tick(k / K); $('calls').textContent = k; $('prog').innerHTML = `step <b>${k}</b> / ${K}`;
+    if (k < K) { setTimeout(step, 0); return; }
+    // animate the hops: each step takes a moment, with a tick
+    const per = Math.max(90, Math.min(600, 1800 / K)), t0 = performance.now(); let lastI = -1;
+    const anim = now => { const f = Math.max(0, Math.min(K, (now - t0) / per)); const i = Math.floor(f); if (i !== lastI && i < K) { LabKit.sfx.clack(i / K); lastI = i; } drawArena(f); LabKit.sfx.roll(f < K ? 0.5 : 0);
+      if (f < K) requestAnimationFrame(anim); else finish(K); }; requestAnimationFrame(anim); };
+  setTimeout(step, 20); }
+function finish(K) { running = false; LabKit.sfx.roll(0); const end = traj[K]; const on = end.filter(p => nearest(p)[1] < 0.25).length / end.length;
+  $('landed').textContent = `${Math.round(on * 100)}%`; $('prog').innerHTML = `done: <b>${K}</b> step${K > 1 ? 's' : ''}`;
+  const ratio = end.map((p, k) => { let tr = 0; for (let s = 1; s <= K; s++) tr += Math.hypot(traj[s][k][0] - traj[s - 1][k][0], traj[s][k][1] - traj[s - 1][k][1]); return Math.hypot(p[0] - traj[0][k][0], p[1] - traj[0][k][1]) / Math.max(tr, 1e-9); }).sort((a, b) => a - b)[Math.floor(end.length / 2)];
+  $('straight').textContent = K > 1 ? ratio.toFixed(3) : 'one step is always straight'; lastRun = { model, K, on };
+  if (K === 1 && model === 'ring1') oneCollapse = true; if (K === 1 && model === 'ring2' && on > 0.5) oneReflow = true;
+  on > 0.6 ? LabKit.sfx.success() : LabKit.sfx.thunk(); }
+$('go').onclick = flow;
+$('paths').onclick = () => { showPaths = !showPaths; $('paths').textContent = 'roads: ' + (showPaths ? 'on' : 'off'); $('paths').classList.toggle('on', showPaths); drawArena(traj ? traj.length - 1 : 0); };
+$('seed').onclick = () => { if (running) return; newNoise(); drawArena(); LabKit.sfx.patter(10, 0.3); };
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { model = b.dataset.m; document.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); LabKit.sfx.click(); });
+$('steps').oninput = () => $('stepsv').textContent = $('steps').value;
+
+// ── the wind at time t, and probe roads
+const wc = $('wind'), wg = wc.getContext('2d'); let probes = [], winds = 0;
+const GRID = []; for (let i = 0; i <= 18; i++) for (let j = 0; j <= 18; j++) GRID.push([-2.2 + 4.4 * j / 18, 2.2 - 4.4 * i / 18]);
+function road(net, p, K = 48) { const pts = [p.slice()]; let x = [p.slice()]; for (let k = 0; k < K; k++) { const v = wind2(net, x, k / K)[0]; x = [[x[0][0] + v[0] / K, x[0][1] + v[1] / K]]; pts.push(x[0].slice()); } return pts; }
+function drawWind() { const t = +$('tt').value; $('ttv').textContent = t.toFixed(2); backdrop(wg, wc); const V = wind2(NETS.ring1, GRID, t);
+  wg.strokeStyle = '#7a9e7e'; wg.fillStyle = '#7a9e7e'; GRID.forEach((p, i) => { const v = V[i], L = Math.hypot(v[0], v[1]), s = 0.12 * Math.min(1, 2.2 / Math.max(L, 1e-6)); const x0 = toPx(wc, p[0], 0), y0 = toPx(wc, p[1], 1), x1 = toPx(wc, p[0] + v[0] * s, 0), y1 = toPx(wc, p[1] + v[1] * s, 1);
+    wg.globalAlpha = Math.min(0.9, 0.3 + L / 3); wg.lineWidth = 1.4; wg.beginPath(); wg.moveTo(x0, y0); wg.lineTo(x1, y1); wg.stroke(); const a = Math.atan2(y1 - y0, x1 - x0); wg.beginPath(); wg.moveTo(x1, y1); wg.lineTo(x1 - 6 * Math.cos(a - 0.45), y1 - 6 * Math.sin(a - 0.45)); wg.lineTo(x1 - 6 * Math.cos(a + 0.45), y1 - 6 * Math.sin(a + 0.45)); wg.fill(); });
+  wg.globalAlpha = 1; probes.forEach(pr => { [[pr.r1, '#b5707e'], [pr.r2, '#ede6db']].forEach(([pts, c]) => { wg.strokeStyle = c; wg.lineWidth = 2; wg.beginPath(); pts.forEach((q, i) => i ? wg.lineTo(toPx(wc, q[0], 0), toPx(wc, q[1], 1)) : wg.moveTo(toPx(wc, q[0], 0), toPx(wc, q[1], 1))); wg.stroke();
+      const k = Math.round(t * (pts.length - 1)), q = pts[k]; wg.fillStyle = c; wg.beginPath(); wg.arc(toPx(wc, q[0], 0), toPx(wc, q[1], 1), 5, 0, 2 * Math.PI); wg.fill(); }); });
+  wg.font = '13px JetBrains Mono, monospace'; const lt = probes.length ? 'rose: round 1 · chalk: after reflow' : 'click to drop a point'; wg.fillStyle = 'rgba(28,24,22,0.85)'; wg.fillRect(6, 6, wg.measureText(lt).width + 12, 22); wg.fillStyle = '#a39a92'; wg.fillText(lt, 12, 21); }
+$('tt').oninput = () => { drawWind(); winds++; LabKit.sfx.tick(+$('tt').value); };
+wc.addEventListener('pointerdown', e => { const r = wc.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * 2 * R - R, y = R - ((e.clientY - r.top) / r.height) * 2 * R;
+  probes.push({ r1: road(NETS.ring1, [x, y]), r2: road(NETS.ring2, [x, y]) }); if (probes.length > 6) probes.shift(); LabKit.sfx.pop(0.6); drawWind(); });
+
+// ── ask for a blob, with the guidance dial
+const cc = $('cond'), cg = cc.getContext('2d'); let want = null, asked = 0, guided = false;
+const askRow = $('ask'); const mk = (lab, y) => { const b = document.createElement('button'); b.textContent = lab; b.onclick = () => { want = y; askRow.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); runCond(); }; askRow.appendChild(b); return b; };
+mk('any', null).classList.add('on'); for (let k = 0; k < 8; k++) { const b = mk(String(k + 1), k); b.style.color = COL[k]; }
+$('gw').oninput = () => { $('gwv').textContent = (+$('gw').value).toFixed(2); };
+function runCond() { const net = NETS.cond, w = +$('gw').value, K = 24; let x = Array.from({ length: 300 }, () => [gauss(), gauss()]); const hist = [x];
+  for (let k = 0; k < K; k++) { const t = k / K, v0 = wind2(net, x, t, null), vy = want == null ? v0 : wind2(net, x, t, want); x = x.map((p, i) => { const v = want == null ? v0[i] : [v0[i][0] + w * (vy[i][0] - v0[i][0]), v0[i][1] + w * (vy[i][1] - v0[i][1])]; return [p[0] + v[0] / K, p[1] + v[1] / K]; }); hist.push(x); }
+  const t0 = performance.now(), anim = now => { const f = Math.max(0, Math.min(K, (now - t0) / 60)), i = Math.min(K - 1, Math.floor(f)), u = f - i; backdrop(cg, cc, want == null ? -1 : want);
+    hist[i].forEach((p, k) => { const q = hist[i + 1][k], X = p[0] + (q[0] - p[0]) * u, Y = p[1] + (q[1] - p[1]) * u; cg.fillStyle = f >= K ? COL[nearest([X, Y])[0]] : mix('#b5707e', '#c4654a', f / K); cg.beginPath(); cg.arc(toPx(cc, X, 0), toPx(cc, Y, 1), 2.6, 0, 2 * Math.PI); cg.fill(); });
+    if (f < K) requestAnimationFrame(anim); else { const hit = want == null ? null : x.filter(p => nearest(p)[0] === want && nearest(p)[1] < 0.3).length / x.length; $('hit').textContent = hit == null ? 'any blob' : `${Math.round(hit * 100)}%`; if (hit != null) { asked++; if (w >= 2) guided = true; } LabKit.sfx.chime(want == null ? 0.4 : 0.3 + want / 12); } };
+  LabKit.sfx.whoosh(0.4); requestAnimationFrame(anim); }
+
+// ── MNIST digits
+const dg = $('dg'), dgc = dg.getContext('2d'); let DZ = [], DX = null, DXH = null, dview = 'x', drun = false, fewDigits = false;
+const TC = [196, 101, 74];
+function paint(x, ox, oy, s) { const im = dgc.createImageData(28, 28); for (let i = 0; i < 784; i++) { const v = Math.max(0, Math.min(1, (x[i] + 1) / 2)); im.data[i * 4] = TC[0] * v + 28 * (1 - v); im.data[i * 4 + 1] = TC[1] * v + 24 * (1 - v); im.data[i * 4 + 2] = TC[2] * v + 22 * (1 - v); im.data[i * 4 + 3] = 255; }
+  const c = document.createElement('canvas'); c.width = c.height = 28; c.getContext('2d').putImageData(im, 0, 0); dgc.imageSmoothingEnabled = false; dgc.drawImage(c, ox, oy, s, s); }
+const dnoise = () => { DZ = Array.from({ length: 16 }, () => Float32Array.from({ length: 784 }, gauss)); DX = DZ.map(z => Float32Array.from(z)); DXH = null; };
+function drawDigits() { dgc.fillStyle = '#1c1816'; dgc.fillRect(0, 0, 448, 448); (dview === 'xh' && DXH ? DXH : DX).forEach((x, k) => paint(x, (k % 4) * 112 + 2, Math.floor(k / 4) * 112 + 2, 108)); }
+function flowDigits() { if (drun) return; drun = true; const K = +$('dsteps').value, net = mnist(); DX = DZ.map(z => Float32Array.from(z)); let k = 0; LabKit.sfx.whoosh(0.6);
+  const step = () => { const t = k / K, F = net.run(DX, t); DXH = F.map(f => f.map(Math.tanh)); DX = DX.map((x, i) => x.map((v, j) => v + (DXH[i][j] - v) / (1 - t) / K)); k++;
+    drawDigits(); $('dprog').innerHTML = `step <b>${k}</b> / ${K} · t = ${(k / K).toFixed(2)}`; LabKit.sfx.tick(k / K);
+    if (k < K) requestAnimationFrame(step); else { drun = false; DXH = null; drawDigits(); if (K <= 8) fewDigits = true; LabKit.sfx.success(); } };
+  requestAnimationFrame(step); }
+$('dgo').onclick = flowDigits;
+$('dview').onclick = () => { dview = dview === 'x' ? 'xh' : 'x'; $('dview').textContent = 'view: ' + (dview === 'x' ? 'xₜ' : 'x̂'); $('dview').classList.toggle('on', dview === 'xh'); drawDigits(); };
+$('dseed').onclick = () => { if (drun) return; dnoise(); drawDigits(); LabKit.sfx.patter(10, 0.3); };
+$('dsteps').oninput = () => $('dstepsv').textContent = $('dsteps').value;
+
+$('stepsv').textContent = $('steps').value; $('dstepsv').textContent = $('dsteps').value; $('gwv').textContent = (+$('gw').value).toFixed(2);
+drawArena(); drawWind(); backdrop(cg, cc); dnoise(); drawDigits();
+LabKit.init({ id: 'ep10',
+  steps: ['<strong>Flow</strong>: noise points follow the learned wind, one Euler step at a time. Fewer steps = bigger strides.', '<strong>Break it</strong>: one step with round 1 lands everything in the middle. <strong>Fix it</strong> with the reflowed model.', '<strong>Explore</strong> the wind, ask for a blob, and make digits in a handful of steps. The missions walk you through it.'],
+  legend: [['var(--rose)', 'noise z'], ['var(--terracotta)', 'data x'], ['var(--sage)', 'the wind vθ, roads'], ['var(--amber)', 'steps & knobs']],
+  missions: [
+    { id: 'flow', title: 'Flow 500 noise points onto the ring', hint: 'Press <b>flow ▶</b>. Each tick is one call to the network.', check: () => lastRun !== null },
+    { id: 'one', title: 'One step, round 1: watch it collapse', hint: 'Drag <b>Euler steps</b> to 1 with <b>round 1</b> selected and flow. Every point jumps along the first arrow, toward the average of the data.', check: () => oneCollapse },
+    { id: 'reflow', title: 'One step, after reflow: the whole ring', hint: 'Choose <b>after reflow</b>, keep 1 step, and flow. Straight roads: one step is enough.', check: () => oneReflow },
+    { id: 'wind', title: 'Scrub the wind through time and drop a probe', hint: 'Drag <b>time t</b> across and click the wind map to trace a road with both models.', check: () => winds >= 6 && probes.length > 0 },
+    { id: 'ask', title: 'Ask for a blob, then turn up the guidance', hint: 'Pick a blob number, then set <b>guidance w</b> to 2 or more and pick again. That dial is episode 11.', check: () => asked >= 2 && guided },
+    { id: 'digits', title: 'Make digits in 8 steps or fewer', hint: 'Set <b>Euler steps</b> to 8 or fewer in the digits panel and press <b>flow 16 digits</b>. Try <b>view: x̂</b> during a run.', check: () => fewDigits },
+  ] });
+</script>
+</body>
+</html>
