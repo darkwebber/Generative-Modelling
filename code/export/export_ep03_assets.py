@@ -1,8 +1,8 @@
 """
 Train the episode-03 autoencoder and VAE, then export what the video and playground need
-(weights as float16, latent codes, sample images, training curves) to ../video/ep03-assets.js.
+(weights as float16, latent codes, sample images, training curves) to ../video/episodes/ep03-assets.js.
 
-    python export_ep03_assets.py            # ~5 minutes on a laptop CPU
+    python export/export_ep03_assets.py            # ~5 minutes on a laptop CPU
 """
 import base64
 import json
@@ -10,10 +10,10 @@ import os
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 from vae import encode, decode, load_mnist, train
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep03-assets.js')
+OUT = os.path.join(EPISODES, 'ep03-assets.js')
 
 
 def f16(a):
@@ -27,7 +27,7 @@ def u8(imgs):
 
 def trained(model, epochs, beta=1.0):
     """Train once, then reuse the cached weights in data/."""
-    path = os.path.join(HERE, 'data', f'ep03_{model}.npz')
+    path = os.path.join(DATA, f'ep03_{model}.npz')
     if os.path.exists(path):
         d = np.load(path, allow_pickle=True)
         return {k: d[k] for k in d.files if k != 'history'}, list(d['history'])

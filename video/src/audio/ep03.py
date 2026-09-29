@@ -1,7 +1,7 @@
 """Episode 03 soundtrack — E minor, 'squeezing the world into a few numbers'. Glass lead; the latent
 point sings as it wanders; a harp-like cascade as the decoded grid appears.
 
-    python src/ep03_audio.py      # → ep03-audio.mp3
+    python src/audio/ep03.py      # → ep03-audio.mp3
 """
 import numpy as np
 

@@ -3,9 +3,9 @@ Start a new episode with the series' conventions already in place:
 
     python src/new_episode.py 10 ep10-flow-matching.html "Flow Matching"
 
-writes src/ep10-scenes.js (a cold open, one worked scene, the hook), src/ep10_audio.py (a score + cues on the same
+writes src/scenes/ep10.js (a cold open, one worked scene, the hook), src/audio/ep10.py (a score + cues on the same
 clock) and registers the page in src/build.py, then builds it. Fill in the scenes; export any real-model data
-to video/ep10-assets.js (window.EP10 = {…}) and add it to the episode's scripts in build.py.
+to video/episodes/ep10-assets.js (window.EP10 = {…}) and add it to the episode's scripts in build.py.
 """
 import os
 import re
@@ -54,7 +54,7 @@ SC.push({{ dur: 20, chapter: 'next', title: 'What’s next', sub: 'The question 
 
 AUDIO = r'''"""Episode {num} soundtrack — {title}. Pick a key, a chord per scene and a lead; cue sounds on the scenes' clock.
 
-    python src/ep{num}_audio.py      # → ep{num}-audio.mp3   (or: python src/make.py {n})
+    python src/audio/ep{num}.py      # → episodes/ep{num}-audio.mp3   (or: python src/make.py {n})
 """
 from audio_lib import Score, ease, prog, scene_durations  # noqa: F401
 
@@ -75,7 +75,7 @@ S.render()
 
 def main():
     n, page, title = int(sys.argv[1]), sys.argv[2], sys.argv[3]; num = f'{n:02d}'
-    for path, tpl in ((f'ep{num}-scenes.js', SCENES), (f'ep{num}_audio.py', AUDIO)):
+    for path, tpl in ((os.path.join('scenes', f'ep{num}.js'), SCENES), (os.path.join('audio', f'ep{num}.py'), AUDIO)):
         full = os.path.join(HERE, path)
         if os.path.exists(full): print('exists, left alone:', path); continue
         open(full, 'w', encoding='utf-8').write(tpl.format(num=num, n=n, title=title, next=f'{n + 1:02d}')); print('wrote', path)

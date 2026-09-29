@@ -3,4 +3,4 @@
 node_modules
 __pycache__/
 code/data/
-video/src/.probe-*.json
+.probe-*.json

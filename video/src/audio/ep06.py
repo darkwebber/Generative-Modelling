@@ -1,7 +1,7 @@
 """Episode 06 soundtrack — D dorian, 'bending space, exactly'. Music-box lead; every motion sound is
 driven by the flow's own layer-by-layer motion (8 pulses per pass).
 
-    python src/ep06_audio.py      # → ep06-audio.mp3
+    python src/audio/ep06.py      # → ep06-audio.mp3
 """
 
 import numpy as np

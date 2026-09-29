@@ -1,8 +1,8 @@
 """
-Export the assets for the episode-04 Metric Lab (../video/ep04-lab-assets.js):
+Export the assets for the episode-04 Metric Lab (../video/labs/ep04-lab-assets.js):
 the feature network's weights and five pools of 600 images to mix a "model" from.
 
-    python export_ep04_lab.py
+    python export/export_ep04_lab.py
 """
 import base64
 import json
@@ -10,11 +10,11 @@ import os
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 import evals as E
 from vae import decode, load_mnist
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep04-lab-assets.js')
+OUT = os.path.join(LABS, 'ep04-lab-assets.js')
 N = 600
 
 

@@ -18,8 +18,10 @@ import wave
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+HERE = os.path.dirname(os.path.abspath(__file__))                 # video/src/audio
+ROOT = os.path.dirname(os.path.dirname(HERE))                      # video/
+EPISODES = os.path.join(ROOT, 'episodes')                          # pages, assets and soundtracks
+SCENES = os.path.join(ROOT, 'src', 'scenes')
 SR = 44100
 
 
@@ -46,26 +48,27 @@ def prog(t, a, d):
 
 def probe(html, exprs):
     """Evaluate JS expressions in the rendered episode page (headless) → python values."""
+    html = os.path.join('episodes', os.path.basename(html))           # pages live in video/episodes/
     cache = os.path.join(HERE, '.probe-' + os.path.basename(html) + '.json')
     key = json.dumps(exprs)
     if os.path.exists(cache) and os.path.getmtime(cache) > os.path.getmtime(os.path.join(ROOT, html)):
         c = json.load(open(cache))
         if c.get('key') == key: return c['val']
-    out = subprocess.run(['node', os.path.join(HERE, 'probe.mjs'), html, key], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    out = subprocess.run(['node', os.path.join(ROOT, 'src', 'tools', 'probe.mjs'), html, key], cwd=ROOT, capture_output=True, text=True, check=True).stdout
     val = json.loads(out.strip().splitlines()[-1])
     json.dump({'key': key, 'val': val}, open(cache, 'w'))
     return val
 
 
 def scene_durations(n):
-    """Scene lengths of episode n, read from src/epNN-scenes.js (the SC.push({ dur: … }) lines)."""
-    src = open(os.path.join(HERE, f'ep{n:02d}-scenes.js'), encoding='utf-8').read()
+    """Scene lengths of episode n, read from src/scenes/epNN.js (the SC.push({ dur: … }) lines)."""
+    src = open(os.path.join(SCENES, f'ep{n:02d}.js'), encoding='utf-8').read()
     return [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", src)]
 
 
 def assets(n):
     """The exported data of episode n (epNN-assets.js: window.EPn = {…}) as python values."""
-    src = open(os.path.join(ROOT, f'ep{n:02d}-assets.js'), encoding='utf-8').read()
+    src = open(os.path.join(EPISODES, f'ep{n:02d}-assets.js'), encoding='utf-8').read()
     return json.loads(re.search(r'window\.EP\d+ = (\{.*\});', src, re.S).group(1))
 
 
@@ -336,7 +339,7 @@ class Score:
         mixd = 10 ** (music_db / 20) * self.reverb(m, 3.2, 0.35) + self.reverb(self.sfx, 1.6, 0.18)
         mixd *= 10 ** (target_rms_db / 20) / np.sqrt((mixd ** 2).mean())
         mixd = (np.tanh(mixd * 1.2) / 1.2)[:tail]
-        wav = os.path.join(HERE, f'_{self.name}.wav'); out = os.path.join(ROOT, f'{self.name}.mp3')
+        wav = os.path.join(HERE, f'_{self.name}.wav'); out = os.path.join(EPISODES, f'{self.name}.mp3')
         with wave.open(wav, 'wb') as w:
             w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((mixd * 32767).astype('<i2').tobytes())
         ff = os.environ.get('FFMPEG') or 'ffmpeg'

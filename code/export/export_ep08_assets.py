@@ -1,9 +1,9 @@
 """
-Train the noise-conditional score networks shown in episode 08 and export ../video/ep08-assets.js:
+Train the noise-conditional score networks shown in episode 08 and export ../video/episodes/ep08-assets.js:
 the arrow field during training, the learned field at every noise level, where the small-noise field
 is wrong, plain vs annealed Langevin paths, and the 80/20 weights experiment.
 
-    python export_ep08_assets.py        # about a minute; trained nets are cached in data/
+    python export/export_ep08_assets.py        # about a minute; trained nets are cached in data/
 """
 import base64
 import json
@@ -12,10 +12,10 @@ import pickle
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 import score as SC
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep08-assets.js')
+OUT = os.path.join(EPISODES, 'ep08-assets.js')
 SNAPS = (1, 60, 200, 600, 2000, 6000)
 
 
@@ -24,7 +24,7 @@ def rnd(a, d=2):
 
 
 def trained(name):
-    path = os.path.join(HERE, 'data', f'ep08_{name}.pkl')
+    path = os.path.join(DATA, f'ep08_{name}.pkl')
     if os.path.exists(path):
         return pickle.load(open(path, 'rb'))
     net, hist, snaps = SC.train(name, 6000, snap=SNAPS)

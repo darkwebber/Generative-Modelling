@@ -6,7 +6,7 @@ as much as the picture has been denoised, so the tune crystallises with the imag
 follows the noise level √(1 − ᾱ_t) wherever the picture shows noise; the title lands on a boom and a
 full E♭ chord.
 
-    python src/ep09_audio.py      # → ep09-audio.mp3
+    python src/audio/ep09.py      # → ep09-audio.mp3
 """
 import os
 import sys

@@ -1,9 +1,9 @@
 """
-Train the flows shown in episode 06 and export everything to ../video/ep06-assets.js:
+Train the flows shown in episode 06 and export everything to ../video/episodes/ep06-assets.js:
 layer-by-layer positions (both directions), warped grid lines, exact density maps,
 training curves and a worked log-likelihood breakdown.
 
-    python export_ep06_assets.py        # a few minutes; trained flows are cached in data/
+    python export/export_ep06_assets.py        # a few minutes; trained flows are cached in data/
 """
 import base64
 import json
@@ -12,15 +12,15 @@ import pickle
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 import flow as FL
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep06-assets.js')
+OUT = os.path.join(EPISODES, 'ep06-assets.js')
 R = 3.5
 
 
 def trained(name, data, layers, steps, seed=0):
-    path = os.path.join(HERE, 'data', f'ep06_{name}.pkl')
+    path = os.path.join(DATA, f'ep06_{name}.pkl')
     if os.path.exists(path):
         return pickle.load(open(path, 'rb'))
     f, hist, nll, gauss = FL.train(data, layers, steps, seed=seed)

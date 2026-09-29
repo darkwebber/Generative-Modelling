@@ -1,7 +1,7 @@
 """Episode 04 soundtrack — G minor, 'a detective story about metrics'. Marimba lead; every verdict is a
 rubber stamp (CAUGHT / FOOLED / COPIED) landing on the frame the stamp hits.
 
-    python src/ep04_audio.py      # → ep04-audio.mp3
+    python src/audio/ep04.py      # → ep04-audio.mp3
 """
 import numpy as np
 

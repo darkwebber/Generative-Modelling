@@ -1,7 +1,7 @@
 """Episode 05 soundtrack — F# minor, 'a forger and a detective'. Kalimba lead, a heartbeat pulse under the
 game; real training runs are sonified: each newly found mode chimes, each mode-collapse hop jumps.
 
-    python src/ep05_audio.py      # → ep05-audio.mp3
+    python src/audio/ep05.py      # → ep05-audio.mp3
 """
 import numpy as np
 

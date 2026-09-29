@@ -1,12 +1,12 @@
 """Episode 01 soundtrack — C lydian, 'wonder'. Celesta lead; every dot, particle and knob is heard.
 
-    python src/ep01_audio.py      # → ep01-audio.mp3
+    python src/audio/ep01.py      # → ep01-audio.mp3
 """
 import numpy as np
 
 from audio_lib import Score, ease, eout, prog, probe
 
-HTML = 'generative-modelling.html'
+HTML = 'ep01-generative-modelling.html'
 (durs, cloud_y, moons, kde_y, data1, d5, mu_sd, part, gfit_n, fin_r) = probe(HTML, [
     'SC.map(s => s.dur)', 'SC[1].CLOUD.map(p => p.y)', 'MOONS.map(p => [p.r, p.c ? 1 : 0, p.y])', 'KDE_SAMPLES.map(s => s.y)',
     'DATA1.map(d => [d.r, d.x])', 'D5.map(d => [d.r, d.x])', '[MU5, SD5]', 'PART.map(p => [p.s, p.d, p.x])',

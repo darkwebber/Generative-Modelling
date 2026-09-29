@@ -2,8 +2,8 @@
 One command from sources to finished files for an episode:
 
     python src/make.py 9                  # build the page + the soundtrack
-    python src/make.py 9 --render         # … + render the 1080p MP4 and add the sound  (epNN…-sound.mp4)
-    python src/make.py 9 --render --preview   # … + a ~25 MB 720p preview (epNN…-720p-sound.mp4)
+    python src/make.py 9 --render         # … + render the 1080p MP4 and add the sound  (renders/epNN…-sound.mp4)
+    python src/make.py 9 --render --preview   # … + a ~25 MB 720p preview (renders/epNN…-720p-sound.mp4)
     python src/make.py 9 --only preview   # just one stage: build | audio | render | mux | preview
 
 Env: WORKERS=n renders n segments in parallel (default 3); FFMPEG=/path/to/ffmpeg (else ffmpeg on PATH,
@@ -48,11 +48,12 @@ def main():
     a = ap.parse_args()
     n = a.episode; num = f'{n:02d}'; page = EPISODES[n][0]; stem = page[:-5]
     stages = [a.only] if a.only else ['build', 'audio'] + (['render', 'mux'] if a.render else []) + (['preview'] if a.preview else [])
-    ff = ffmpeg(); mp4, snd, prev, mp3 = f'{stem}.mp4', f'{stem}-sound.mp4', f'{stem}-720p-sound.mp4', f'ep{num}-audio.mp3'
+    ff = ffmpeg(); mp4, snd, prev, mp3 = (f'renders/{stem}.mp4', f'renders/{stem}-sound.mp4', f'renders/{stem}-720p-sound.mp4', f'episodes/ep{num}-audio.mp3')
+    os.makedirs(os.path.join(ROOT, 'renders'), exist_ok=True)
     for st in stages:
         if st == 'build': build(n)
-        if st == 'audio': run(sys.executable, os.path.join(HERE, f'ep{num}_audio.py'), env={'FFMPEG': ff})
-        if st == 'render': run('node', 'render.mjs', page, a.fps, mp4, env={'FFMPEG': ff, 'WORKERS': os.environ.get('WORKERS', '3')})
+        if st == 'audio': run(sys.executable, os.path.join(HERE, 'audio', f'ep{num}.py'), env={'FFMPEG': ff})
+        if st == 'render': run('node', 'render.mjs', f'episodes/{page}', a.fps, mp4, env={'FFMPEG': ff, 'WORKERS': os.environ.get('WORKERS', '3')})
         if st == 'mux': run(ff, '-loglevel', 'error', '-y', '-i', mp4, '-i', mp3, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', snd)
         if st == 'preview':
             kbps = max(200, int(25 * 8000 / duration(os.path.join(ROOT, snd))) - 72)       # ≈25 MB in total

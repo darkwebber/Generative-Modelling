@@ -1,10 +1,10 @@
 """
-Train the energy-based models shown in episode 07 and export everything to ../video/ep07-assets.js:
+Train the energy-based models shown in episode 07 and export everything to ../video/episodes/ep07-assets.js:
 the sculpted landscape at several points in training (with its data and fantasies), Langevin and
 gradient-descent marble paths, a long mixing chain, each valley's share of probability, the exact
 2-D likelihood, the slope field, and the 1-D sculpting and Metropolis demos.
 
-    python export_ep07_assets.py        # a few minutes; the trained model is cached in data/
+    python export/export_ep07_assets.py        # a few minutes; the trained model is cached in data/
 """
 import base64
 import json
@@ -14,10 +14,10 @@ import re
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 import ebm
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep07-assets.js')
+OUT = os.path.join(EPISODES, 'ep07-assets.js')
 R = ebm.R
 SNAPS = (1, 40, 120, 300, 800, 2000, 4000)
 CFG = dict(steps=4000, eta=3e-3, k=60, alpha=0.01, hidden=96, seed=0)
@@ -47,7 +47,7 @@ def with_params(E, snap):
 
 
 def trained():
-    path = os.path.join(HERE, 'data', 'ep07_ring.pkl')
+    path = os.path.join(DATA, 'ep07_ring.pkl')
     if os.path.exists(path):
         return pickle.load(open(path, 'rb'))
     E, hist, nll, snaps = ebm.train('ring', snapshots=SNAPS, **CFG)
@@ -99,7 +99,7 @@ def main():
         u = float(mr.random()); acc = dE <= 0 or u < np.exp(-dE)
         met.append([round(x, 3), round(prop, 3), round(dE, 3), round(u, 3), int(acc)]); x = prop if acc else x
     # ── the flow from episode 6 on the same 8 blobs (for the side-by-side)
-    ep6 = open(os.path.join(HERE, '..', 'video', 'ep06-assets.js')).read()
+    ep6 = open(os.path.join(EPISODES, 'ep06-assets.js')).read()
     ep6 = json.loads(re.search(r'window\.EP6 = (\{.*\});', ep6, re.S).group(1))
     assets = {
         'R': R, 'eta': eta, 'k': CFG['k'], 'steps': CFG['steps'], 'alpha': CFG['alpha'], 'emax': EMAX,

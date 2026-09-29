@@ -1,7 +1,7 @@
 """Episode 02 soundtrack — A minor / C, 'the machine that writes'. Music-box lead + a soft clock pulse
 for the autoregressive loop; typewriter keys for every letter that appears; dice rattles for sampling.
 
-    python src/ep02_audio.py      # → ep02-audio.mp3
+    python src/audio/ep02.py      # → ep02-audio.mp3
 """
 import numpy as np
 

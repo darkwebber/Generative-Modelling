@@ -5,7 +5,7 @@ Signature: noise you can hear. Wherever the picture shows a noise level σ, a so
 picture sharpens (country → city → street). Particles following the arrows roll at their real speed
 (from the exported annealed-Langevin paths); the three Langevin runs of scene 2 each sing their variance.
 
-    python src/ep08_audio.py      # → ep08-audio.mp3
+    python src/audio/ep08.py      # → ep08-audio.mp3
 """
 
 import numpy as np

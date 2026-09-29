@@ -1,7 +1,8 @@
 // Render an episode (a deterministic canvas animation) to MP4, frame by frame.
-// Usage: node render.mjs <episode.html> [fps=30] [out.mp4] [start=0] [end=DURATION]
-//   e.g. node render.mjs generative-modelling.html
-//        node render.mjs ep02-autoregressive.html 30 ep02.mp4 120 170   # just one section
+// Usage: node render.mjs <episodes/page.html> [fps=30] [out.mp4 = renders/<page>.mp4] [start=0] [end=DURATION]
+//   e.g. node render.mjs episodes/ep01-generative-modelling.html
+//        node render.mjs episodes/ep02-autoregressive.html 30 renders/ep02.mp4 120 170   # just one section
+//   (python src/make.py N --render does this, then adds the soundtrack)
 // Env:   WORKERS=n   render n segments in parallel, then join them (default: 1)
 //        FFMPEG=/path/to/ffmpeg   CHROMIUM_PATH=/path/to/chrome
 import { chromium } from 'playwright';
@@ -11,9 +12,10 @@ import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const html = process.argv[2] || 'generative-modelling.html';
+const html = process.argv[2] || 'episodes/ep01-generative-modelling.html';
 const fps = Number(process.argv[3] || 30);
-const out = path.resolve(here, process.argv[4] || html.replace(/\.html$/, '.mp4'));
+const out = path.resolve(here, process.argv[4] || path.join('renders', path.basename(html).replace(/\.html$/, '.mp4')));
+fs.mkdirSync(path.dirname(out), { recursive: true });
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const workers = Number(process.env.WORKERS || 1);
 const run = (cmd, args, opts = {}) => new Promise((res, rej) => { const p = spawn(cmd, args, { stdio: 'inherit', ...opts }); p.on('close', c => c === 0 ? res() : rej(new Error(`${cmd} exited ${c}`))); });

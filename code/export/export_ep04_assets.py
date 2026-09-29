@@ -1,7 +1,7 @@
 """
-Compute every number shown in episode 04 and export it to ../video/ep04-assets.js.
+Compute every number shown in episode 04 and export it to ../video/episodes/ep04-assets.js.
 
-    python export_ep04_assets.py        # a few minutes; reuses the cached VAE and feature net
+    python export/export_ep04_assets.py        # a few minutes; reuses the cached VAE and feature net
 """
 import base64
 import json
@@ -9,11 +9,11 @@ import os
 
 import numpy as np
 
+from common import DATA, EPISODES, LABS, VIDEO  # noqa: E402,F401  (first: puts code/ on the path)
 import evals as E
 from vae import load_mnist
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'video', 'ep04-assets.js')
+OUT = os.path.join(EPISODES, 'ep04-assets.js')
 
 
 def u8(imgs):
@@ -80,7 +80,7 @@ def main():
         'nnDist': dists, 'nnPairs': pairs,
         'sevens': u8(Xte[np.where(yte == 7)[0][:8]]),
     }
-    d = np.load(os.path.join(HERE, 'data', 'ep03_vae.npz'), allow_pickle=True)
+    d = np.load(os.path.join(DATA, 'ep03_vae.npz'), allow_pickle=True)
     last = list(d['history'])[-1]
     assets['vaeTest'] = {'recon': float(last['test_recon']), 'kl': float(last['test_kl'])}
     with open(OUT, 'w') as f:

@@ -6,7 +6,7 @@ thin out as they settle), each Metropolis proposal gets its coin, tock (accepted
 each sculpting step is a chisel tap as loud as the landscape actually changed, and each time the long
 chain crosses a ridge you hear it hop.
 
-    python src/ep07_audio.py      # → ep07-audio.mp3
+    python src/audio/ep07.py      # → ep07-audio.mp3
 """
 
 import numpy as np
