@@ -174,10 +174,38 @@ we must sample → ratios (Metropolis) → slopes (Langevin) → the slope never
 | 12 | Build it | Langevin + training loop in numpy + recap | — |
 | 13 | Hook → score | the sampler only used the slope; ∇ₓ log Z = 0; the arrows are the score | s(x) = ∇ₓ log p = −∇ₓE → *Episode 08: score matching & Langevin* |
 
+## Episode 08 — Score matching & Langevin dynamics (~10:12)
+
+`ep08-score.html` · playground: `score-lab.html` · code: `../code/score.py`
+
+Built from `src/ep08-scenes.js` (`python src/build_ep08.py`). The 2-D scenes use real noise-conditional
+score networks trained by denoising score matching in `code/export_ep08_assets.py`. The data are mixtures of
+Gaussians, so every learned arrow is checked against the exact score of the noisy data.
+
+The spine: **the score (no Z) → why Langevin's √(2η) is exact → we can't see the true score → integrate by parts
+(Hyvärinen) → add noise and point home (Vincent; the score is a denoiser) → small noise is blind in the desert and to
+weights → many noise levels + annealed Langevin → run noise backwards: diffusion.**
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | particles follow a learned arrow field down a ladder of noise levels onto the eight blobs | — |
+| 01 | The score | log p, its slope as arrows, a relative slope, Z drops out, a Gaussian is a spring | s(x) = ∇ log p = p′/p |
+| 02 | Why √(2η) | three Langevin runs on N(0,1): no kick collapses, double kick is 4× too wide; variance recursion; Fokker–Planck balance | Var′ = (1−η)²Var + 2η; ∂p/∂t = −∇·(p s) + Δp = 0 |
+| 03 | The problem | we have samples, not scores; Fisher divergence has an unknown term | E‖s_θ − ∇log p‖² |
+| 04 | Integrate by parts | the unknown cancels; live fit of a Gaussian score recovers mean and variance; D backward passes | E[s_θ² + 2 s_θ′] |
+| 05 | Point home | shake x, the way home is −ε/σ; the average of all possible homes is the noisy score; Tweedie | E‖σ s_θ + ε‖²; E[x∣x̃] = x̃ + σ² s |
+| 06 | Training (real) | the arrow field at σ ≈ 0.5 organising over 6,000 steps; loss levels off above 0 | — |
+| 07 | The catch | error map at σ = 0.05 (wrong between the blobs); 80/20 blobs: plain Langevin gives 50% (after 3,000 steps 49%) | local arrows can't see weights |
+| 08 | Many scales | the learned field from σ = 3 to 0.05, annealed Langevin down the ladder | η = c·σ² |
+| 09 | Weights restored | 80/20: truth 80%, plain 50%, annealed 77% | — |
+| 10 | In the wild | NCSN (2019), score SDEs (2021), denoisers as priors, ε-prediction in diffusion models | — |
+| 11 | Build it | DSM training + annealed Langevin in 15 lines + recap | — |
+| 12 | Hook → diffusion | data dissolves into noise, arrows lead it back; destroy slowly, learn to undo | → *Episode 09: diffusion* |
+
 ## Playgrounds
 
 Every episode has a hands-on lab: `density-lab.html` (01), `ar-playground.html` (02), `vae-playground.html` (03),
-`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07). They share `lab-kit.js`:
+`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08). They share `lab-kit.js`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -228,10 +256,11 @@ player and the MP4 carry identical audio.
 | 04 | G minor · marimba | every verdict a rubber stamp (CAUGHT / FOOLED / COPIED); digits dropping into each model; the copier's zero-distance "clink" |
 | 05 | F♯ minor · kalimba + heartbeat | each mode the real GAN finds chimes; each collapse hop jumps; the GDA spiral pans as it circles |
 | 06 | D dorian · music box | the flow's 8 layer pulses each way; det 2 / ½ / 0 morphs; chains breaking in the hook |
+| 08 | B♭ lydian · plucked harp | noise you can hear: a hiss that follows σ, a harp note per rung of the σ ladder, particles rolling at their real speed, the three √(2η) runs each singing their variance, the probe singing its score |
 | 07 | C minor · vibraphone | glass marbles poured, rolling and jiggling at their real speed; a chisel tap per sculpting step (as loud as the landscape moved); coin, wood-block (accepted) or thunk (rejected) per Metropolis proposal; a chime each time the long chain hops a ridge |
 
 ```bash
-python src/ep01_audio.py   # … ep07_audio.py  → epNN-audio.mp3 next to the episode HTML
+python src/ep01_audio.py   # … ep08_audio.py  → epNN-audio.mp3 next to the episode HTML
 python src/audio_player.py generative-modelling.html ep01-audio.mp3   # (ep01/ep02 pages; builds do this themselves)
 ```
 
@@ -254,6 +283,7 @@ WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
 WORKERS=4 node render.mjs ep07-energy.html 30 ep07-energy.mp4
+WORKERS=4 node render.mjs ep08-score.html 30 ep08-score.mp4
 # add the soundtrack (same for every episode)
 ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
 ```

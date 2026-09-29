@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Score Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; text-wrap:balance; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  canvas#lab { width:100%; aspect-ratio:1; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:block; cursor:crosshair; }
+  .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; }
+  .knobs .v { color:var(--amber); text-align:right; }
+  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  canvas#chart { width:100%; height:110px; display:block; margin-top:10px; }
+  .ladder { display:flex; gap:4px; flex-wrap:wrap; margin-top:10px; }
+  .ladder span { font-family:var(--mono); font-size:11px; padding:3px 7px; border-radius:10px; border:1px solid var(--border); color:var(--dust); transition:all .2s; }
+  .ladder span.on { color:var(--canvas); background:var(--amber); border-color:var(--amber); }
+  .share { font-family:var(--mono); font-size:22px; color:var(--chalk); }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+<script src="lab-kit.js"></script>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 08 · playground</div>
+  <h1>Score Lab: learn the arrows, then follow them</h1>
+  <p class="sub">A real noise-conditional score network trains in your browser by denoising score matching. It sees a shaken point and the noise level σ, and predicts the noise; divided by σ, that is the score. Backprop is written by hand; no libraries are used. Look at its arrows at any noise level, then sample by following them, with plain or annealed Langevin.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--sage)">
+      <canvas id="lab" width="720" height="720" aria-label="data, the learned arrows and particles; click to drop particles"></canvas>
+      <div class="knobs">
+        <span>arrows at σ =</span><input id="lvl" type="range" min="0" max="9" step="1" value="4"><span class="v" id="lvlv"></span>
+      </div>
+      <div class="row">
+        <button class="primary" id="ann">sample: annealed σ 3 → 0.05</button><button id="plain">sample: plain, σ = 0.05 only</button>
+        <button id="truth">true arrows: off</button><button id="clear">clear particles</button>
+      </div>
+      <div class="ladder" id="ladder"></div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the data</div>
+      <div class="row" style="margin:10px 0" id="data">
+        <button data-d="ring" class="on">8 blobs</button><button data-d="two">80/20 blobs</button><button data-d="moons">two moons</button><button data-d="spiral">spiral</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="go">❚❚ pause training</button><button id="reset">reset</button>
+        <span class="stat">step <b id="step">0</b> · loss <b id="loss">—</b></span>
+      </div>
+      <canvas id="chart" width="480" height="110"></canvas>
+      <div class="hint">denoising loss ‖net(x̃, σ) + ε‖², averaged over all σ. It levels off above 0: a noisy point could have come from many clean ones.</div>
+      <div class="label" style="margin-top:14px">last sample</div>
+      <div class="stat" id="res">Press a sample button. Particles start uniformly everywhere.</div>
+      <div class="share" id="share"></div>
+    </section>
+  </div>
+  <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/score.py</span>. Net: [x, y, log σ] → 64 → 64 → 2, swish; s_θ = net / σ. σ ladder: 10 levels from 3 to 0.05. Annealed Langevin: 30 steps per level, η = 0.1·σ². Click the picture to drop particles that follow plain Langevin at the σ chosen above.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const R = 4, SIG = Array.from({ length: 10 }, (_, i) => 3 * Math.pow(0.05 / 3, i / 9));
+// ── the network: [x, y, log σ] → H → H → 2, swish, hand-written backprop
+class Net {
+  constructor(sizes) { this.S = sizes; this.W = []; this.b = []; for (let l = 0; l < sizes.length - 1; l++) { const a = sizes[l], b = sizes[l + 1], s = Math.sqrt(1 / a); this.W.push(Float32Array.from({ length: a * b }, () => gauss() * s)); this.b.push(new Float32Array(b)); }
+    this.P = [...this.W, ...this.b]; this.G = this.P.map(p => new Float32Array(p.length)); this.m = this.P.map(p => new Float32Array(p.length)); this.v = this.P.map(p => new Float32Array(p.length)); this.t = 0; }
+  forward(X, N) { const S = this.S, L = S.length - 1; this.N = N; this.H = [X]; this.U = []; let h = X;
+    for (let l = 0; l < L; l++) { const a = S[l], b = S[l + 1], W = this.W[l], bb = this.b[l], u = new Float32Array(N * b);
+      for (let n = 0; n < N; n++) { const ho = n * a, uo = n * b; for (let j = 0; j < b; j++) u[uo + j] = bb[j]; for (let i = 0; i < a; i++) { const hv = h[ho + i], wo = i * b; for (let j = 0; j < b; j++) u[uo + j] += hv * W[wo + j]; } }
+      if (l < L - 1) { const s = new Float32Array(N * b); for (let k = 0; k < s.length; k++) s[k] = u[k] / (1 + Math.exp(-u[k])); this.U.push(u); this.H.push(s); h = s; } else return u; } }
+  backward(d) { const S = this.S, N = this.N, L = S.length - 1;
+    for (let l = L - 1; l >= 0; l--) { const a = S[l], b = S[l + 1], h = this.H[l], W = this.W[l], gW = this.G[l], gb = this.G[L + l];
+      for (let n = 0; n < N; n++) for (let j = 0; j < b; j++) { const dv = d[n * b + j]; if (!dv) continue; gb[j] += dv; for (let i = 0; i < a; i++) gW[i * b + j] += h[n * a + i] * dv; }
+      if (l === 0) break; const dn = new Float32Array(N * a); for (let n = 0; n < N; n++) for (let i = 0; i < a; i++) { let s = 0; const wo = i * b, dof = n * b; for (let j = 0; j < b; j++) s += W[wo + j] * d[dof + j]; dn[n * a + i] = s; }
+      const u = this.U[l - 1]; for (let k = 0; k < dn.length; k++) { const sg = 1 / (1 + Math.exp(-u[k])); dn[k] *= sg * (1 + u[k] * (1 - sg)); } d = dn; } }
+  step(lr) { this.t++; const b1 = 0.9, b2 = 0.999, c1 = 1 - b1 ** this.t, c2 = 1 - b2 ** this.t;
+    this.P.forEach((p, k) => { const g = this.G[k], m = this.m[k], v = this.v[k]; for (let q = 0; q < p.length; q++) { m[q] = b1 * m[q] + (1 - b1) * g[q]; v[q] = b2 * v[q] + (1 - b2) * g[q] * g[q]; p[q] -= lr * (m[q] / c1) / (Math.sqrt(v[q] / c2) + 1e-8); g[q] = 0; } }); }
+}
+// the score at (x, σ) for a batch of points
+function score(net, pts, sg) { const N = pts.length / 2, X = new Float32Array(N * 3), ls = Math.log(sg); for (let k = 0; k < N; k++) { X[3 * k] = pts[2 * k]; X[3 * k + 1] = pts[2 * k + 1]; X[3 * k + 2] = ls; } const o = net.forward(X, N); for (let k = 0; k < o.length; k++) o[k] /= sg; return o; }
+// ── data
+let kind = 'ring';
+const GMM = { ring: { mu: Array.from({ length: 8 }, (_, k) => [2 * Math.cos(k * Math.PI / 4), 2 * Math.sin(k * Math.PI / 4)]), w: Array(8).fill(1 / 8), s: 0.12 }, two: { mu: [[-1.6, 0.9], [1.6, -0.9]], w: [0.8, 0.2], s: 0.35 } };
+function sample1() { if (GMM[kind]) { const G = GMM[kind]; let u = rnd(), k = 0; while (k < G.w.length - 1 && u > G.w[k]) { u -= G.w[k]; k++; } return [G.mu[k][0] + G.s * gauss(), G.mu[k][1] + G.s * gauss()]; }
+  if (kind === 'moons') { const th = Math.PI * rnd(), up = rnd() < 0.5; return [((up ? Math.cos(th) - 0.5 : 0.5 - Math.cos(th)) + 0.05 * gauss()) * 1.6, ((up ? Math.sin(th) - 0.25 : 0.25 - Math.sin(th)) + 0.05 * gauss()) * 1.6]; }
+  const r = Math.sqrt(rnd()) * 2.8, th = r * 3.0; return [r * Math.cos(th) + 0.07 * gauss(), r * Math.sin(th) + 0.07 * gauss()]; }
+function trueScore(x, y, sg) { const G = GMM[kind]; if (!G) return null; const v = G.s * G.s + sg * sg; let lw = G.mu.map((m, k) => Math.log(G.w[k]) - ((x - m[0]) ** 2 + (y - m[1]) ** 2) / (2 * v)); const mx = Math.max(...lw); lw = lw.map(l => Math.exp(l - mx)); const t = lw.reduce((a, b) => a + b, 0);
+  let gx = 0, gy = 0; G.mu.forEach((m, k) => { gx -= lw[k] / t * (x - m[0]) / v; gy -= lw[k] / t * (y - m[1]) / v; }); return [gx, gy]; }
+// ── training: denoising score matching, the net predicts −ε
+let net, step, hist, ema, running = true, showTruth = false, parts = null, sampler = null, lastShare = null, lastMode = null;
+const visited = new Set();
+function reset() { seed = 5; net = new Net([3, 64, 64, 2]); step = 0; hist = []; ema = null; parts = null; sampler = null; }
+function trainStep() { const B = 128, X = new Float32Array(B * 3), E = new Float32Array(B * 2);
+  for (let k = 0; k < B; k++) { const [x, y] = sample1(), sg = SIG[Math.floor(rnd() * 10)], e1 = gauss(), e2 = gauss(); X[3 * k] = x + sg * e1; X[3 * k + 1] = y + sg * e2; X[3 * k + 2] = Math.log(sg); E[2 * k] = e1; E[2 * k + 1] = e2; }
+  const o = net.forward(X, B), d = new Float32Array(B * 2); let loss = 0; for (let k = 0; k < B * 2; k++) { const r = o[k] + E[k]; loss += r * r; d[k] = 2 * r / B; } loss /= B;
+  net.backward(d); net.step(step > 2500 ? 1e-3 : 2e-3); step++; ema = ema === null ? loss : 0.98 * ema + 0.02 * loss; if (step % 5 === 0) { hist.push(ema); if (hist.length > 400) hist.shift(); } }
+// ── sampling
+function startSampler(mode) { const n = 300, p = new Float32Array(2 * n); for (let k = 0; k < 2 * n; k++) p[k] = (rnd() * 2 - 1) * 3.8; parts = p;
+  sampler = { mode, lvl: mode === 'plain' ? 9 : 0, t: 0, T: mode === 'plain' ? 300 : 30 }; lastMode = mode; LabKit.sfx.whoosh(0.5, false); LabKit.sfx.patter(16, 0.4); }
+function langevinStep(p, sg) { const eta = 0.1 * sg * sg, s = score(net, p, sg), k2 = Math.sqrt(2 * eta); let sp = 0;
+  for (let k = 0; k < p.length; k++) { const nv = Math.max(-R, Math.min(R, p[k] + eta * s[k] + k2 * gauss())); sp += Math.abs(nv - p[k]); p[k] = nv; } return sp / p.length; }
+function advanceSampler() { if (!sampler) return 0; let sp = 0;
+  for (let i = 0; i < 3; i++) { sp += langevinStep(parts, SIG[sampler.lvl]); sampler.t++;
+    if (sampler.t >= sampler.T) { if (sampler.mode === 'ann' && sampler.lvl < 9) { sampler.lvl++; sampler.t = 0; LabKit.sfx.chime(0.3 + sampler.lvl / 14, 0); } else { finishSampler(); break; } } }
+  return sp; }
+function finishSampler() { const n = parts.length / 2; let left = 0; for (let k = 0; k < n; k++) if (parts[2 * k] < 0) left++; lastShare = left / n;
+  $('res').innerHTML = `${sampler.mode === 'ann' ? 'annealed Langevin, 10 levels × 30 steps' : 'plain Langevin at σ = 0.05, 300 steps'} · ${n} particles`;
+  $('share').innerHTML = kind === 'two' ? `left blob: <span style="color:${Math.abs(lastShare - 0.8) < 0.1 ? 'var(--sage)' : 'var(--rose)'}">${(lastShare * 100).toFixed(0)}%</span> <span style="font-size:14px;color:var(--dust)">(truth 80%)</span>` : '';
+  sampler = null; LabKit.sfx.success(); }
+let drops = null, dropSig = 0;
+// ── drawing
+const cv = $('lab'), g = cv.getContext('2d'), S = 720, X = v => (v + R) / (2 * R) * S, Y = v => (R - v) / (2 * R) * S;
+const lvl = () => +$('lvl').value;
+function arrow(x1, y1, x2, y2, col, lw) { const L = Math.hypot(x2 - x1, y2 - y1); if (L < 0.5) return; g.strokeStyle = col; g.fillStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); const an = Math.atan2(y2 - y1, x2 - x1), h = Math.min(6, L * 0.45); g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - h * Math.cos(an - 0.45), y2 - h * Math.sin(an - 0.45)); g.lineTo(x2 - h * Math.cos(an + 0.45), y2 - h * Math.sin(an + 0.45)); g.fill(); }
+const GN = 19, GP = (() => { const p = new Float32Array(GN * GN * 2); for (let j = 0; j < GN; j++) for (let i = 0; i < GN; i++) { p[2 * (j * GN + i)] = -3.6 + 7.2 * i / (GN - 1); p[2 * (j * GN + i) + 1] = 3.6 - 7.2 * j / (GN - 1); } return p; })();
+function draw() { g.fillStyle = '#1c1816'; g.fillRect(0, 0, S, S);
+  const sgv = sampler ? SIG[sampler.lvl] : SIG[lvl()];
+  for (let k = 0; k < 350; k++) { const [x, y] = sample1(); g.fillStyle = 'rgba(196,101,74,0.4)'; g.beginPath(); g.arc(X(x), Y(y), 2, 0, 7); g.fill(); }
+  const s = score(net, GP, sgv);
+  for (let k = 0; k < GN * GN; k++) { const x = GP[2 * k], y = GP[2 * k + 1], vx = s[2 * k] * sgv, vy = s[2 * k + 1] * sgv, n = Math.hypot(vx, vy); if (n < 1e-6) continue; const L = 16 * Math.tanh(n / 1.2);
+    arrow(X(x) - vx / n * L, Y(y) + vy / n * L, X(x) + vx / n * L, Y(y) - vy / n * L, 'rgba(122,158,126,0.9)', 1.6);
+    if (showTruth) { const tt = trueScore(x, y, sgv); if (tt) { const ux = tt[0] * sgv, uy = tt[1] * sgv, m = Math.hypot(ux, uy); if (m > 1e-6) { const L2 = 16 * Math.tanh(m / 1.2); arrow(X(x) - ux / m * L2, Y(y) + uy / m * L2, X(x) + ux / m * L2, Y(y) - uy / m * L2, 'rgba(212,168,83,0.55)', 1.2); } } } }
+  const dot = (p, col, r) => { for (let k = 0; k < p.length / 2; k++) { g.fillStyle = col; g.beginPath(); g.arc(X(p[2 * k]), Y(p[2 * k + 1]), r, 0, 7); g.fill(); g.fillStyle = 'rgba(237,230,219,0.45)'; g.beginPath(); g.arc(X(p[2 * k]) - r * 0.3, Y(p[2 * k + 1]) - r * 0.35, r * 0.35, 0, 7); g.fill(); } };
+  if (parts) dot(parts, '#ede6db', 3); if (drops) dot(drops, '#d4a853', 3.4);
+  g.fillStyle = '#d4a853'; g.font = "15px 'JetBrains Mono', monospace"; g.fillText(`σ = ${sgv.toFixed(2)}`, 14, 26);
+  $('ladder').innerHTML = SIG.map((v, i) => `<span class="${(sampler ? sampler.lvl : lvl()) === i ? 'on' : ''}">${v.toFixed(2)}</span>`).join('');
+  $('step').textContent = step; $('loss').textContent = ema === null ? '—' : ema.toFixed(3);
+  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H);
+  if (hist.length > 1) { const lo = Math.min(...hist) - 0.05, hi = Math.max(...hist.slice(Math.min(5, hist.length - 1))) + 0.05, yy = v => H - 6 - Math.min(1, (v - lo) / (hi - lo)) * (H - 12);
+    cg.strokeStyle = '#8b7bb5'; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 399 * W; i ? cg.lineTo(x, yy(h)) : cg.moveTo(x, yy(h)); }); cg.stroke(); } }
+// ── controls
+function labels() { $('lvlv').textContent = SIG[lvl()].toFixed(2); visited.add(lvl()); }
+$('lvl').oninput = () => { labels(); draw(); };
+$('ann').onclick = () => startSampler('ann'); $('plain').onclick = () => startSampler('plain');
+$('truth').onclick = () => { showTruth = !showTruth; $('truth').textContent = 'true arrows: ' + (showTruth ? 'on' : 'off'); $('truth').classList.toggle('on', showTruth); if (showTruth && !GMM[kind]) LabKit.toast('True arrows are known exactly for <b>8 blobs</b> and <b>80/20 blobs</b> (mixtures of Gaussians).', 'tip'); draw(); };
+$('clear').onclick = () => { parts = null; drops = null; sampler = null; draw(); };
+$('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause training' : '▶ resume training'; };
+$('reset').onclick = () => { reset(); draw(); };
+document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { kind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); reset(); $('share').innerHTML = ''; LabKit.sfx.whoosh(0.4); draw(); });
+let desert = false;
+cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * 2 * R - R, y = R - ((e.clientY - r.top) / r.height) * 2 * R;
+  drops = new Float32Array(2 * 50); for (let k = 0; k < 50; k++) { drops[2 * k] = x + 0.08 * gauss(); drops[2 * k + 1] = y + 0.08 * gauss(); } dropSig = SIG[lvl()]; LabKit.sfx.patter(10, 0.3, x / R);
+  if (GMM[kind]) { const d = Math.min(...GMM[kind].mu.map(m => Math.hypot(x - m[0], y - m[1]))); if (d > 1.3 && lvl() >= 8) desert = true; } draw(); });
+function loop() { if (running) { for (let i = 0; i < 4; i++) trainStep(); }
+  let sp = advanceSampler(); if (drops) sp += langevinStep(drops, dropSig) * 0.5;
+  LabKit.sfx.roll(Math.min(1, sp * 6));
+  draw(); requestAnimationFrame(loop); }
+reset(); labels(); visited.clear(); draw(); loop();
+LabKit.init({ id: 'ep08',
+  steps: ['<strong>Watch the arrows learn</strong>: sage arrows are the network’s score at the σ you pick. It learns by pointing noisy points back home.', '<strong>Slide σ</strong> from 3 (blurry, reaching everywhere) to 0.05 (sharp, only near the data). <strong>Click</strong> to drop particles that follow the arrows.', '<strong>Sample</strong> with plain or annealed Langevin, and do the missions to find out why annealing matters.'],
+  legend: [['var(--terracotta)', 'data'], ['var(--sage)', 'learned score s_θ(x, σ)'], ['var(--amber)', 'true score · your particles'], ['var(--chalk)', 'sampled particles'], ['var(--plum)', 'training loss']],
+  missions: [
+    { id: 'train', title: 'Train until the loss settles below 1.2', hint: 'Just let it run. It never reaches 0: a noisy point could have come from many clean points.', check: () => ema !== null && step > 300 && ema < 1.2 },
+    { id: 'range', title: 'See the arrows at σ = 3 and at σ = 0.05', hint: 'Drag the σ slider all the way left, then all the way right. Big σ: gentle arrows everywhere. Small σ: sharp arrows near each blob.', check: () => visited.has(0) && visited.has(9) },
+    { id: 'ann', title: 'Sample with annealed Langevin', hint: 'Press <b>sample: annealed</b>. Listen: a chime for each rung of the σ ladder.', check: () => lastMode === 'ann' && !sampler && lastShare !== null },
+    { id: 'bug', title: 'Catch the weights bug on the 80/20 blobs', hint: 'Choose <b>80/20 blobs</b>, let it train for a bit, then press <b>sample: plain</b>. The left blob should get 80%, but plain Langevin splits roughly 50/50.', check: () => kind === 'two' && lastMode === 'plain' && !sampler && lastShare > 0.3 && lastShare < 0.7 },
+    { id: 'fix', title: 'Fix it: annealed gets the 80/20 split right', hint: 'Same data, press <b>sample: annealed</b>. The broad early arrows see both blobs and pull toward the big one.', check: () => kind === 'two' && lastMode === 'ann' && !sampler && lastShare > 0.7 },
+    { id: 'truth', title: 'Check the learned arrows against the true ones', hint: 'On <b>8 blobs</b> or <b>80/20</b>, turn <b>true arrows</b> on (amber) and compare at σ = 0.05: great near the data, off in the empty space between.', check: () => showTruth && GMM[kind] && lvl() >= 8 },
+    { id: 'desert', title: 'Drop particles in the desert at small σ', hint: 'With σ at 0.08 or 0.05, click far from any blob. The arrows out there were never trained: watch where the particles go.', check: () => desert },
+  ] });
+</script>
+</body>
+</html>

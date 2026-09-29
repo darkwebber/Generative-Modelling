@@ -8,6 +8,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 - **Episode 05 · GANs:** `gan.py` (numpy; 2-D rings and MNIST)
 - **Episode 06 · normalizing flows:** `flow.py` (numpy; RealNVP-style couplings in 2-D)
 - **Episode 07 · energy-based models:** `ebm.py` (numpy; Langevin sampling and contrastive divergence in 2-D)
+- **Episode 08 · score matching:** `score.py` (numpy; denoising score matching, noise-conditional net, annealed Langevin)
 
 ## Episode 02 — autoregressive generation
 
@@ -226,4 +227,33 @@ learning             ∇θ[−log p(x)] = ∇θE(x) − E_{x′∼pθ}[∇θE(x�
 Metropolis           accept x′ with probability min(1, e^−(E(x′) − E(x)))  (Z cancels)
 Langevin             x ← x − η∇ₓE(x) + √(2η)·ε
 the score            ∇ₓ log p(x) = −∇ₓE(x)                              (∇ₓ log Z = 0)
+```
+
+## Episode 08 — score matching & Langevin dynamics
+
+| file | what it is |
+|------|------------|
+| `score.py` | a noise-conditional score network ([x, y, log σ] → 128 → 128 → 128 → 2, swish) trained by denoising score matching with hand-written backprop; plain and annealed Langevin; exact scores of the Gaussian-mixture data for checking |
+| `export_ep08_assets.py` | trains the nets in the video → `../video/ep08-assets.js` |
+| `../video/score-lab.html` | train a score network live, look at its arrows at any σ (against the true ones), sample with plain or annealed Langevin, drop particles anywhere |
+
+```bash
+python score.py --check            # gradients vs numerical
+python score.py                    # 8 blobs: learned vs exact score at three noise levels
+python score.py --data twoblob     # 80/20 blobs: plain vs annealed Langevin shares
+```
+
+From the video (80/20 blobs, 4,000 particles started uniformly, the same 300 steps each):
+
+```
+share in the 80% blob     plain Langevin at σ = 0.05: 50%   (3,000 steps: 49%)     annealed σ 3 → 0.05: 77%
+```
+
+```
+score                 s(x) = ∇ₓ log p(x)                       (no Z: ∇ₓ log Z = 0)
+Langevin              x ← x + η·s(x) + √(2η)·ε                 (stationary: p·s − ∇p = 0)
+implicit SM           E_p[ ‖s_θ‖² + 2·tr ∇ₓ s_θ ]               (Hyvärinen, 2005)
+denoising SM          E ‖σ·s_θ(x + σε, σ) + ε‖²                 (Vincent, 2011) → s_θ = ∇ log p_σ
+Tweedie               E[x | x̃] = x̃ + σ²·∇ log p_σ(x̃)
+annealed Langevin     for σ₁ > … > σ_L: T steps with η = c·σ²    (Song & Ermon, 2019)
 ```

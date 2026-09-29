@@ -109,6 +109,13 @@ class Score:
         elif kind == 'marimba': y = s(1, .35) + .5 * s(4, .06) + .15 * s(10, .015)
         elif kind == 'glass': y = s(1, 1.3) + .3 * s(2.41, .5) + .18 * s(3.87, .25)
         elif kind == 'kalimba': y = s(1, .7) + .28 * s(5.4, .09) + .1 * s(2, .3)
+        elif kind == 'harp':   # Karplus–Strong plucked string
+            n = int(dur * SR); P_ = max(2, int(SR / f)); rng = np.random.default_rng(int(f * 7) % 9973)
+            buf = rng.uniform(-1, 1, P_).astype(np.float64); out = np.zeros(n); dec = 0.996 if f < 600 else 0.992
+            for i in range(n):
+                j = i % P_; out[i] = buf[j]; buf[j] = dec * 0.5 * (buf[j] + buf[(j + 1) % P_])
+            y = out * np.exp(-t / 1.6)
+            return (self.band(y.astype(np.float32), hi=6000) * self.env(len(t), 0.002, 0.2)).astype(np.float32)
         elif kind == 'vibes': y = (s(1, 1.1) + .32 * s(3.93, .22) + .1 * s(9.7, .05)) * (1 + .22 * np.sin(2 * np.pi * 5.3 * t))
         else: y = s(1, .6)
         return (y * self.env(len(t), 0.004, 0.25)).astype(np.float32)
@@ -200,6 +207,13 @@ class Score:
                     m = min(len(g), len(y) - i); y[i:i + m] += 0.45 * g[:m]
                 T += rng.exponential(1 / rate[min(i, len(rate) - 1)])
         self.add(self.sfx, self.at(sc, t0), y.astype(np.float32), 0.07 * gain, pan)
+
+    def hiss(self, sc, t0, t1, level, gain=1.0, lo=1500, hi=7000, pan=0.0):
+        """Audible noise whose loudness (and brightness) follows level(t) in 0..1 — sonifies a noise level σ."""
+        t = np.linspace(t0, t1, max(2, int((t1 - t0) * SR))); l = np.clip(np.asarray(level(t), np.float64), 0, 1)
+        y = self.shaped_noise(lo + (hi - lo) * l, 1.4) * l ** 1.3
+        e = np.minimum(1, np.minimum((t - t0) / 0.3, (t1 - t) / 0.3))
+        self.add(self.sfx, self.at(sc, t0), (y * e).astype(np.float32), 0.05 * gain, pan)
 
     def pulse_note(self, f, dur=0.35):  # soft heartbeat / clock pulse
         t = np.arange(int(dur * SR)) / SR
