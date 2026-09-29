@@ -693,20 +693,26 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
 function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
-// The picture keeps its own clock; the soundtrack follows it. (Reading the clock from the <audio> element froze the picture
-// wherever a streamed mp3 reports a stalled currentTime while still sounding, e.g. mobile in-app browsers.)
-let lastSeek = -1e9;
+// Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
+// If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
+// falls back to the wall clock, so it never freezes; the audio is re-seeked only then, and at most every few seconds.
+// Slow frames never slow the clock down: time comes from the audio or the wall, not from counting frames.
+let lastSeek = -1e9, audT = -1, audWall = 0, waitWall = 0;
+function audioAlive(ts) { if (!soundOn || capture || snd.paused || snd.seeking) return false;
+  const a = snd.currentTime; if (a !== audT) { audT = a; audWall = ts; } return ts - audWall < 500; }
+function seekAudio(t, force) { if (snd.seeking && !force) return; try { snd.currentTime = t; } catch (e) {} lastSeek = performance.now(); audT = -1; audWall = performance.now(); }
 function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; }
-  const drift = Math.abs(snd.currentTime - now), t = performance.now();
-  if ((force || (drift > 0.35 && t - lastSeek > 1500)) && !snd.seeking) { try { snd.currentTime = now; } catch (e) {} lastSeek = t; }
+  if (force) seekAudio(now, true);
   if (snd.paused) snd.play().catch(() => {}); }
 sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
 let drawErr = 0;
 function loop(ts) { if (!playing) return;
-  if (lastTs != null) now += Math.min(0.1, (ts - lastTs) / 1000);
-  // nudge gently toward the soundtrack while it is really advancing, so long plays stay in sync
-  if (soundOn && !snd.paused && !snd.seeking && snd.readyState >= 3) { const d = snd.currentTime - now; if (Math.abs(d) < 0.3) now += d * 0.05; }
-  lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
+  const dt = lastTs == null ? 0 : Math.min(1, Math.max(0, (ts - lastTs) / 1000)); lastTs = ts;
+  if (audioAlive(ts)) { now = audT + (ts - audWall) / 1000; waitWall = 0; }                 // audio clock, smoothed between its updates
+  else if (soundOn && !snd.paused && snd.readyState < 3 && waitWall < 2) waitWall += dt;          // buffering: hold the picture briefly
+  else { now += dt;                                                                              // no usable audio clock: wall clock
+    if (soundOn && !snd.paused && Math.abs(snd.currentTime - now) > 0.5 && performance.now() - lastSeek > 4000) seekAudio(now); }
+  if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
 function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
