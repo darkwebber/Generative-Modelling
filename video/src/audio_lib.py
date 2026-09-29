@@ -109,6 +109,7 @@ class Score:
         elif kind == 'marimba': y = s(1, .35) + .5 * s(4, .06) + .15 * s(10, .015)
         elif kind == 'glass': y = s(1, 1.3) + .3 * s(2.41, .5) + .18 * s(3.87, .25)
         elif kind == 'kalimba': y = s(1, .7) + .28 * s(5.4, .09) + .1 * s(2, .3)
+        elif kind == 'vibes': y = (s(1, 1.1) + .32 * s(3.93, .22) + .1 * s(9.7, .05)) * (1 + .22 * np.sin(2 * np.pi * 5.3 * t))
         else: y = s(1, .6)
         return (y * self.env(len(t), 0.004, 0.25)).astype(np.float32)
 
@@ -154,6 +155,51 @@ class Score:
         n = int(dur * SR); u = np.linspace(0, 1, n); c = 300 * (12) ** u
         tone = np.sin(2 * np.pi * np.cumsum(hz(m0) * (hz(m1) / hz(m0)) ** u) / SR)
         return ((0.6 * self.shaped_noise(c, 3) + 0.5 * tone) * u ** 2.2).astype(np.float32)
+
+    def clack(self, f=2900):  # two glass marbles touching: short inharmonic ping + a tiny contact noise
+        n = int(0.09 * SR); t = np.arange(n) / SR; j = self.rng.uniform(0.97, 1.03)
+        y = np.sin(2 * np.pi * f * j * t) * np.exp(-t / 0.012) + .55 * np.sin(2 * np.pi * f * 2.71 * j * t) * np.exp(-t / 0.006)
+        return (y + 0.4 * self.band(self.noise(n), lo=2500, hi=9000) * np.exp(-t / 0.002)).astype(np.float32)
+
+    def chisel(self, f=520):  # a small tap on clay/stone: dull knock + gritty scrape tail
+        n = int(0.18 * SR); t = np.arange(n) / SR
+        knock = np.sin(2 * np.pi * np.cumsum(f * (1 + 0.6 * np.exp(-t / 0.01))) / SR) * np.exp(-t / 0.03)
+        grit = self.band(self.noise(n), lo=900, hi=3600) * np.exp(-t / 0.03) * 0.18
+        return (knock + grit).astype(np.float32)
+
+    def coin(self):  # a coin flicked into the air: metallic ring with a wobble
+        n = int(0.8 * SR); t = np.arange(n) / SR; wob = 1 + 0.004 * np.sin(2 * np.pi * 18 * t)
+        y = sum(a * np.sin(2 * np.pi * f * wob * t) * np.exp(-t / d) for f, a, d in [(3150, 1, .25), (5230, .6, .15), (7810, .35, .08)])
+        return (y * (0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 9 * t)))).astype(np.float32)
+
+    def tock(self, f=1250):  # a wood block: accepted
+        n = int(0.12 * SR); t = np.arange(n) / SR
+        att = np.minimum(1, t / 0.0015)
+        return (att * (np.sin(2 * np.pi * f * t) * np.exp(-t / 0.018) + .4 * np.sin(2 * np.pi * f * 2.3 * t) * np.exp(-t / 0.006))).astype(np.float32)
+
+    def thunk(self, f=150):  # a muted, damped knock: rejected
+        n = int(0.16 * SR); t = np.arange(n) / SR
+        return (np.sin(2 * np.pi * np.cumsum(f * (1 + np.exp(-t / 0.008))) / SR) * np.exp(-t / 0.025) + 0.25 * self.band(self.noise(n), hi=700) * np.exp(-t / 0.01)).astype(np.float32)
+
+    def scratch(self, dur=0.35):  # a pen striking something out
+        n = int(dur * SR); u = np.linspace(0, 1, n)
+        return (self.shaped_noise(2500 + 2500 * u, 3) * np.sin(np.pi * u) ** 0.6 * (0.7 + 0.3 * np.sin(2 * np.pi * 34 * u * dur))).astype(np.float32)
+
+    def roll(self, sc, t0, t1, speed, gain=1.0, pan=0.0, lo=180, hi=1500, grains=True, seed=0):
+        """Marbles rolling: a low rumble + contact grains, both driven by speed(t) (≥ 0, any scale).
+        Loudness and brightness follow speed; the grain rate follows speed too, so a jiggle sounds like a jiggle."""
+        t = np.linspace(t0, t1, max(2, int((t1 - t0) * SR))); v = np.maximum(np.asarray(speed(t), np.float64), 0)
+        amp = (v / (v.max() + 1e-9)) ** 0.8
+        y = self.shaped_noise(lo * (hi / lo) ** amp) * amp
+        if grains:
+            rng = np.random.default_rng(seed); rate = 5 + 110 * amp; T = 0.0; dur = t1 - t0
+            while T < dur:
+                i = int(T * SR)
+                if amp[min(i, len(amp) - 1)] > 0.02:
+                    g = self.clack(rng.uniform(2200, 4200)) * amp[min(i, len(amp) - 1)] * rng.uniform(0.25, 0.8)
+                    m = min(len(g), len(y) - i); y[i:i + m] += 0.45 * g[:m]
+                T += rng.exponential(1 / rate[min(i, len(rate) - 1)])
+        self.add(self.sfx, self.at(sc, t0), y.astype(np.float32), 0.07 * gain, pan)
 
     def pulse_note(self, f, dur=0.35):  # soft heartbeat / clock pulse
         t = np.arange(int(dur * SR)) / SR
@@ -209,6 +255,12 @@ class Score:
         elif kind == 'rattle': a(s, T, self.rattle(kw.get('dur', 1.6)), 0.12 * gain, pan)
         elif kind == 'riser': a(s, T, self.riser(kw['dur'], kw.get('m0', 45), kw.get('m1', 57)), 0.05 * gain, pan)
         elif kind == 'drop': a(s, T, self.lead('kalimba', hz(kw.get('m', 76)), 0.5), 0.05 * gain, pan)
+        elif kind == 'clack': a(s, T, self.clack(kw.get('f', 2900)), 0.08 * gain, pan)
+        elif kind == 'chisel': a(s, T, self.chisel(kw.get('f', 520)), 0.12 * gain, pan)
+        elif kind == 'coin': a(s, T, self.coin(), 0.05 * gain, pan)
+        elif kind == 'tock': a(s, T, self.tock(kw.get('f', 1250)), 0.10 * gain, pan)
+        elif kind == 'thunk': a(s, T, self.thunk(kw.get('f', 150)), 0.22 * gain, pan)
+        elif kind == 'scratch': a(s, T, self.scratch(kw.get('dur', 0.35)), 0.05 * gain, pan)
         else: raise ValueError(kind)
 
     def transitions(self, gain=0.9):

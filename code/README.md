@@ -7,6 +7,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 - **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)
 - **Episode 05 · GANs:** `gan.py` (numpy; 2-D rings and MNIST)
 - **Episode 06 · normalizing flows:** `flow.py` (numpy; RealNVP-style couplings in 2-D)
+- **Episode 07 · energy-based models:** `ebm.py` (numpy; Langevin sampling and contrastive divergence in 2-D)
 
 ## Episode 02 — autoregressive generation
 
@@ -189,4 +190,40 @@ change of variables   p(x) = p(z) · |det ∂z/∂x|,   z = f(x)
 coupling layer        a′ = a,   b′ = b·e^s(a) + t(a)    →   log|det| = s(a)   (triangular Jacobian)
 inverse               b = (b′ − t(a))·e^−s(a)            (s, t never need inverting)
 training              min  E_x[ ½|f(x)|² + log 2π − Σₖ sₖ(x) ]
+```
+
+## Episode 07 — energy-based models
+
+| file | what it is |
+|------|------------|
+| `ebm.py` | an energy network (2→96→96→96→1, swish) with hand-written backprop for both ∇θ and ∇ₓ; a Langevin sampler; persistent contrastive divergence with a replay buffer; the exact 2-D likelihood (Z summed on a 400 × 400 grid); and the 1-D "sculpting" demo (25 bumps, exact fantasies) |
+| `export_ep07_assets.py` | trains the model shown in the video and exports landscapes, marble paths, the mixing chain, valley shares and the Metropolis chain → `../video/ep07-assets.js` |
+| `../video/ebm-lab.html` | an EBM training live in the browser: landscape or density, fantasies, knobs for Langevin steps, η, jiggle and the E² penalty, and click-to-drop marbles |
+
+```bash
+python ebm.py --check                  # gradients (θ and x) vs numerical
+python ebm.py                          # 8 blobs, the video's settings (≈ 3 min)
+python ebm.py --alpha 0.001            # weak E² penalty: one valley swallows most of the probability
+python ebm.py --data moons --plot      # energy, density and Langevin samples
+python ebm.py --sculpt                 # 1-D: data digs, fantasies raise, the gap closes
+```
+
+The model in the video (8 blobs, 4,000 steps, 60 Langevin steps of η = 0.003 per update, α = 0.01), in nats per point:
+
+```
+held-out −log p (exact, 2-D grid)   EBM 1.07     flow (episode 6) 1.00     perfect 0.68     one Gaussian 3.54
+share of probability per valley     26.0%  21.1%  17.2%  15.8%  11.3%  4.7%  2.8%  1.1%   (data: 12.5% each)
+one Langevin chain, 30,000 steps    crossed a ridge once
+```
+
+Short-run samples look perfect — every valley gets its marbles — yet the valleys are not equally
+deep: the chains never move between valleys, so training never compares them. Training twice as
+long (8,000 steps) scored worse (1.37), not better.
+
+```
+Boltzmann            p(x) = e^−E(x) / Z,        Z = ∫ e^−E(x) dx
+learning             ∇θ[−log p(x)] = ∇θE(x) − E_{x′∼pθ}[∇θE(x′)]      (data down, fantasies up)
+Metropolis           accept x′ with probability min(1, e^−(E(x′) − E(x)))  (Z cancels)
+Langevin             x ← x − η∇ₓE(x) + √(2η)·ε
+the score            ∇ₓ log p(x) = −∇ₓE(x)                              (∇ₓ log Z = 0)
 ```

@@ -143,6 +143,37 @@ triangular → coupling**. Each step answers the question the previous one raise
 | 11 | Build it | a coupling layer in numpy + recap | — |
 | 12 | Hook → EBMs | drop the shackles: any network as an energy | p(x) = e^−E(x) / Z → *Episode 07: energy-based models* |
 
+## Episode 07 — Energy-based models (~10:50)
+
+`ep07-energy.html` · playground: `ebm-lab.html` · code: `../code/ebm.py`
+
+Built from `src/ep07-scenes.js` (`python src/build_ep07.py`). Every landscape, marble and number on
+screen comes from a real energy-based model trained by contrastive divergence in
+`code/export_ep07_assets.py`: its energy map at seven points in training, the Langevin and
+gradient-descent marble paths, a 30,000-step mixing chain, each valley's share of probability,
+and the exact 2-D likelihood (Z summed over a 400 × 400 grid). The 1-D scenes use a real
+25-bump model sculpted from 200 samples, and a real Metropolis chain.
+
+The spine: **energy → e^−E → Z is impossible → its gradient is an average over fantasies → so
+we must sample → ratios (Metropolis) → slopes (Langevin) → the slope never needed Z (the score).**
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | marbles dropped on a sculpted landscape roll, jiggle and settle into the data | — |
+| 01 | One number per point | every family paid for p(x) with a promise; an EBM is any network → one number; probe the real landscape | E_θ : ℝᴰ → ℝ |
+| 02 | Energy → probability | three demands (positive, downhill = likely, energies add ⇒ probabilities multiply) force the exponential; softmax was an EBM | p = e^−E / Z, Z = ∫ e^−E |
+| 03 | The price tag | terms in Z: 27 letters, a 400² grid, 256⁷⁸⁴ ≈ 10¹⁸⁸⁸ images; but ratios cancel Z | p(a)/p(b) = e^{E(b)−E(a)} |
+| 04 | Push down, pull up | ∇ log Z slides into the integral and becomes pθ — an average over the model's own samples | ∇θ(−log p) = ∇θE(x) − E_{pθ}[∇θE(x′)] |
+| 05 | Sculpting (1-D, real) | data digs, fantasies raise; the gap closes; the hidden landscape is recovered | — |
+| 06 | Metropolis | propose, flip a biased coin; histogram → e^−E/Z; steps shrink like 1/√D | accept w.p. min(1, e^−ΔE) |
+| 07 | Use the slope | the same 420 marbles: gradient descent collapses, Langevin spreads into the valleys | x ← x − η∇E + √(2η)ε |
+| 08 | Training in 2-D (real) | landscape snapshots with data and fantasies; mean energies chase each other | contrastive divergence, replay buffer, α·E² |
+| 09 | The result | EBM density vs episode 6's flow (no bridges); exact held-out NLL vs flow and perfect | — |
+| 10 | The catch | valleys hold unequal probability; one marble crosses few ridges in 30k steps; cost, unknown Z | mixing ~ e^ΔE |
+| 11 | In disguise | classifiers & JEM, Hopfield/Boltzmann (Nobel 2024), contrastive learning, next-token softmax | — |
+| 12 | Build it | Langevin + training loop in numpy + recap | — |
+| 13 | Hook → score | the sampler only used the slope; ∇ₓ log Z = 0; the arrows are the score | s(x) = ∇ₓ log p = −∇ₓE → *Episode 08: score matching & Langevin* |
+
 ## Series roadmap
 
 | # | Episode | Question it answers | Hook into the next |
@@ -185,9 +216,10 @@ player and the MP4 carry identical audio.
 | 04 | G minor · marimba | every verdict a rubber stamp (CAUGHT / FOOLED / COPIED); digits dropping into each model; the copier's zero-distance "clink" |
 | 05 | F♯ minor · kalimba + heartbeat | each mode the real GAN finds chimes; each collapse hop jumps; the GDA spiral pans as it circles |
 | 06 | D dorian · music box | the flow's 8 layer pulses each way; det 2 / ½ / 0 morphs; chains breaking in the hook |
+| 07 | C minor · vibraphone | glass marbles poured, rolling and jiggling at their real speed; a chisel tap per sculpting step (as loud as the landscape moved); coin, wood-block (accepted) or thunk (rejected) per Metropolis proposal; a chime each time the long chain hops a ridge |
 
 ```bash
-python src/ep01_audio.py   # … ep06_audio.py  → epNN-audio.mp3 next to the episode HTML
+python src/ep01_audio.py   # … ep07_audio.py  → epNN-audio.mp3 next to the episode HTML
 python src/audio_player.py generative-modelling.html ep01-audio.mp3   # (ep01/ep02 pages; builds do this themselves)
 ```
 
@@ -209,6 +241,7 @@ WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp
 WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
+WORKERS=4 node render.mjs ep07-energy.html 30 ep07-energy.mp4
 # add the soundtrack (same for every episode)
 ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
 ```

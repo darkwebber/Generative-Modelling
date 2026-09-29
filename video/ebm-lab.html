@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Energy Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  canvas#lab { width:100%; aspect-ratio:1; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:block; cursor:crosshair; touch-action:none; }
+  .knobs { display:grid; grid-template-columns: 170px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; accent-color:var(--amber); }
+  .knobs .v { color:var(--amber); text-align:right; }
+  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  canvas#chart { width:100%; height:120px; display:block; margin-top:10px; }
+  #probe { font-family:var(--mono); font-size:13px; background:var(--elevated); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:12px; white-space:pre-wrap; min-height:92px; color:var(--stone); }
+  #probe b { color:var(--chalk); font-weight:400; }
+  ul { padding-left:18px; } li { margin:4px 0; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 07 · playground</div>
+  <h1>Energy Lab: sculpt a landscape, drop marbles</h1>
+  <p class="sub">A real energy-based model trains in your browser. A small network gives every point an energy. Each step pushes the energy down under the data and up under the model's fantasies, which are marbles moved by Langevin dynamics (roll downhill, then jiggle). Backprop is written by hand; no libraries are used. Click anywhere to drop a handful of marbles there and watch where they go.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--plum)">
+      <canvas id="lab" width="720" height="720"></canvas>
+      <div class="row" style="margin-top:12px" id="view">
+        <button data-v="land" class="on">energy landscape</button><button data-v="dens">density e^−E / Z</button>
+        <button id="showFant" class="on">fantasies</button><button id="showData">data</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="go">❚❚ pause</button><button id="reset">reset</button><button id="clear">clear marbles</button>
+        <span class="stat">step <b id="step">0</b> · −log p <b id="nll">—</b> nats</span>
+      </div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the data</div>
+      <div class="row" style="margin:10px 0" id="data">
+        <button data-d="ring" class="on">8 blobs</button><button data-d="moons">two moons</button><button data-d="spiral">spiral</button><button data-d="checker">checkerboard</button>
+      </div>
+      <div class="knobs">
+        <span>Langevin steps / update</span><input id="K" type="range" min="1" max="80" step="1" value="20"><span class="v" id="Kv"></span>
+        <span>step size η</span><input id="eta" type="range" min="-4" max="-1.7" step="0.1" value="-2.5"><span class="v" id="etav"></span>
+        <span>jiggle √(2η)·ε</span><input id="jig" type="range" min="0" max="1" step="0.05" value="1"><span class="v" id="jigv"></span>
+        <span>energy penalty α</span><input id="alpha" type="range" min="-4" max="-0.5" step="0.1" value="-2"><span class="v" id="alphav"></span>
+        <span>speed (steps/frame)</span><input id="spd" type="range" min="1" max="6" step="1" value="2"><span class="v" id="spdv"></span>
+      </div>
+      <canvas id="chart" width="480" height="120"></canvas>
+      <div class="hint">mean energy on <span style="color:var(--terracotta)">data</span> and on <span style="color:var(--rose)">fantasies</span>. When they meet, the pushes cancel.</div>
+      <div class="label" style="margin-top:14px">probe: click the picture</div>
+      <div id="probe">Click to read the energy there, and to drop marbles that follow
+x ← x − η∇E(x) + √(2η)·ε</div>
+      <div class="label" style="margin-top:18px">try this</div>
+      <ul class="hint" style="color:var(--stone);font-size:14px">
+        <li>Set <b>jiggle to 0</b>, then drop marbles: plain gradient descent collapses every marble into a single point at the bottom.</li>
+        <li><b>1 Langevin step</b> per update: fantasies barely move and training goes wobbly.</li>
+        <li><b>α at its minimum</b>: nothing stops the energies drifting off. Watch the chart.</li>
+        <li>Drop marbles on one blob and wait. How often do they climb over a ridge into the next valley?</li>
+      </ul>
+    </section>
+  </div>
+  <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/ebm.py</span>. E is a 2→48→48→1 network (swish activations). Fantasies live in a 2,048-point replay buffer; 5% restart from noise each update. Loss = mean E(data) − mean E(fantasy) + α·(E(data)² + E(fantasy)²). Adam, batch 128. The −log p shown is exact up to a grid: Z is summed over 64 × 64 points.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const R = 3.5;
+// ── the energy network: 2 → H → H → 1, swish, hand-written backprop (same as code/ebm.py)
+class Net {
+  constructor(sizes) { this.sizes = sizes; this.W = []; this.b = []; this.gW = []; this.gb = []; this.m = []; this.v = []; this.t = 0;
+    for (let l = 0; l < sizes.length - 1; l++) { const a = sizes[l], b = sizes[l + 1], s = Math.sqrt(1 / a);
+      this.W.push(Float32Array.from({ length: a * b }, () => gauss() * s)); this.b.push(new Float32Array(b)); this.gW.push(new Float32Array(a * b)); this.gb.push(new Float32Array(b)); }
+    this.m = [...this.W, ...this.b].map(p => new Float32Array(p.length)); this.v = [...this.W, ...this.b].map(p => new Float32Array(p.length)); }
+  forward(X, N) { const S = this.sizes, L = S.length - 1; this.N = N; this.H = [X]; this.U = []; let h = X;
+    for (let l = 0; l < L; l++) { const a = S[l], b = S[l + 1], W = this.W[l], bb = this.b[l], u = new Float32Array(N * b);
+      for (let n = 0; n < N; n++) { const ho = n * a, uo = n * b; for (let j = 0; j < b; j++) u[uo + j] = bb[j]; for (let i = 0; i < a; i++) { const hv = h[ho + i], wo = i * b; for (let j = 0; j < b; j++) u[uo + j] += hv * W[wo + j]; } }
+      if (l < L - 1) { const s = new Float32Array(N * b); for (let k = 0; k < s.length; k++) s[k] = u[k] / (1 + Math.exp(-u[k])); this.U.push(u); this.H.push(s); h = s; } else return u; } }
+  backward(dE, params) { const S = this.sizes, N = this.N; let d = dE;
+    for (let l = S.length - 2; l >= 0; l--) { const a = S[l], b = S[l + 1], h = this.H[l], W = this.W[l];
+      if (params) { const gW = this.gW[l], gb = this.gb[l]; for (let n = 0; n < N; n++) for (let j = 0; j < b; j++) { const dv = d[n * b + j]; if (!dv) continue; gb[j] += dv; for (let i = 0; i < a; i++) gW[i * b + j] += h[n * a + i] * dv; } }
+      const dn = new Float32Array(N * a); for (let n = 0; n < N; n++) for (let i = 0; i < a; i++) { let s = 0; const wo = i * b, dof = n * b; for (let j = 0; j < b; j++) s += W[wo + j] * d[dof + j]; dn[n * a + i] = s; }
+      if (l > 0) { const u = this.U[l - 1]; for (let k = 0; k < dn.length; k++) { const sg = 1 / (1 + Math.exp(-u[k])); dn[k] *= sg * (1 + u[k] * (1 - sg)); } }
+      d = dn; }
+    return d; }
+  zero() { this.gW.forEach(g => g.fill(0)); this.gb.forEach(g => g.fill(0)); }
+  step(lr) { this.t++; const b2 = 0.999, c2 = 1 - b2 ** this.t; [...this.W, ...this.b].forEach((p, k) => { const g = k < this.W.length ? this.gW[k] : this.gb[k - this.W.length], v = this.v[k];
+    for (let q = 0; q < p.length; q++) { v[q] = b2 * v[q] + (1 - b2) * g[q] * g[q]; p[q] -= lr * g[q] / (Math.sqrt(v[q] / c2) + 1e-8); } }); }
+}
+// ── Langevin: x ← x − η∇E(x) + √(2η)·jiggle·ε
+function langevin(x, N, K, eta, jig) { const ones = new Float32Array(N).fill(1), sd = Math.sqrt(2 * eta) * jig;
+  for (let s = 0; s < K; s++) { E.forward(x, N); const g = E.backward(ones, false); for (let k = 0; k < 2 * N; k++) x[k] = Math.max(-R, Math.min(R, x[k] - eta * g[k] + sd * gauss())); } }
+// ── data sets
+let dataKind = 'ring';
+function sample() { for (;;) {
+  if (dataKind === 'moons') { const th = Math.PI * rnd(), up = rnd() < 0.5; return [((up ? Math.cos(th) - 0.5 : 0.5 - Math.cos(th)) + 0.053 * gauss()) * 1.5, ((up ? Math.sin(th) - 0.25 : 0.25 - Math.sin(th)) + 0.053 * gauss()) * 1.5]; }
+  if (dataKind === 'ring') { const a = Math.floor(rnd() * 8) * Math.PI / 4; return [2 * Math.cos(a) + 0.12 * gauss(), 2 * Math.sin(a) + 0.12 * gauss()]; }
+  if (dataKind === 'spiral') { const r = Math.sqrt(rnd()) * 2.7, th = r * 3.0; return [r * Math.cos(th) + 0.08 * gauss(), r * Math.sin(th) + 0.08 * gauss()]; }
+  const i = Math.floor(rnd() * 4), j = Math.floor(rnd() * 4); if ((i + j) % 2) continue; return [-2 + i + rnd(), -2 + j + rnd()]; } }
+function batch(n) { const x = new Float32Array(2 * n); for (let k = 0; k < n; k++) { const p = sample(); x[2 * k] = p[0]; x[2 * k + 1] = p[1]; } return x; }
+// ── state
+const BUF = 2048, B = 128, GN = 64;
+let E, buf, step, hist, drops, test, nllVal, grid, gridE, gmin, gmax;
+function reset() { seed = 7; E = new Net([2, 48, 48, 1]); buf = new Float32Array(2 * BUF).map(() => (rnd() * 2 - 1) * R); step = 0; hist = []; drops = null; nllVal = null; test = batch(1500); refresh(); }
+function trainStep() {
+  const K = +$('K').value, eta = Math.pow(10, +$('eta').value), jig = +$('jig').value, alpha = Math.pow(10, +$('alpha').value), idx = new Int32Array(B), fake = new Float32Array(2 * B);
+  for (let k = 0; k < B; k++) { idx[k] = Math.floor(rnd() * BUF); if (rnd() < 0.05) { buf[2 * idx[k]] = (rnd() * 2 - 1) * R; buf[2 * idx[k] + 1] = (rnd() * 2 - 1) * R; } fake[2 * k] = buf[2 * idx[k]]; fake[2 * k + 1] = buf[2 * idx[k] + 1]; }
+  langevin(fake, B, K, eta, jig); for (let k = 0; k < B; k++) { buf[2 * idx[k]] = fake[2 * k]; buf[2 * idx[k] + 1] = fake[2 * k + 1]; }
+  const x = batch(B); E.zero();
+  const Ed = E.forward(x, B); E.backward(Ed.map(e => (1 + 2 * alpha * e) / B), true);
+  const Ef = E.forward(fake, B); E.backward(Ef.map(e => (-1 + 2 * alpha * e) / B), true);
+  E.step(1e-3); step++;
+  let md = 0, mf = 0; for (let k = 0; k < B; k++) { md += Ed[k]; mf += Ef[k]; } const last = hist.length ? hist[hist.length - 1] : [md / B, mf / B]; hist.push([0.9 * last[0] + 0.1 * md / B, 0.9 * last[1] + 0.1 * mf / B]); if (hist.length > 600) hist.shift();
+}
+// ── the landscape on a grid, and the exact-ish −log p (Z summed over the grid)
+function refresh() { grid = grid || (() => { const g = new Float32Array(2 * GN * GN); for (let j = 0; j < GN; j++) for (let i = 0; i < GN; i++) { g[2 * (j * GN + i)] = -R + i / (GN - 1) * 2 * R; g[2 * (j * GN + i) + 1] = R - j / (GN - 1) * 2 * R; } return g; })();
+  gridE = Float32Array.from(E.forward(grid, GN * GN)); gmin = Infinity; gmax = -Infinity; gridE.forEach(e => { gmin = Math.min(gmin, e); gmax = Math.max(gmax, e); });
+  let z = 0; const cell = (2 * R / (GN - 1)) ** 2; gridE.forEach(e => z += Math.exp(-(e - gmin)) * cell); const logZ = Math.log(z) - gmin;
+  const et = E.forward(test, test.length / 2); let s = 0; et.forEach(e => s += e); nllVal = s / et.length + logZ; }
+// ── drawing
+const cv = $('lab'), g = cv.getContext('2d'), S = 720, X = v => (v + R) / (2 * R) * S, Y = v => (R - v) / (2 * R) * S;
+const off = document.createElement('canvas'); off.width = off.height = GN;
+let view = 'land', showF = true, showD = false, probe = null, running = true;
+function paint() { const og = off.getContext('2d'), im = og.createImageData(GN, GN), L1 = Math.log1p(Math.max(1e-3, gmax - gmin) / 2), h = gridE.map(e => Math.log1p((e - gmin) / 2) / L1), k = GN * 0.9;
+  for (let j = 0; j < GN; j++) for (let i = 0; i < GN; i++) { const q = j * GN + i;
+    if (view === 'dens') { const p = Math.exp(-(gridE[q] - gmin)); im.data[q * 4] = 104; im.data[q * 4 + 1] = 137; im.data[q * 4 + 2] = 177; im.data[q * 4 + 3] = Math.round(Math.sqrt(p) * 235); continue; }
+    const gx = (h[j * GN + Math.min(GN - 1, i + 1)] - h[j * GN + Math.max(0, i - 1)]) * k, gy = (h[Math.min(GN - 1, j + 1) * GN + i] - h[Math.max(0, j - 1) * GN + i]) * k;
+    const sh = Math.max(0, Math.min(1.3, (0.55 * gx + 0.62 * gy + 0.56) / Math.hypot(gx, gy, 1) / 0.56 * 0.5 + 0.25)), u = Math.pow(h[q], 1.15), lit = 0.55 + 0.6 * sh;
+    [[21, 122], [17, 108], [16, 166]].forEach(([lo, hi], ch) => im.data[q * 4 + ch] = (lo + (hi - lo) * u) * lit); im.data[q * 4 + 3] = 255; }
+  og.putImageData(im, 0, 0); g.fillStyle = '#1c1816'; g.fillRect(0, 0, S, S); g.imageSmoothingEnabled = true; const px = S / (GN - 1); g.drawImage(off, -px / 2, -px / 2, S + px, S + px);
+  if (view === 'land') { g.lineWidth = 1; [0.4, 1.2, 2.5, 4.5, 7.5, 12, 18, 27].map(e => Math.log1p(e / 2) / L1).forEach((Lv, li) => { g.strokeStyle = li < 2 ? 'rgba(104,137,177,0.7)' : 'rgba(170,158,200,0.35)'; g.beginPath();
+    for (let j = 0; j < GN - 1; j++) for (let i = 0; i < GN - 1; i++) { const a = h[j * GN + i], b = h[j * GN + i + 1], c = h[(j + 1) * GN + i + 1], d = h[(j + 1) * GN + i], pts = [];
+      const e = (p, q, x1, y1, x2, y2) => { if ((p < Lv) !== (q < Lv)) { const u = (Lv - p) / (q - p); pts.push((x1 + (x2 - x1) * u) * px, (y1 + (y2 - y1) * u) * px); } };
+      e(a, b, i, j, i + 1, j); e(b, c, i + 1, j, i + 1, j + 1); e(c, d, i + 1, j + 1, i, j + 1); e(d, a, i, j + 1, i, j);
+      for (let q = 0; q + 3 < pts.length; q += 4) { g.moveTo(pts[q], pts[q + 1]); g.lineTo(pts[q + 2], pts[q + 3]); } } g.stroke(); }); } }
+const ball = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(X(x), Y(y), r, 0, 7); g.fill(); g.fillStyle = 'rgba(237,230,219,0.45)'; g.beginPath(); g.arc(X(x) - r * 0.32, Y(y) - r * 0.36, r * 0.36, 0, 7); g.fill(); };
+function draw() { paint();
+  if (showD) { const d = batch(400); for (let k = 0; k < 400; k++) { g.fillStyle = 'rgba(196,101,74,0.75)'; g.beginPath(); g.arc(X(d[2 * k]), Y(d[2 * k + 1]), 2, 0, 7); g.fill(); } }
+  if (showF) for (let k = 0; k < 500; k++) ball(buf[2 * k], buf[2 * k + 1], 2.6, '#b5707e');
+  if (drops) for (let k = 0; k < drops.length / 2; k++) ball(drops[2 * k], drops[2 * k + 1], 3.4, '#d4a853');
+  if (probe) { g.strokeStyle = '#d4a853'; g.lineWidth = 2; g.beginPath(); g.arc(X(probe[0]), Y(probe[1]), 9, 0, 7); g.stroke(); }
+  $('step').textContent = step; $('nll').textContent = nllVal == null ? '—' : nllVal.toFixed(2);
+  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H);
+  if (hist.length > 1) { let lo = Infinity, hi = -Infinity; hist.forEach(([a, b]) => { lo = Math.min(lo, a, b); hi = Math.max(hi, a, b); }); const yy = v => H - 6 - (v - lo) / (hi - lo + 1e-9) * (H - 12);
+    [[0, '#c4654a'], [1, '#b5707e']].forEach(([j, c]) => { cg.strokeStyle = c; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 599 * W; i ? cg.lineTo(x, yy(h[j])) : cg.moveTo(x, yy(h[j])); }); cg.stroke(); }); } }
+function showProbe() { if (!probe) return; const e = E.forward(Float32Array.from(probe), 1)[0];
+  $('probe').innerHTML = `x = (<b>${probe[0].toFixed(2)}, ${probe[1].toFixed(2)}</b>)\nE(x) − lowest E on the grid = <b>${(e - gmin).toFixed(2)}</b>\np(x) / p(best point) = e^−ΔE = <b style="color:var(--amber)">${Math.exp(-(e - gmin)).toExponential(2)}</b>\n${drops ? drops.length / 2 : 0} marbles dropped here (amber) — watch them roll + jiggle`; }
+// ── controls
+function labels() { $('Kv').textContent = $('K').value; $('etav').textContent = Math.pow(10, +$('eta').value).toExponential(0); $('jigv').textContent = (+$('jig').value).toFixed(2); $('alphav').textContent = Math.pow(10, +$('alpha').value).toExponential(0); $('spdv').textContent = $('spd').value; }
+['K', 'eta', 'jig', 'alpha', 'spd'].forEach(id => $(id).oninput = labels);
+$('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause' : '▶ play'; };
+$('reset').onclick = () => { reset(); draw(); };
+$('clear').onclick = () => { drops = null; probe = null; draw(); };
+$('showFant').onclick = () => { showF = !showF; $('showFant').classList.toggle('on', showF); draw(); };
+$('showData').onclick = () => { showD = !showD; $('showData').classList.toggle('on', showD); draw(); };
+document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); probe = null; reset(); draw(); });
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; document.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
+cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); probe = [((e.clientX - r.left) / r.width) * 2 * R - R, R - ((e.clientY - r.top) / r.height) * 2 * R];
+  drops = new Float32Array(2 * 120); for (let k = 0; k < 120; k++) { drops[2 * k] = probe[0] + 0.05 * gauss(); drops[2 * k + 1] = probe[1] + 0.05 * gauss(); } showProbe(); draw(); });
+function loop() { if (running) { const n = +$('spd').value; for (let i = 0; i < n; i++) trainStep(); if (step % 10 < n) refresh(); }
+  if (drops) langevin(drops, drops.length / 2, 2, Math.pow(10, +$('eta').value), +$('jig').value);
+  if (running || drops) { draw(); if (probe && step % 5 === 0) showProbe(); }
+  requestAnimationFrame(loop); }
+labels(); reset(); draw(); loop();
+</script>
+</body>
+</html>
