@@ -340,12 +340,12 @@ SC.push({ dur: 50, chapter: 'motion', title: 'Generation is motion', sub: 'A win
     M('[d|x] ← [d|x] + Δt · [m|v]([d|x], t)       K steps of size Δt = 1/K', 864, 670, 28, { a: c2 });
     // the curved-road demo: a quarter circle, followed with 1, 2, 4 and 32 Euler steps
     const c3 = eout(prog(t, 32, 0.8));
-    if (c3 > 0) { card(830, 720, 1000, 210, P.rose, c3); const O = [930, 880], R = 120, X = p => O[0] + p[0] * R, Y = p => O[1] - p[1] * R;
+    if (c3 > 0) { card(830, 720, 1000, 210, P.rose, c3); const O = [950, 908], R = 100, X = p => O[0] + p[0] * R, Y = p => O[1] - p[1] * R;
       setA(c3 * 0.6); ctx.strokeStyle = P.dust; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(O[0], O[1], R, -Math.PI / 2, 0); ctx.stroke(); ctx.setLineDash([]); setA(1);
       [[1, P.rose, 32.5], [2, P.amber, 33.5], [4, P.sage, 34.5]].forEach(([K, col, t0]) => { const pts = CURV[K], a = c3 * eout(prog(t, t0, 0.6));
         pts.forEach((p, i) => { if (i) arrow(X(pts[i - 1]), Y(pts[i - 1]), X(p), Y(p), col, 2.5, a); }); dot(X(pts[K]), Y(pts[K]), 5, col, a); });
-      marble(X([0, 1]), Y([0, 1]), 7, P.terracotta, c3); text('target', X([0, 1]) + 14, Y([0, 1]) + 6, { font: F.mono, size: 15, color: P.terracotta, a: c3 });
-      text('curved road: 1 step · 2 · 4', 1120, 790, { font: F.mono, size: 17, color: P.stone, a: c3 });
+      marble(X([0, 1]), Y([0, 1]), 7, P.terracotta, c3); text('target', X([0, 1]) - 14, Y([0, 1]) + 5, { font: F.mono, size: 15, color: P.terracotta, align: 'right', a: c3 }); marble(X([1, 0]), Y([1, 0]), 5, P.rose, c3);
+      M('curved road:  [n|1 step] · [a|2 steps] · [s|4 steps]', 1120, 790, 18, { a: c3 });
       const s2 = eout(prog(t, 36, 0.6)); line(1120, 880, 1760, 820, P.dust, 2, s2, [5, 5]); arrow(1120, 880, 1760, 820, P.sage, 3, s2 * eout(prog(t, 36.6, 0.5)));
       text('straight road: 1 step, exact', 1120, 910, { font: F.mono, size: 17, color: P.sage, a: s2 }); }
   } });
@@ -403,15 +403,15 @@ SC.push({ dur: 54, chapter: 'crossings', title: 'When roads cross', sub: 'One pl
     if (zoom > 0) { const X = m.X(F0[0]), Y = m.Y(F0[1]); ring(X, Y, 0.06 * m.s * 1.0 + 10, P.chalk, zoom * a0, 2); marble(X, Y, 7, P.amber, zoom * a0);
       text(`t = ½`, X + 16, Y - 16, { font: F.mono, size: 18, color: P.amber, a: zoom * a0 }); }
     // the fan, magnified on the right
-    const fa = eout(prog(t, 9, 1)); if (fa > 0) { const C = [1330, 560], R = 250; card(1030, 250, 800, 640, P.sage, fa); label('the fan at one spot', 1066, 296, fa, P.sage);
-      const sc = 58; FAN.u.forEach((u, i) => { const ai = fa * eout(prog(t, 9.5 + i * 0.04, 0.4)) * (1 - 0.55 * ease(prog(t, 33, 1)));
+    const fa = eout(prog(t, 9, 1)); if (fa > 0) { const C = [1400, 590], R = 250; card(1030, 250, 800, 640, P.sage, fa); label('the fan at one spot', 1066, 296, fa, P.sage);
+      const sc = 90; FAN.u.forEach((u, i) => { const ai = fa * eout(prog(t, 9.5 + i * 0.04, 0.4)) * (1 - 0.55 * ease(prog(t, 33, 1)));
         arrow(C[0], C[1], C[0] + u[0] * sc, C[1] - u[1] * sc, mixc(P.stone, P.sage, 0.3), 1.6, ai * 0.7); });
       marble(C[0], C[1], 9, P.amber, fa);
       const qa = eout(prog(t, 16, 0.8)) * (1 - ease(prog(t, 32, 0.8))); if (qa > 0) text('?', C[0] + 30, C[1] - 30, { font: F.serif, italic: true, size: 64, color: P.chalk, a: qa * (0.6 + 0.4 * Math.sin(t * 4)) });
-      const Z = 4, av = eout(prog(t, 34, 1)); if (av > 0) arrow(C[0], C[1], C[0] + FAN.avg[0] * sc * Z * av, C[1] - FAN.avg[1] * sc * Z * av, P.sage, 6, av);
+      const Z = 3, av = eout(prog(t, 34, 1)); if (av > 0) arrow(C[0], C[1], C[0] + FAN.avg[0] * sc * Z * av, C[1] - FAN.avg[1] * sc * Z * av, P.sage, 6, av);
       const nv = eout(prog(t, 41, 0.8)); if (nv > 0) { arrow(C[0], C[1], C[0] + FAN.net[0] * sc * Z, C[1] - FAN.net[1] * sc * Z, P.plum, 3, nv); }
-      if (av > 0) text('sage: the average of the fan   (both drawn 4× longer)', 1066, 800, { font: F.mono, size: 17, color: P.sage, a: av });
-      if (nv > 0) text(`plum: the trained network, vθ(x, ½)`, 1066, 830, { font: F.mono, size: 17, color: P.plum, a: nv });
+      if (av > 0) { text('sage: the average of the fan', 1540, 790, { font: F.mono, size: 17, color: P.sage, a: av }); text('(both drawn 3× longer)', 1540, 850, { font: F.mono, size: 15, color: P.dust, a: av }); }
+      if (nv > 0) text(`plum: the network, vθ(x, ½)`, 1540, 818, { font: F.mono, size: 17, color: P.plum, a: nv });
       const ca = eout(prog(t, 24, 0.8)); if (ca > 0) { M('min[a_|θ]  [kB|E] ‖ [m|v][m_|θ]([d|x][d_|t], t) − ([d|x] − [n|z]) ‖²', 1066, 360, 26, { a: ca * (1 - ease(prog(t, 47, 0.8))) }); }
       const ra = eout(prog(t, 47, 0.8)); if (ra > 0) M('[m|v]([d|x], t) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x] ]', 1066, 360, 28, { a: ra }); }
   } });
@@ -429,7 +429,7 @@ SC.push({ dur: 52, chapter: 'the wind', title: 'The averaged wind still delivers
          [16, 24, 'Why? Think of sand, as in episode 6. At every spot, the averaged wind moves exactly as much sand as the crossing roads did.'],
          [24, 32, 'The same sand through every doorway means the same cloud at every moment, from noise at t = 0 to data at t = 1.'],
          [32, 40, 'And the wind’s roads never cross. At any place and time there is only one arrow, so two points can never swap.'],
-         [40, 47, 'They bend a little, where the random roads were torn between directions. Remember that bend.'],
+         [40, 47, 'They bend: early on every road heads for the middle, then turns off. Remember that bend.'],
          [47, 51.6, 'This is flow matching: learn the average of simple roads.']],
   draw(t) {
     const L = sq(110, 290, 560), Rm = sq(1000, 290, 560), a0 = eout(prog(t, 0.6, 0.8));
@@ -448,9 +448,9 @@ SC.push({ dur: 52, chapter: 'the wind', title: 'The averaged wind still delivers
     // the two crowds, measured: a histogram of positions across each panel
     const ha = eout(prog(t, 8, 1)); if (ha > 0) { const hl = hist(left), hr = hist(right), mx = 0.16;
       [[L, hl, P.stone], [Rm, hr, P.sage]].forEach(([m, h, c]) => h.forEach((v, i) => { const w = m.S / HB, bh = Math.min(1, v / mx) * 70; setA(ha * 0.8); ctx.fillStyle = c; ctx.fillRect(m.x0 + i * w + 1, 930 - bh, w - 2, bh); setA(1); }));
-      text('crowd across the panel', 960, 925, { font: F.mono, size: 14, color: P.dust, align: 'center', a: ha }); }
-    if (trails > 0) { text(`${CROSSES.length} crossings`, 110, 885 - 0, { font: F.mono, size: 17, color: P.rose, a: eout(prog(t, 36, 0.8)) * (tt > 0.95 ? 1 : 0) });
-      text('0 crossings', 1000, 885, { font: F.mono, size: 17, color: P.sage, a: eout(prog(t, 36, 0.8)) * (tt > 0.95 ? 1 : 0) }); }
+      text('← crowd across each panel →', 835, 925, { font: F.mono, size: 13, color: P.dust, align: 'center', a: ha }); }
+    if (trails > 0) { text(`${CROSSES.length} crossings`, L.x0 + L.S, 276, { font: F.mono, size: 18, color: P.rose, align: 'right', a: eout(prog(t, 36, 0.8)) * (tt > 0.95 ? 1 : 0) });
+      text('0 crossings', Rm.x0 + Rm.S, 276, { font: F.mono, size: 18, color: P.sage, align: 'right', a: eout(prog(t, 36, 0.8)) * (tt > 0.95 ? 1 : 0) }); }
     const c1 = eout(prog(t, 16, 0.8)) * (1 - ease(prog(t, 31.5, 0.8))); if (c1 > 0) { card(700, 610, 280, 250, P.ink, c1); label('sand (ep 6)', 722, 650, c1, P.ink);
       para('same flux through every doorway → same cloud at every t', 722, 700, 240, { size: 20, a: c1 }); }
   } });
@@ -488,7 +488,7 @@ SC.push({ dur: 44, chapter: 'the loss', title: 'One regression', sub: 'A random 
 // 06 — training it for real
 SC.push({ dur: 44, chapter: 'training', title: 'Training it for real', sub: 'Eight blobs, one network, twelve thousand steps.',
   caps: [[1, 8, 'Now for real: the eight blobs from the last five episodes. One network, three layers of 256, twelve thousand steps.'],
-         [8, 16, 'Here is the learned wind at t = 0: a gentle outward push, the same whichever blob a point will join.'],
+         [8, 16, 'The learned wind at t = 0: every arrow points at the middle, the average of the data. No blob is chosen yet.'],
          [16, 24, 'As time runs on it sharpens: arrows converge on the eight blobs, and the gaps between them go quiet.'],
          [24, 32, 'The loss never reaches zero, and it shouldn’t: the random roads really do disagree. Its floor is the width of the fan.'],
          [32, 40, 'Drop six hundred noise points in and follow the wind to t = 1. Every blob gets its share.'],
@@ -521,10 +521,10 @@ SC.push({ dur: 42, chapter: 'digits', title: 'Sixty-four digits, thirty-two step
          [33, 41.6, 'Composition first, detail last, exactly as in diffusion. The roads are different; the destination is the same.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8)), f = fDg(t), i = Math.min(NDG - 1, Math.floor(f)), u = f - i, sm = ease(prog(t, 16.5, 1.2));
-    const gx = lerp(614, 110, sm), cell = lerp(82, 76, sm), pad = 4, gy = 250;
+    const gx = lerp(632, 110, sm), cell = lerp(78, 76, sm), pad = 4, gy = 250;
     for (let k = 0; k < 64; k++) { const x = gx + (k % 8) * (cell + pad), y = gy + Math.floor(k / 8) * (cell + pad), ims0 = imgs(DG.x[i], 64), ims1 = imgs(DG.x[i + 1], 64);
       drawDigit(ims0[k], `g${i}_${k}`, x, y, cell, a0 * (1 - u)); if (u > 0) drawDigit(ims1[k], `g${i + 1}_${k}`, x, y, cell, a0 * u); }
-    text(`step ${Math.round(f)} / ${NDG}   ·   t = ${DG.ts[Math.min(NDG, Math.round(f))].toFixed(2)}`, gx, gy + 8 * (cell + pad) + 30, { font: F.mono, size: 20, color: P.amber, a: a0 });
+    text(`step ${Math.round(f)} / ${NDG}   ·   t = ${DG.ts[Math.min(NDG, Math.round(f))].toFixed(2)}`, gx, gy + 8 * (cell + pad) + 24, { font: F.mono, size: 19, color: P.amber, a: a0 });
     const g2 = t > 16 ? Math.exp(-(t - 16) * 1.5) : 0; if (g2 > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; setA(g2 * 0.3); ctx.fillStyle = P.terracotta; ctx.fillRect(gx - 10, gy - 10, 8 * (cell + pad) + 16, 8 * (cell + pad) + 16); ctx.restore(); setA(1); }
     const wa = eout(prog(t, 17, 1)); if (wa > 0) { const cols = [0, 4, 8, 12, 16, 20, 26, NDG], x0 = 790, y0 = 280, c = 112;
       text('x̂ at step →', x0, 262, { font: F.mono, size: 15, color: P.sage, a: wa });
@@ -578,13 +578,15 @@ SC.push({ dur: 56, chapter: 'reflow', title: 'Straighten the roads', sub: 'Reflo
          [40, 48, `On digits, one step goes from FID ${J.fm1.FID.toFixed(0)} to ${J.rf1.FID.toFixed(0)}. The price: with many steps, reflow levels off near ${J.rf16.FID.toFixed(0)}.`],
          [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or distil it, and generators take one step or a few.']],
   draw(t) {
-    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))));
     const ca = eout(prog(t, 1.5, 1)) * (1 - ease(prog(t, 15.5, 1)));
     if (ca > 0) clipTo(m, () => CP.z.forEach((z, k) => { const x = CP.x[k], u = eout(prog(t, 2 + k * 0.03, 1)); dot(m.X(z[0]), m.Y(z[1]), 2.6, P.rose, ca); if (u <= 0) return;
       line(m.X(z[0]), m.Y(z[1]), m.X(lerp(z[0], x[0], u)), m.Y(lerp(z[1], x[1], u)), P.sage, 1.2, ca * 0.6); if (u > 0.98) dot(m.X(x[0]), m.Y(x[1]), 2.6, P.terracotta, ca); }));
     const pa = eout(prog(t, 16, 1)) * (1 - ease(prog(t, 31.5, 1)));
-    if (pa > 0) clipTo(m, () => { for (let k = 0; k < RG.n; k += 6) { for (const [PP, col, al] of [[P1, P.rose, 0.55], [P2, P.sage, 0.9]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.beginPath();
-        const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); for (let s = 0; s <= n; s++) { const p = ptAt(PP, k, s); s ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1); } } });
+    if (pa > 0) { clipTo(m, () => { for (let k = 0; k < RG.n; k += 15) { for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+        const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); for (let s = 0; s <= n; s++) { const p = ptAt(PP, k, s); s ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1); }
+        const z = ptAt(P1, k, 0), x = ptAt(P1, k, P1.S - 1); dot(m.X(z[0]), m.Y(z[1]), 3, P.rose, pa); dot(m.X(x[0]), m.Y(x[1]), 3.5, P.terracotta, pa); } });
+      text('rose: round 1 (dives to the middle, then turns)  ·  sage: after reflow', m.x0, m.y0 + m.S + 26, { font: F.mono, size: 15, color: P.dust, a: pa }); }
     const oa = eout(prog(t, 32, 0.8));
     if (oa > 0) { GA = oa; const L = sq(110, 250, 300), Rm = sq(450, 250, 300);
       [[L, 'r1_1', 'round 1 · 1 step', P.rose], [Rm, 'r2_1', 'after reflow · 1 step', P.sage]].forEach(([mm, key, nm, col], j) => { const st = RG.steps[key].stages, f = hopF(t, 33 + j * 1.2, 1.4, 1);
