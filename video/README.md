@@ -124,6 +124,14 @@ Built from `src/ep06-scenes.js` (`python src/build_ep06.py`). Every flow on scre
 RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
 the layer-by-layer positions, warped grids and density maps are its actual outputs.
 
+**Sound (pilot).** Episode 06 has a soundtrack: a soft generative score (one chord per scene, a
+music-box pluck, sub bass) plus sound effects cued to the animation (whooshes on scene cuts,
+ticks as cards land, chimes on key equations, sand grains, a thud when det = 0 crushes the square,
+chains breaking in the hook). It is synthesised from scratch in numpy by `src/ep06_audio.py`
+(scene timings are read from `src/ep06-scenes.js`), saved as `ep06-audio.mp3`, and the player
+keeps it locked to the animation clock (♪ button or **M** to mute). The score sits ~5 dB under
+the effects at about −22 dBFS, leaving room for narration.
+
 The spine of the episode is one idea built up in steps: **slope → Jacobian → determinant →
 triangular → coupling**. Each step answers the question the previous one raises.
 
@@ -177,6 +185,8 @@ WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp
 WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
+python src/ep06_audio.py                         # episode 06 soundtrack (pilot)
+ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section

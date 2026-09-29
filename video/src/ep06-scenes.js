@@ -59,7 +59,7 @@ SC.push({ dur: 52, chapter: 'sand', title: 'Probability is sand', sub: 'Move it 
   draw(t) {
     const zy = 780, xx = 620, ZX = z => 680 + (z + 3) * 100, XY = x => 780 - (x + 3.4) * 78, a0 = eout(prog(t, 0.6, 0.8));
     line(xx, zy, 1300, zy, P.borderLight, 2, a0); line(xx, zy, xx, 220, P.borderLight, 2, a0);
-    text('z  (noise) →', 1300, zy + 34, { font: F.mono, size: 20, color: P.rose, align: 'right', a: a0 }); text('x  (data) ↑', xx + 14, 238, { font: F.mono, size: 20, color: P.terracotta, a: a0 });
+    text('z  (noise) →', 1312, zy + 7, { font: F.mono, size: 20, color: P.rose, a: a0 }); text('x  (data) ↑', xx + 14, 238, { font: F.mono, size: 20, color: P.terracotta, a: a0 });
     setA(a0 * 0.25); ctx.fillStyle = P.rose; ctx.beginPath(); ctx.moveTo(ZX(-3), zy + 6); for (let i = 0; i <= 120; i++) { const z = -3 + 6 * i / 120; ctx.lineTo(ZX(z), zy + 6 + nz(z) * 260); } ctx.lineTo(ZX(3), zy + 6); ctx.fill(); setA(1);
     const ca = eout(prog(t, 8, 1.5));
     if (ca > 0) { setA(ca); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 200; i++) { const z = -3 + 6 * i / 200; i ? ctx.lineTo(ZX(z), XY(f1(z))) : ctx.moveTo(ZX(z), XY(f1(z))); } ctx.stroke(); setA(1); pill(ZX(2.4), XY(f1(2.4)) + 40, 'x = f(z)', P.plum, ca, { align: 'center' });
@@ -77,7 +77,7 @@ SC.push({ dur: 52, chapter: 'sand', title: 'Probability is sand', sub: 'Move it 
     }
     // magnifier: up close, the curve is a straight line
     const ga = eout(prog(t, 22, 0.8));
-    if (ga > 0) { const cxm = 1595, cym = 790, R0 = 150, mag = 3.5, zc = z0 + dz / 2, sx = 100 * mag, sy = 78 * mag;
+    if (ga > 0) { const cxm = 1655, cym = 790, R0 = 150, mag = 3.5, zc = z0 + dz / 2, sx = 100 * mag, sy = 78 * mag;
       const sxm = ZX(zc), sym = XY(f1(zc)); ring(sxm, sym, 26, P.dust, ga, 1.5); line(sxm + 26, sym, cxm - R0, cym, P.dust, 1, ga * 0.6, [4, 5]);
       ctx.save(); ctx.beginPath(); ctx.arc(cxm, cym, R0, 0, TAU); setA(ga); ctx.fillStyle = P.surface; ctx.fill(); ctx.clip();
       setA(ga); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 60; i++) { const u = -0.5 + i / 60; const X = cxm + u * sx, Y = cym - (f1(zc + u) - f1(zc)) * sy; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.stroke();
@@ -129,10 +129,10 @@ SC.push({ dur: 54, chapter: 'jacobian', title: 'In 2-D, the slope becomes a matr
       const q0 = gw(...z0), xx0 = Xp.X(q0[0]), xy0 = Xp.Y(q0[1]);
       arrow(xx0, xy0, Xp.X(q0[0] + Jz[0][0] * hv * 1.4), Xp.Y(q0[1] + Jz[1][0] * hv * 1.4), P.amber, 3, e1);
       arrow(xx0, xy0, Xp.X(q0[0] + Jz[0][1] * hv * 1.4), Xp.Y(q0[1] + Jz[1][1] * hv * 1.4), P.sage, 3, e2);
-      ring(xx0 + 14, xy0 - 14, 42, P.dust, sqA, 1.2); line(xx0 + 56, xy0 - 14, 1225 - 185, 460, P.dust, 1, sqA * 0.5, [4, 5]); }
+      ring(xx0 + 14, xy0 - 14, 42, P.dust, sqA, 1.2); line(xx0 + 56, xy0 - 14, 1240 - 168, 460, P.dust, 1, sqA * 0.5, [4, 5]); }
     // zoomed inset: curvy image → parallelogram
     const ia = eout(prog(t, 8, 0.8));
-    if (ia > 0) { const C = [1225, 460], R0 = 185, h = lerp(1.1, 0.12, ease(prog(t, 9, 5))), sc = 110;
+    if (ia > 0) { const C = [1240, 460], R0 = 168, h = lerp(1.1, 0.12, ease(prog(t, 9, 5))), sc = 100;
       const c1 = [Jz[0][0], Jz[1][0]], c2 = [Jz[0][1], Jz[1][1]], O = [C[0] - (c1[0] + c2[0]) / 2 * sc, C[1] + (c1[1] + c2[1]) / 2 * sc];
       const L = (dx, dy) => [O[0] + dx * sc, O[1] - dy * sc], g0 = g2(...z0);
       ctx.save(); ctx.beginPath(); ctx.arc(C[0], C[1], R0, 0, TAU); setA(ia); ctx.fillStyle = P.surface; ctx.fill(); ctx.clip();
