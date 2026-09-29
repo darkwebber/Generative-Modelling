@@ -204,122 +204,267 @@ const EX = A.example, sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2)
 const SC = [];
 
 // 00 — cold open
-SC.push({ dur: 24, chapter: 'intro',
-  caps: [[0.6, 6, 'Pure noise goes in. Two moons come out. So far, nothing new…'],
-         [6, 12, '…except that this time, run the machine backwards and every point returns exactly where it started.'],
-         [12, 18, "A generator that runs both ways can answer the question a GAN couldn't: exactly how likely is this point?"],
-         [18, 23.6, 'Today: normalizing flows.']],
+SC.push({ dur: 26, chapter: 'intro',
+  caps: [[0.6, 6, 'Pure noise goes in. Two moons come out. So far, just like last episode’s GAN…'],
+         [6, 12, '…except this machine also runs backwards: every point returns exactly to where it started.'],
+         [12, 18.5, "And a generator you can run backwards can answer the question the GAN couldn't: exactly how likely is this point?"],
+         [18.5, 25.6, 'Today: normalizing flows — and the one idea that makes them work: measuring how much a map stretches space.']],
   draw(t) {
-    const dim = lerp(1, 0.16, ease(prog(t, 12.5, 1.5))), m = square(560, 200, 800);
-    const f = t < 6 ? lerp(0, K, ease(prog(t, 0.5, 5))) : lerp(K, 0, ease(prog(t, 6.5, 5)));
-    GA = dim; clipTo(m, () => { drawGrid(m, f, eout(prog(t, 0.3, 1)) * 0.6); drawPts(m, A.inv, f, null, 0.85, 2.6, ff => mixc(P.rose, P.terracotta, ff / K)); });
-    text(t < 6 ? 'noise  →  data' : 'data  →  noise', 960, 175, { font: F.mono, size: 22, color: P.dust, align: 'center', a: eout(prog(t, 0.5, 1)) }); GA = 1;
-    const a = eout(prog(t, 13, 1.4));
+    const dim = lerp(1, 0.14, ease(prog(t, 18.3, 1.4))), m = square(560, 200, 800);
+    const f = t < 6 ? lerp(0, K, ease(prog(t, 0.5, 5))) : lerp(K, 0, ease(prog(t, 6.5, 5))), f2 = t < 12 ? f : lerp(0, K, ease(prog(t, 12, 3)));
+    GA = dim; clipTo(m, () => { drawGrid(m, f2, eout(prog(t, 0.3, 1)) * 0.6); drawPts(m, A.inv, f2, null, 0.85, 2.6, ff => mixc(P.rose, P.terracotta, ff / K)); });
+    text(t < 6 || t >= 12 ? 'noise  →  data' : 'data  →  noise', 960, 175, { font: F.mono, size: 22, color: P.dust, align: 'center', a: eout(prog(t, 0.5, 1)) });
+    // the question a GAN could not answer
+    const qa = eout(prog(t, 15, 0.8)); if (qa > 0) { const px = m.X(-0.75), py = m.Y(1.1); ring(px, py, 16, P.amber, qa, 2.5); pill(px + 26, py - 34, 'p(x) = ?', P.amber, qa, { size: 24 }); }
+    GA = 1;
+    const a = eout(prog(t, 18.8, 1.2));
     text('EPISODE 06', 960, 430, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a, ls: 4 });
     text('Normalizing Flows', 960, 550 + (1 - a) * 16, { font: F.serif, size: 124, color: P.chalk, align: 'center', a, ls: -1 });
-    text('bending space, exactly', 960, 622, { size: 34, color: P.stone, align: 'center', a: eout(prog(t, 13.8, 1.2)) });
-    const tg = [[P.terracotta, 'x  data'], [P.rose, 'z  noise'], [P.ink, 'p  density'], [P.amber, 's, t, det  stretch'], [P.plum, 'f  the flow']];
+    text('bending space, exactly', 960, 622, { size: 34, color: P.stone, align: 'center', a: eout(prog(t, 19.4, 1)) });
+    const tg = [[P.terracotta, 'x  data'], [P.rose, 'z  noise'], [P.ink, 'p  density'], [P.amber, 'J, det, s  stretch'], [P.plum, 'f  the flow']];
     ctx.font = `400 21px ${F.mono}`; const tw = tg.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 21 * 2.1 + 14, -14);
-    let cx = 960 - tw / 2; tg.forEach(([c, s], i) => { cx += tag(cx, 690, c, s, eout(prog(t, 16 + i * 0.35, 0.6)), 21) + 14; });
+    let cx = 960 - tw / 2; tg.forEach(([c, s], i) => { cx += tag(cx, 690, c, s, eout(prog(t, 20 + i * 0.3, 0.6)), 21) + 14; });
   } });
 
-// 01 — conservation of sand (1-D)
+// 01 — conservation of sand (1-D): the slope is the stretch
 const f1 = z => z + 0.7 * Math.sin(1.3 * z), df1 = z => 1 + 0.91 * Math.cos(1.3 * z);
 const finv1 = x => { let lo = -8, hi = 8; for (let i = 0; i < 50; i++) { const mid = (lo + hi) / 2; if (f1(mid) < x) lo = mid; else hi = mid; } return (lo + hi) / 2; };
 const nz = z => Math.exp(-z * z / 2) / Math.sqrt(TAU), px1 = x => { const z = finv1(x); return nz(z) / df1(z); };
-SC.push({ dur: 44, chapter: 'sand', title: 'Probability is sand', sub: 'Move it around all you like — you can never create or destroy it.',
+SC.push({ dur: 52, chapter: 'sand', title: 'Probability is sand', sub: 'Move it around all you like — you can never create or destroy it.',
   caps: [[1, 8, 'Back to basics, in one dimension. Pour probability like sand along a line: a bell curve of noise, z.'],
-         [8, 16, 'Now bend the line with a function x = f(z). Every grain moves, but none is created or destroyed.'],
-         [16, 24, 'Take a thin slice of width dz. It holds p(z)·dz of sand. After the bend, the same sand sits in a slice of width dx.'],
-         [24, 32, 'Same sand, so p(x)·dx = p(z)·dz, and p(x) = p(z)·|dz/dx|. Where f stretches space, the density thins; where it squeezes, it piles up.'],
-         [32, 43.6, "That's episode 1's change of variables. But to use it on a data point x, we have to get back to its z — so f must be invertible."]],
+         [8, 15, 'Now bend the line with a function x = f(z). Every grain moves, but none is created or destroyed.'],
+         [15, 22, 'Take a thin slice of width dz. It holds p(z)·dz of sand. After the bend, the very same sand sits in a slice of width dx.'],
+         [22, 30, 'How wide is dx? Zoom in: up close, the curve is a straight line with slope f′(z). So dx = f′(z)·dz — the slope is the stretch factor.'],
+         [30, 38, 'Same sand, so p(x)·dx = p(z)·dz, which gives p(x) = p(z) / |f′(z)|. Steep slope: stretched, thinner. Shallow slope: squeezed, denser.'],
+         [38, 45, "That's episode 1's change of variables. To use it on a data point x we must get back to its z — so f must be invertible."],
+         [45, 51.6, 'Keep hold of one idea: the local slope is the local stretch. In two dimensions, the slope becomes something richer.']],
   draw(t) {
     const zy = 780, xx = 620, ZX = z => 680 + (z + 3) * 100, XY = x => 780 - (x + 3.4) * 78, a0 = eout(prog(t, 0.6, 0.8));
     line(xx, zy, 1300, zy, P.borderLight, 2, a0); line(xx, zy, xx, 220, P.borderLight, 2, a0);
     text('z  (noise) →', 1300, zy + 34, { font: F.mono, size: 20, color: P.rose, align: 'right', a: a0 }); text('x  (data) ↑', xx + 14, 238, { font: F.mono, size: 20, color: P.terracotta, a: a0 });
-    // bell curve of z (below the axis)
     setA(a0 * 0.25); ctx.fillStyle = P.rose; ctx.beginPath(); ctx.moveTo(ZX(-3), zy + 6); for (let i = 0; i <= 120; i++) { const z = -3 + 6 * i / 120; ctx.lineTo(ZX(z), zy + 6 + nz(z) * 260); } ctx.lineTo(ZX(3), zy + 6); ctx.fill(); setA(1);
     const ca = eout(prog(t, 8, 1.5));
     if (ca > 0) { setA(ca); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 200; i++) { const z = -3 + 6 * i / 200; i ? ctx.lineTo(ZX(z), XY(f1(z))) : ctx.moveTo(ZX(z), XY(f1(z))); } ctx.stroke(); setA(1); pill(ZX(2.4), XY(f1(2.4)) + 40, 'x = f(z)', P.plum, ca, { align: 'center' });
-      // resulting density on the x axis (to the left)
       setA(ca * 0.25); ctx.fillStyle = P.ink; ctx.beginPath(); ctx.moveTo(xx - 6, XY(-3.4)); for (let i = 0; i <= 200; i++) { const x = -3.4 + 6.8 * i / 200; ctx.lineTo(xx - 6 - px1(x) * 300, XY(x)); } ctx.lineTo(xx - 6, XY(3.4)); ctx.fill();
       setA(ca); ctx.strokeStyle = P.ink; ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i <= 200; i++) { const x = -3.4 + 6.8 * i / 200; i ? ctx.lineTo(xx - 6 - px1(x) * 300, XY(x)) : ctx.moveTo(xx - 6 - px1(x) * 300, XY(x)); } ctx.stroke(); setA(1);
       text('p(x)', xx - 250, XY(3.2), { font: F.mono, size: 22, color: P.ink, a: ca }); }
-    // the slice
-    const sa = eout(prog(t, 16, 0.8));
-    if (sa > 0) { const z0 = t < 24 ? 0.5 : lerp(-1.8, 1.9, 0.5 - 0.5 * Math.cos((t - 24) * 0.5)), dz = 0.3, x0 = f1(z0), x1 = f1(z0 + dz);
+    // the slice (sweeps once the rule is on screen)
+    const sa = eout(prog(t, 15, 0.8)), dz = 0.3, z0 = t < 31 || t > 44 ? 0.5 : 0.35 + 0.15 * Math.cos((t - 31) * TAU / 13) + 1.35 * Math.sin((t - 31) * TAU / 13);
+    const x0 = f1(z0), x1 = f1(z0 + dz), slope = df1(z0 + dz / 2);
+    if (sa > 0) {
       setA(sa * 0.55); ctx.fillStyle = P.amber; ctx.fillRect(ZX(z0), zy + 6, ZX(z0 + dz) - ZX(z0), nz(z0) * 260); ctx.fillRect(xx - 6 - px1((x0 + x1) / 2) * 300, XY(x1), px1((x0 + x1) / 2) * 300, XY(x0) - XY(x1)); setA(sa * 0.12);
       ctx.beginPath(); ctx.moveTo(ZX(z0), zy); ctx.lineTo(ZX(z0), XY(x0)); ctx.lineTo(xx, XY(x0)); ctx.lineTo(xx, XY(x1)); ctx.lineTo(ZX(z0 + dz), XY(x1)); ctx.lineTo(ZX(z0 + dz), zy); ctx.fill(); setA(1);
-      text(`dz = ${dz.toFixed(2)}`, ZX(z0 + dz / 2), zy + 36, { font: F.mono, size: 16, color: P.amber, align: 'center', a: sa });
-      text(`dx = ${(x1 - x0).toFixed(2)}`, xx + 12, XY((x0 + x1) / 2) + 6, { font: F.mono, size: 16, color: P.amber, a: sa });
-      text(df1(z0 + dz / 2) > 1 ? 'stretched → thinner' : 'squeezed → denser', ZX(z0 + dz / 2) + 30, XY((x0 + x1) / 2) - 20, { font: F.mono, size: 16, color: P.stone, a: sa * eout(prog(t, 24, 0.8)) }); }
-    const ma = eout(prog(t, 24, 0.8));
-    card(1360, 300, 470, 260, P.ink, ma); label('sand is conserved', 1394, 346, ma, P.ink);
-    M('[p|p]([d|x])·d[d|x] = [p|p]([n|z])·d[n|z]', 1394, 416, 24, { a: ma });
-    M('[p|p]([d|x]) = [p|p]([n|z]) · |d[n|z]/d[d|x]|', 1394, 480, 26, { a: eout(prog(t, 26, 0.8)) });
-    text('needs z = f⁻¹(x)', 1394, 532, { font: F.mono, size: 18, color: P.rose, a: eout(prog(t, 33, 0.8)) });
+      text('dz', ZX(z0 + dz / 2), zy + 36, { font: F.mono, size: 18, color: P.amber, align: 'center', a: sa });
+      text('dx', xx + 12, XY((x0 + x1) / 2) + 6, { font: F.mono, size: 18, color: P.amber, a: sa });
+    }
+    // magnifier: up close, the curve is a straight line
+    const ga = eout(prog(t, 22, 0.8));
+    if (ga > 0) { const cxm = 1595, cym = 790, R0 = 150, mag = 3.5, zc = z0 + dz / 2, sx = 100 * mag, sy = 78 * mag;
+      const sxm = ZX(zc), sym = XY(f1(zc)); ring(sxm, sym, 26, P.dust, ga, 1.5); line(sxm + 26, sym, cxm - R0, cym, P.dust, 1, ga * 0.6, [4, 5]);
+      ctx.save(); ctx.beginPath(); ctx.arc(cxm, cym, R0, 0, TAU); setA(ga); ctx.fillStyle = P.surface; ctx.fill(); ctx.clip();
+      setA(ga); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 60; i++) { const u = -0.5 + i / 60; const X = cxm + u * sx, Y = cym - (f1(zc + u) - f1(zc)) * sy; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.stroke();
+      const bx = cxm - dz / 2 * sx, by = cym - (f1(z0) - f1(zc)) * sy, ex = cxm + dz / 2 * sx, ey = cym - (f1(z0 + dz) - f1(zc)) * sy;
+      ctx.restore(); setA(1);
+      line(bx, by, ex, by, P.amber, 3, ga); line(ex, by, ex, ey, P.amber, 3, ga);
+      text('dz', (bx + ex) / 2, by + 26, { font: F.mono, size: 18, color: P.amber, align: 'center', a: ga });
+      M(`dx = [m|f]′·dz`, ex + 10, (by + ey) / 2 + 6, 18, { a: ga });
+      ring(cxm, cym, R0, P.borderLight, ga, 1.5); text(t < 30 ? 'zoomed in: a straight line' : `slope ${slope.toFixed(2)} → ${slope > 1 ? 'stretched, thinner' : 'squeezed, denser'}`, cxm, cym - R0 - 16, { font: F.mono, size: 17, color: t < 30 ? P.dust : slope > 1 ? P.rose : P.sage, align: 'center', a: ga }); }
+    const ma = eout(prog(t, 22, 0.8));
+    card(1360, 280, 470, 300, P.ink, ma); label('slope = stretch', 1394, 326, ma, P.ink);
+    M('d[d|x] = [m|f]′([n|z]) · d[n|z]', 1394, 386, 24, { a: ma });
+    M('[p|p]([d|x])·d[d|x] = [p|p]([n|z])·d[n|z]', 1394, 440, 24, { a: eout(prog(t, 30, 0.8)) });
+    M('[p|p]([d|x]) = [p|p]([n|z]) / |[m|f]′([n|z])|', 1394, 496, 24, { a: eout(prog(t, 32, 0.8)) });
+    text('needs z = f⁻¹(x): f must be invertible', 1394, 548, { font: F.mono, size: 16, color: P.rose, a: eout(prog(t, 38.5, 0.8)) });
   } });
 
-// 02 — the determinant
-const Jm = [[1.4, 0.6], [0.25, 0.9]], DETJ = Jm[0][0] * Jm[1][1] - Jm[0][1] * Jm[1][0];
-SC.push({ dur: 44, chapter: 'determinant', title: 'In 2-D, stretch is a determinant', sub: 'How much does a tiny square grow?',
-  caps: [[1, 8, 'In two dimensions, the thin slice becomes a tiny square. Push it through a map and it becomes a tiny parallelogram.'],
-         [8, 16, 'How much did its area change? For a linear map with matrix J, the answer is its determinant: ad − bc.'],
-         [16, 24, 'A curvy map looks linear up close. Zoom in anywhere, and its Jacobian — the matrix of partial derivatives — tells you the local stretch.'],
-         [24, 32, "So the density rule becomes p(x) = p(z) · |det ∂z/∂x|. In a million dimensions it's the same formula — with a million-by-million determinant."],
-         [32, 43.6, 'And that is the catch. A general determinant costs about D³ operations. For a 256 × 256 colour image, that is roughly 10¹⁶ — per image, per step.']],
+// 02 — the Jacobian: in 2-D the slope becomes a matrix
+const g2 = (u, v) => [u + 0.5 * Math.sin(1.3 * v), v + 0.45 * Math.sin(1.2 * u)];
+const J2 = (u, v) => [[1, 0.65 * Math.cos(1.3 * v)], [0.54 * Math.cos(1.2 * u), 1]];
+function pan(x0, y0, S, R) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v => y0 + (R - v) / (2 * R) * S, x0, y0, S, R }; }
+function polyPath(pts) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); }
+function sqBoundary(z0, h, n = 24) { const out = []; [[0, 0, 1, 0], [1, 0, 0, 1], [1, 1, -1, 0], [0, 1, 0, -1]].forEach(([a, b, da, db]) => { for (let i = 0; i < n; i++) out.push([z0[0] + (a + da * i / n) * h, z0[1] + (b + db * i / n) * h]); }); return out; }
+SC.push({ dur: 54, chapter: 'jacobian', title: 'In 2-D, the slope becomes a matrix', sub: 'Nudge one input at a time — and watch where the output goes.',
+  caps: [[1, 8, 'Now two dimensions. A map f sends each point z = (z₁, z₂) to a point x = (x₁, x₂) — here it bends a whole grid.'],
+         [8, 15, 'Zoom in on one tiny square. The closer you look, the straighter its edges get: up close, every smooth map is a simple linear stretch.'],
+         [15, 23, 'Which stretch? Nudge z₁ alone by a hair. The output moves along an arrow: how much x₁ changes, and how much x₂ changes, per unit of z₁.'],
+         [23, 30, 'Now nudge z₂ alone: a second arrow. These two arrows are exactly the edges of the tiny parallelogram.'],
+         [30, 38, 'Write the two arrows side by side, as columns: a 2 × 2 table of partial derivatives. That table is the Jacobian.'],
+         [38, 46, 'Each column answers one question: nudge this input — how does every output respond? Two inputs × two outputs = four numbers. In D dimensions, D × D.'],
+         [46, 53.6, 'It is the slope, grown up: the local stretch of a map with many inputs and many outputs. And it changes from point to point.']],
   draw(t) {
-    const A1 = 1 - ease(prog(t, 15.5, 1));
-    if (A1 > 0) { GA = A1; const cx = 600, cy = 620, s = 150, u = ease(prog(t, 2, 4)), a0 = eout(prog(t, 0.6, 0.8));
-      line(cx - 380, cy, cx + 420, cy, P.border, 1.5, a0); line(cx, cy + 220, cx, cy - 380, P.border, 1.5, a0);
-      const M2 = [[lerp(1, Jm[0][0], u), lerp(0, Jm[0][1], u)], [lerp(0, Jm[1][0], u), lerp(1, Jm[1][1], u)]], P2 = (x, y) => [cx + (M2[0][0] * x + M2[0][1] * y) * s, cy - (M2[1][0] * x + M2[1][1] * y) * s];
-      const q = [P2(0, 0), P2(1, 0), P2(1, 1), P2(0, 1)]; setA(a0 * 0.25); ctx.fillStyle = P.amber; ctx.beginPath(); q.forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.fill(); setA(a0); ctx.strokeStyle = P.amber; ctx.lineWidth = 3; ctx.stroke(); setA(1);
-      const det = M2[0][0] * M2[1][1] - M2[0][1] * M2[1][0]; text(`area = ${det.toFixed(2)}`, q[2][0] + 20, q[2][1], { font: F.mono, size: 24, color: P.amber, a: a0 });
-      const ma = eout(prog(t, 8, 0.8)); card(1150, 300, 670, 300, P.amber, ma); label('a linear map', 1184, 346, ma, P.amber);
-      M(`J = [ ${Jm[0][0]}  ${Jm[0][1]} ;  ${Jm[1][0]}  ${Jm[1][1]} ]`, 1184, 420, 28, { a: ma });
-      M(`det J = ad − bc = ${Jm[0][0]}·${Jm[1][1]} − ${Jm[0][1]}·${Jm[1][0]} = ${DETJ.toFixed(2)}`, 1184, 490, 22, { a: eout(prog(t, 10, 0.8)) });
-      text('= how much every area grows', 1184, 550, { font: F.serif, italic: true, size: 26, color: P.sage, a: eout(prog(t, 11, 0.8)) });
+    const Zp = pan(90, 240, 440, 2.4), Xp = pan(600, 240, 440, 2.9), a0 = eout(prog(t, 0.6, 0.8)), w = ease(prog(t, 2, 4));
+    const gw = (u, v) => { const q = g2(u, v); return [lerp(u, q[0], w), lerp(v, q[1], w)]; };
+    const z0 = t < 38 ? [0.5, -0.3] : [0.5 + 0.9 * Math.sin((t - 38) * 0.42), -0.3 + 0.9 * Math.sin((t - 38) * 0.29)], hv = 0.4, Jz = J2(...z0);
+    // panels + grids
+    [[Zp, 'z-plane (noise)', P.rose, (u, v) => [u, v]], [Xp, 'x-plane (data)', P.terracotta, gw]].forEach(([p, nm, col, fn]) => {
+      frame(p, a0); clipTo(p, () => { setA(a0 * 0.8); ctx.strokeStyle = P.borderLight; ctx.lineWidth = 1.1;
+        for (let k = -4; k <= 4; k++) { const v = k * 0.5; [0, 1].forEach(ax => { ctx.beginPath(); for (let i = 0; i <= 40; i++) { const u = -2.2 + 4.4 * i / 40, q = ax ? fn(v, u) : fn(u, v); i ? ctx.lineTo(p.X(q[0]), p.Y(q[1])) : ctx.moveTo(p.X(q[0]), p.Y(q[1])); } ctx.stroke(); }); } setA(1); });
+      text(nm, p.x0, p.y0 + p.S + 30, { font: F.mono, size: 17, color: col, a: a0 }); });
+    arrow(544, 460, 590, 460, P.plum, 2.5, a0); text('f', 567, 444, { font: F.mono, size: 22, color: P.plum, align: 'center', a: a0 });
+    // the tiny square and its image
+    const sqA = eout(prog(t, 8, 0.8));
+    if (sqA > 0) { const zb = sqBoundary(z0, hv);
+      setA(sqA * 0.35); ctx.fillStyle = P.amber; polyPath(zb.map(q => [Zp.X(q[0]), Zp.Y(q[1])])); ctx.fill(); setA(sqA); ctx.strokeStyle = P.amber; ctx.lineWidth = 2; ctx.stroke();
+      setA(sqA * 0.35); polyPath(zb.map(q => gw(...q)).map(q => [Xp.X(q[0]), Xp.Y(q[1])])); ctx.fill(); setA(sqA); ctx.stroke(); setA(1);
+      const e1 = eout(prog(t, 15, 0.8)), e2 = eout(prog(t, 23, 0.8)), zx = Zp.X(z0[0]), zyy = Zp.Y(z0[1]);
+      arrow(zx, zyy, Zp.X(z0[0] + hv * 1.4), zyy, P.amber, 3, e1); arrow(zx, zyy, zx, Zp.Y(z0[1] + hv * 1.4), P.sage, 3, e2);
+      const q0 = gw(...z0), xx0 = Xp.X(q0[0]), xy0 = Xp.Y(q0[1]);
+      arrow(xx0, xy0, Xp.X(q0[0] + Jz[0][0] * hv * 1.4), Xp.Y(q0[1] + Jz[1][0] * hv * 1.4), P.amber, 3, e1);
+      arrow(xx0, xy0, Xp.X(q0[0] + Jz[0][1] * hv * 1.4), Xp.Y(q0[1] + Jz[1][1] * hv * 1.4), P.sage, 3, e2);
+      ring(xx0 + 14, xy0 - 14, 42, P.dust, sqA, 1.2); line(xx0 + 56, xy0 - 14, 1225 - 185, 460, P.dust, 1, sqA * 0.5, [4, 5]); }
+    // zoomed inset: curvy image → parallelogram
+    const ia = eout(prog(t, 8, 0.8));
+    if (ia > 0) { const C = [1225, 460], R0 = 185, h = lerp(1.1, 0.12, ease(prog(t, 9, 5))), sc = 110;
+      const c1 = [Jz[0][0], Jz[1][0]], c2 = [Jz[0][1], Jz[1][1]], O = [C[0] - (c1[0] + c2[0]) / 2 * sc, C[1] + (c1[1] + c2[1]) / 2 * sc];
+      const L = (dx, dy) => [O[0] + dx * sc, O[1] - dy * sc], g0 = g2(...z0);
+      ctx.save(); ctx.beginPath(); ctx.arc(C[0], C[1], R0, 0, TAU); setA(ia); ctx.fillStyle = P.surface; ctx.fill(); ctx.clip();
+      setA(ia * 0.5); ctx.strokeStyle = P.dust; ctx.setLineDash([5, 6]); ctx.lineWidth = 1.5; ctx.strokeRect(O[0], O[1] - sc, sc, sc); ctx.setLineDash([]);
+      const curv = sqBoundary(z0, h, 30).map(q => { const r = g2(...q); return L((r[0] - g0[0]) / h, (r[1] - g0[1]) / h); });
+      setA(ia * 0.3); ctx.fillStyle = P.amber; polyPath(curv); ctx.fill(); setA(ia); ctx.strokeStyle = P.amber; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore(); setA(1);
+      const e1 = eout(prog(t, 15, 0.8)), e2 = eout(prog(t, 23, 0.8));
+      arrow(...O, ...L(...c1), P.amber, 4, e1); arrow(...O, ...L(...c2), P.sage, 4, e2);
+      M('[a|∂x/∂z₁]', L(...c1)[0] + 8, L(...c1)[1] + 26, 18, { a: e1 }); text('∂x/∂z₂', L(...c2)[0] - 8, L(...c2)[1] - 12, { font: F.mono, size: 18, color: P.sage, align: 'right', a: e2 });
+      ring(C[0], C[1], R0, P.borderLight, ia, 1.5);
+      text(h > 0.3 ? `zooming in…  (square side ${h.toFixed(2)})` : 'up close: straight edges', C[0], C[1] + R0 + 30, { font: F.mono, size: 16, color: P.dust, align: 'center', a: ia });
+      text('dashed: the square before the map', C[0], C[1] + R0 + 54, { font: F.mono, size: 14, color: P.dust, align: 'center', a: ia * 0.8 }); }
+    // the Jacobian table
+    const ja = eout(prog(t, 30, 0.8));
+    card(1440, 240, 400, 450, P.amber, ja); label('jacobian  J = ∂x/∂z', 1466, 286, ja, P.amber);
+    if (ja > 0) { const cx1 = 1575, cx2 = 1740, r1 = 420, r2 = 540;
+      text('nudge z₁', cx1, 352, { font: F.mono, size: 17, color: P.amber, align: 'center', a: ja }); text('nudge z₂', cx2, 352, { font: F.mono, size: 17, color: P.sage, align: 'center', a: ja });
+      text('x₁', 1462, r1 + 8, { font: F.mono, size: 20, color: P.terracotta, a: ja }); text('x₂', 1462, r2 + 8, { font: F.mono, size: 20, color: P.terracotta, a: ja });
+      rbox(cx1 - 72, 372, 144, 220, 12, rgba(P.amber, 0.07), rgba(P.amber, 0.4), ja); rbox(cx2 - 72, 372, 144, 220, 12, rgba(P.sage, 0.07), rgba(P.sage, 0.4), ja);
+      [[cx1, r1, '∂x₁/∂z₁', Jz[0][0]], [cx2, r1, '∂x₁/∂z₂', Jz[0][1]], [cx1, r2, '∂x₂/∂z₁', Jz[1][0]], [cx2, r2, '∂x₂/∂z₂', Jz[1][1]]].forEach(([x, y, s, v]) => {
+        text(s, x, y - 14, { font: F.mono, size: 19, color: P.chalk, align: 'center', a: ja }); text(v.toFixed(2), x, y + 22, { font: F.mono, size: 22, color: P.amber, align: 'center', a: ja * eout(prog(t, 32, 0.8)) }); });
+      text('row = output · column = input nudged', 1466, 650, { font: F.mono, size: 14, color: P.dust, a: eout(prog(t, 38, 0.8)) }); }
+    // 1-D vs D-D
+    const ba = eout(prog(t, 38.5, 0.8));
+    card(100, 745, 1740, 150, P.plum, ba);
+    if (ba > 0) { M('1-D:   slope  [m|f]′([n|z])            one number: the stretch', 140, 808, 24, { a: ba });
+      M('D-D:   Jacobian  [a|J] = ∂[d|x]/∂[n|z]     D × D numbers:  [a|J]ᵢⱼ = ∂[d|x]ᵢ/∂[n|z]ⱼ', 140, 860, 24, { a: eout(prog(t, 40, 0.8)) }); }
+  } });
+
+// 03 — the determinant: how much area?
+const DM0 = [[1.4, 0.5], [0.35, 1.1]];
+const DKEYS = [[20, DM0], [22, [[2, 0.4], [0, 1]]], [26, [[2, 0.4], [0, 1]]], [27.5, [[0.8, 0.2], [0.15, 0.66]]], [30, [[0.8, 0.2], [0.15, 0.66]]], [31.5, [[1, 0.8], [0.5, 0.4]]], [36, [[1, 0.8], [0.5, 0.4]]], [37.5, DM0]];
+function dmAt(t) { if (t <= DKEYS[0][0]) return DM0; for (let i = 0; i < DKEYS.length - 1; i++) { const [ta, A1] = DKEYS[i], [tb, B1] = DKEYS[i + 1]; if (t <= tb) { const u = ease((t - ta) / (tb - ta)); return [[lerp(A1[0][0], B1[0][0], u), lerp(A1[0][1], B1[0][1], u)], [lerp(A1[1][0], B1[1][0], u), lerp(A1[1][1], B1[1][1], u)]]; } } return DM0; }
+SC.push({ dur: 50, chapter: 'determinant', title: 'How much area? The determinant', sub: 'One number that says how much a map stretches space.',
+  caps: [[1, 7, "For density we don't need all four numbers — just one: by how much did the tiny square's area grow?"],
+         [7, 14, 'Call the arrows (a, c) and (b, d). Box the parallelogram in: the box has area (a + b)(c + d). Now cut away the corners…'],
+         [14, 21, '…two pairs of triangles and two rectangles. What is left is exactly ad − bc. That number is the determinant.'],
+         [21, 27.5, 'It is the area-stretch factor. det = 2: every area doubles, and the sand spreads out to half the density.'],
+         [27.5, 31, 'det = ½: areas halve, and the sand piles up twice as dense.'],
+         [31, 37.5, "det = 0: the square is crushed flat onto a line. Different points collide, and there's no way back. A flow must never do this."],
+         [37.5, 43, 'Same sand before and after:  p(x) · |det J| · area = p(z) · area.'],
+         [43, 49.6, 'So p(x) = p(z) / |det J|. The 1-D slope rule, exactly — with the slope replaced by the determinant of the Jacobian.']],
+  draw(t) {
+    const O = [230, 830], s = 240, a0 = eout(prog(t, 0.6, 0.8)), [a, b] = [DM0[0][0], DM0[0][1]], [c, d] = [DM0[1][0], DM0[1][1]];
+    const S = (x, y) => [O[0] + x * s, O[1] - y * s];
+    // phase 1: the box proof
+    const pA = a0 * (1 - ease(prog(t, 19.5, 1)));
+    if (pA > 0) { GA = pA;
+      const bx = eout(prog(t, 7, 1)); setA(bx); ctx.strokeStyle = P.stone; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]); ctx.strokeRect(O[0], O[1] - (c + d) * s, (a + b) * s, (c + d) * s); ctx.setLineDash([]); setA(1);
+      text('a', ...S(a / 2, 0).map((v, i) => v + [0, 30][i]), { font: F.mono, size: 20, color: P.amber, align: 'center', a: bx }); text('b', ...S(a + b / 2, 0).map((v, i) => v + [0, 30][i]), { font: F.mono, size: 20, color: P.sage, align: 'center', a: bx });
+      text('c', ...S(0, c / 2).map((v, i) => v + [-26, 6][i]), { font: F.mono, size: 20, color: P.amber, align: 'center', a: bx }); text('d', ...S(0, c + d / 2).map((v, i) => v + [-26, 6][i]), { font: F.mono, size: 20, color: P.sage, align: 'center', a: bx });
+      const pieces = [[[[0, 0], [a, 0], [a, c]], 'ac/2', P.rose], [[[a, c], [a + b, c], [a + b, c + d]], 'bd/2', P.plum], [[[a + b, c + d], [b, c + d], [b, d]], 'ac/2', P.rose], [[[0, d], [b, d], [0, 0]], 'bd/2', P.plum],
+        [[[a, 0], [a + b, 0], [a + b, c], [a, c]], 'bc', P.ink], [[[b, c + d], [0, c + d], [0, d], [b, d]], 'bc', P.ink]];
+      pieces.forEach(([pts, lab, col], i) => { const pa = eout(prog(t, 9 + i * 0.8, 0.6)) * (1 - 0.75 * ease(prog(t, 15, 1.5))); if (pa <= 0) return;
+        setA(pa * 0.35); ctx.fillStyle = col; polyPath(pts.map(q => S(...q))); ctx.fill(); setA(1);
+        const cx = pts.reduce((s0, q) => s0 + q[0], 0) / pts.length, cy = pts.reduce((s0, q) => s0 + q[1], 0) / pts.length; text(lab, ...S(cx, cy).map((v, k) => v + [0, 7][k]), { font: F.mono, size: 16, color: P.chalk, align: 'center', a: pa }); });
       GA = 1; }
-    const B = eout(prog(t, 16, 1));
-    if (B > 0) { const m = square(150, 240, 700); frame(m, B); clipTo(m, () => drawGrid(m, K, B * 0.8, P.stone));
-      text('a real trained flow: the noise grid, warped into data space', 170, 920, { font: F.mono, size: 16, color: P.dust, a: B });
-      const ca = eout(prog(t, 18, 0.8)); ring(m.X(-0.8), m.Y(1.0), 40, P.sage, ca, 2.5); ring(m.X(0), m.Y(0), 40, P.amber, ca, 2.5);
-      text('tiny cells: squeezed → high density', m.X(-0.8) - 60, m.Y(1.0) - 60, { font: F.mono, size: 16, color: P.sage, a: ca });
-      text('big cells: stretched → low density', m.X(0) + 20, m.Y(0) + 190, { font: F.mono, size: 16, color: P.amber, a: ca });
-      const fa = eout(prog(t, 24, 0.8)); card(930, 300, 890, 250, P.ink, fa); label('in D dimensions', 964, 346, fa, P.ink);
-      M('[p|p]([d|x]) = [p|p]([n|z]) · |det ∂[n|z]/∂[d|x]|', 964, 420, 32, { a: fa });
-      M('∂[n|z]/∂[d|x]  is a  D × D  matrix (the Jacobian)', 964, 490, 22, { a: eout(prog(t, 26, 0.8)) });
-      const ca2 = eout(prog(t, 32, 0.8)); card(930, 590, 890, 230, P.rose, ca2); label('the cost', 964, 636, ca2, P.rose);
-      M('general determinant: ~[a|D]³ operations', 964, 700, 28, { a: ca2 });
-      M('256×256×3 image:  D ≈ 2×10⁵   →   D³ ≈ 10¹⁶', 964, 764, 24, { a: eout(prog(t, 34, 0.8)) }); }
+    // the parallelogram (both phases), with the live matrix
+    const Mt = dmAt(t), det = Mt[0][0] * Mt[1][1] - Mt[0][1] * Mt[1][0], c1 = [Mt[0][0], Mt[1][0]], c2 = [Mt[0][1], Mt[1][1]];
+    const quad = [S(0, 0), S(...c1), S(c1[0] + c2[0], c1[1] + c2[1]), S(...c2)], wA = eout(prog(t, 20, 1));
+    if (wA > 0) { setA(wA * 0.5); ctx.strokeStyle = P.dust; ctx.setLineDash([5, 6]); ctx.lineWidth = 1.5; ctx.strokeRect(O[0], O[1] - s, s, s); ctx.setLineDash([]); setA(1);
+      text('dashed: unit square, area 1', O[0], O[1] + 30, { font: F.mono, size: 14, color: P.dust, a: wA }); }
+    const sandA = t < 20 ? 0.3 : clamp(0.32 / Math.max(Math.abs(det), 0.05), 0.08, 0.85);
+    setA(a0 * sandA); ctx.fillStyle = t < 20 ? P.amber : P.ink; polyPath(quad); ctx.fill(); setA(a0); ctx.strokeStyle = P.amber; ctx.lineWidth = 3; ctx.stroke(); setA(1);
+    arrow(...S(0, 0), ...S(...c1), P.amber, 3.5, a0); arrow(...S(0, 0), ...S(...c2), P.sage, 3.5, a0);
+    if (wA > 0) { text(`det = ${det.toFixed(2)}`, O[0], 400, { font: F.mono, size: 30, color: Math.abs(det) < 0.05 ? P.rose : P.amber, a: wA });
+      text(Math.abs(det) < 0.05 ? 'flattened: many points → one' : `area × ${det.toFixed(2)}   ·   density × ${(1 / det).toFixed(2)}`, O[0], 440, { font: F.mono, size: 18, color: Math.abs(det) < 0.05 ? P.rose : P.stone, a: wA }); }
+    // right-hand cards
+    const ka = eout(prog(t, 7, 0.8)) * (1 - ease(prog(t, 36.5, 1)));
+    card(930, 260, 900, 330, P.amber, ka); label('area of the parallelogram', 964, 306, ka, P.amber);
+    M('[a|J] = [ a  b ; c  d ]     (columns = the two arrows)', 964, 366, 22, { a: ka });
+    M('(a+b)(c+d) − ac − bd − 2bc', 964, 430, 28, { a: ka * eout(prog(t, 14, 0.8)) });
+    M('= ad − bc  =  det [a|J]', 964, 486, 34, { a: ka * eout(prog(t, 17, 0.8)) });
+    text('the area-stretch factor of the map near this point', 964, 548, { font: F.serif, italic: true, size: 24, color: P.sage, a: ka * eout(prog(t, 18.5, 0.8)) });
+    const la = eout(prog(t, 31, 0.8)) * (1 - ease(prog(t, 36.5, 1)));
+    card(930, 620, 900, 140, P.rose, la); para('A flow layer must never flatten space: det ≠ 0 everywhere, so it can always be undone.', 964, 676, 830, { size: 24, a: la });
+    const sa = eout(prog(t, 37.5, 0.8));
+    card(930, 300, 900, 360, P.ink, sa); label('sand is conserved — now in 2-D', 964, 346, sa, P.ink);
+    M('[p|p]([d|x]) · |det [a|J]| · area = [p|p]([n|z]) · area', 964, 420, 26, { a: sa });
+    M('[p|p]([d|x]) = [p|p]([n|z]) / |det ∂[d|x]/∂[n|z]|', 964, 500, 32, { a: eout(prog(t, 43, 0.8)) });
+    M('        = [p|p]([n|z]) · |det ∂[n|z]/∂[d|x]|', 964, 560, 32, { a: eout(prog(t, 45, 0.8)) });
+    text('1-D:  p(x) = p(z) / |f′(z)|  — same idea', 964, 626, { font: F.mono, size: 18, color: P.dust, a: eout(prog(t, 45.5, 0.8)) });
   } });
 
-// 03 — the coupling layer
-SC.push({ dur: 52, chapter: 'coupling', title: 'The coupling trick', sub: 'Make the determinant free — and the inverse too.',
-  caps: [[1, 8, 'The trick behind RealNVP and Glow is almost cheeky. Split the coordinates into two halves, a and b.'],
-         [8, 16, "Leave a completely alone. Transform b with a stretch and a shift that depend only on a:  b′ = b · e^s(a) + t(a)."],
-         [16, 24, 'Watch one real layer: every point slides along one axis only, by an amount that depends on its position along the other.'],
-         [24, 32, 'The Jacobian is triangular — zeros above the diagonal — so its determinant is just the product of the diagonal: e^s(a). Cost: nothing.'],
-         [32, 40, 'Inverting is just as easy:  b = (b′ − t(a)) · e^−s(a). And s and t can be any neural networks at all — we never have to invert them.'],
-         [40, 51.6, 'One layer can only bend one half. So stack layers, swapping the roles of a and b each time.']],
+// 04 — the cost, and the escape hatch: triangular matrices
+SC.push({ dur: 46, chapter: 'the cost', title: 'The price of a determinant', sub: 'Every point needs one — and in high dimensions they are brutally expensive.',
+  caps: [[1, 8, 'Here is a real trained flow: the noise grid, warped into data space. Tiny cells are where sand piles up; big cells are where it thins.'],
+         [8, 15.5, 'To score one data point, we need the determinant of its own Jacobian. In D dimensions a general determinant costs about D³ operations.'],
+         [15.5, 23, 'For a 256 × 256 colour image, D ≈ 200,000, so D³ ≈ 10¹⁶ — for every image, at every training step. Hopeless.'],
+         [23, 31, 'Unless the Jacobian is special. If it is triangular — all zeros on one side of the diagonal — the determinant is just the product of the diagonal.'],
+         [31, 39, 'Why? The off-diagonal part only shears: it slides strips past each other, like pushing a deck of cards. Shearing never changes area.'],
+         [39, 45.6, 'Only the diagonal stretches. So here is the design goal: a flexible map whose Jacobian is triangular by construction.']],
   draw(t) {
-    const m = square(150, 240, 700), a0 = eout(prog(t, 0.6, 0.8)), f = t < 16 ? 0 : t < 40 ? lerp(0, 1, 0.5 - 0.5 * Math.cos((t - 16) * 0.55)) : lerp(0, 3, ease(prog(t, 41, 8)));
-    frame(m, a0); clipTo(m, () => { drawGrid(m, f, a0 * 0.8, P.stone); drawPts(m, A.inv, f, P.rose, 0.7, 2.2); });
-    text(t < 40 ? 'one real coupling layer' : `layers stacked: ${Math.floor(f) + 1}`, 170, 280, { font: F.mono, size: 18, color: P.chalk, a: a0 });
-    const c1 = eout(prog(t, 1, 0.8)); card(930, 250, 890, 200, P.plum, c1); label('coupling layer', 964, 296, c1, P.plum);
-    M('[d|a]′ = [d|a]', 964, 360, 28, { a: c1 });
-    M('[d|b]′ = [d|b] · e[a^|s(a)] + [a|t]([d|a])', 964, 414, 28, { a: eout(prog(t, 8, 0.8)) });
-    const c2 = eout(prog(t, 24, 0.8)); card(930, 480, 430, 240, P.amber, c2); label('jacobian', 964, 526, c2, P.amber);
-    M('∂([d|a]′,[d|b]′)/∂([d|a],[d|b]) =', 964, 580, 18, { a: c2 });
-    M('[ 1        0  ]', 994, 630, 24, { a: c2 }); M('[ ∗   e[a^|s(a)] ]', 994, 676, 24, { a: c2 });
-    text('det = e^s(a)', 964, 710 - 2, { font: F.mono, size: 16, color: P.sage, a: eout(prog(t, 27, 0.8)) });
-    const c3 = eout(prog(t, 32, 0.8)); card(1390, 480, 430, 240, P.sage, c3); label('inverse', 1424, 526, c3, P.sage);
-    M('[d|b] = ([d|b]′ − [a|t]) · e[a^|−s]', 1424, 590, 22, { a: c3 }); para('s, t: any neural nets — never inverted', 1424, 640, 370, { size: 22, a: c3 });
-    const c4 = eout(prog(t, 40, 0.8)); card(930, 750, 890, 110, P.plum, c4);
-    M('log |det| of the whole flow  =  [kB|Σ][k_|k] [a|s][a_|k]  — just add them up', 964, 815, 22, { a: c4 });
+    const m = square(120, 240, 680), B = eout(prog(t, 0.6, 1)); frame(m, B); clipTo(m, () => drawGrid(m, K, B * 0.8, P.stone));
+    text('a real trained flow: the noise grid, warped into data space', 140, 900, { font: F.mono, size: 16, color: P.dust, a: B });
+    const ca = eout(prog(t, 3, 0.8)); ring(m.X(-0.8), m.Y(1.0), 38, P.sage, ca, 2.5); ring(m.X(0), m.Y(0), 38, P.amber, ca, 2.5);
+    text('tiny cells: squeezed → dense', m.X(-0.8) - 60, m.Y(1.0) - 56, { font: F.mono, size: 16, color: P.sage, a: ca });
+    text('big cells: stretched → thin', m.X(0) + 20, m.Y(0) + 180, { font: F.mono, size: 16, color: P.amber, a: ca });
+    const ka = eout(prog(t, 8, 0.8)); card(880, 250, 950, 230, P.rose, ka); label('the cost', 914, 296, ka, P.rose);
+    M('general det of a D × D matrix:   ~[a|D]³ operations', 914, 356, 26, { a: ka });
+    M('256×256×3 image:  D ≈ 2×10⁵   →   D³ ≈ 10¹⁶', 914, 416, 26, { a: eout(prog(t, 15.5, 0.8)) });
+    text('per image, per training step', 914, 456, { font: F.mono, size: 16, color: P.rose, a: eout(prog(t, 17, 0.8)) });
+    const ta = eout(prog(t, 23, 0.8)); card(880, 510, 950, 390, P.sage, ta); label('the escape hatch: triangular', 914, 556, ta, P.sage);
+    if (ta > 0) { M('[ [a|d₁]   0  ]', 1400, 626, 30, { a: ta }); M('[  ∗   [a|d₂] ]', 1400, 676, 30, { a: ta });
+      M('det = [a|d₁] · [a|d₂]', 1400, 750, 30, { a: eout(prog(t, 25, 0.8)) });
+      text('∗ can be anything at all', 1400, 800, { font: F.mono, size: 16, color: P.dust, a: eout(prog(t, 27, 0.8)) });
+      // a deck of cards: vertical strips sheared, then stretched by the diagonal
+      const X0 = 960, Yc = 720, SS = 160, N = 10, sh = 0.7 * ease(prog(t, 32, 3)), st = lerp(1, 1.5, ease(prog(t, 39, 2.5))), da = eout(prog(t, 31, 0.8));
+      for (let i = 0; i < N; i++) { const u = i / N, off = sh * (u + 0.5 / N - 0.5) * SS * 0.8;
+        setA(da * (i % 2 ? 0.45 : 0.3)); ctx.fillStyle = P.sage; ctx.fillRect(X0 + u * SS, Yc - SS * st / 2 - off, SS / N, SS * st); setA(1); }
+      setA(da * 0.5); ctx.strokeStyle = P.dust; ctx.setLineDash([5, 6]); ctx.lineWidth = 1.2; ctx.strokeRect(X0, Yc - SS / 2, SS, SS); ctx.setLineDash([]); setA(1);
+      const Y0 = Yc + 60; text(`area = ${(st).toFixed(2)}`, X0 + SS + 20, Y0 - 30, { font: F.mono, size: 18, color: st > 1.01 ? P.amber : P.sage, a: da });
+      text(st > 1.01 ? 'diagonal: stretch' : sh > 0.05 ? 'shear: unchanged' : '', X0 + SS + 20, Y0 - 6, { font: F.mono, size: 15, color: P.dust, a: da }); }
   } });
 
-// 04 — exact maximum likelihood
+// 05 — the coupling layer
+SC.push({ dur: 56, chapter: 'coupling', title: 'The coupling trick', sub: 'A flexible layer with a triangular Jacobian — by design.',
+  caps: [[1, 8, 'The trick behind RealNVP and Glow is almost cheeky. Split the coordinates into two halves, a and b.'],
+         [8, 16, 'Leave a completely alone. Transform b with a stretch and a shift that depend only on a:  b′ = b · e^s(a) + t(a).'],
+         [16, 24, 'Watch one real layer: every point slides along one axis only, by an amount that depends on where it sits along the other.'],
+         [24, 33, 'Now fill in the Jacobian, one nudge at a time. Nudge a: a′ moves by exactly 1, and b′ moves by something messy — we will not need it.'],
+         [33, 40, 'Nudge b: a′ does not move at all — a zero in the corner! — and b′ moves by e^s(a). Triangular. So det = 1 · e^s(a), however complicated s and t are.'],
+         [40, 47, 'Inverting is just as easy:  b = (b′ − t(a)) · e^−s(a). And s and t can be any neural networks at all — we never have to invert them.'],
+         [47, 55.6, 'One layer can only bend one half. So stack layers, swapping the roles of a and b each time — and the log-determinants simply add up.']],
+  draw(t) {
+    const m = square(120, 240, 680), a0 = eout(prog(t, 0.6, 0.8)), f = t < 47 ? ease(prog(t, 16, 3.5)) - ease(prog(t, 20, 3.5)) + ease(prog(t, 24, 3.5)) : lerp(1, 4, ease(prog(t, 48, 7)));
+    frame(m, a0); clipTo(m, () => { drawGrid(m, f, a0 * 0.8, P.stone); drawPts(m, A.inv, f, P.rose, 0.7, 2.2); });
+    text(t < 47 ? 'one real coupling layer' : `layers stacked: ${Math.min(4, Math.max(1, Math.round(f)))}`, 140, 280, { font: F.mono, size: 18, color: P.chalk, a: a0 });
+    const c1 = eout(prog(t, 1, 0.8)); card(880, 240, 950, 170, P.plum, c1); label('coupling layer', 914, 286, c1, P.plum);
+    M('[d|a]′ = [d|a]', 914, 340, 28, { a: c1 });
+    M('[d|b]′ = [d|b] · e[a^|s(a)] + [a|t]([d|a])', 1140, 340, 28, { a: eout(prog(t, 8, 0.8)) });
+    text('s, t: neural nets that only see a', 914, 386, { font: F.mono, size: 16, color: P.dust, a: eout(prog(t, 10, 0.8)) });
+    // the Jacobian, filled in one nudge at a time
+    const ja = eout(prog(t, 24, 0.8)); card(880, 430, 560, 340, P.amber, ja); label('the jacobian, nudge by nudge', 914, 476, ja, P.amber);
+    if (ja > 0) { const cx1 = 1110, cx2 = 1310, r1 = 580, r2 = 690;
+      text('nudge a', cx1, 520, { font: F.mono, size: 17, color: P.amber, align: 'center', a: ja }); text('nudge b', cx2, 520, { font: F.mono, size: 17, color: P.sage, align: 'center', a: eout(prog(t, 33, 0.8)) });
+      text('a′', 920, r1 + 8, { font: F.mono, size: 22, color: P.terracotta, a: ja }); text('b′', 920, r2 + 8, { font: F.mono, size: 22, color: P.terracotta, a: ja });
+      const cell = (x, y, sym, val, col, a) => { if (a <= 0) return; rbox(x - 86, y - 44, 172, 88, 12, rgba(col, 0.08), rgba(col, 0.4), a); text(sym, x, y - 8, { font: F.mono, size: 16, color: P.dust, align: 'center', a }); if (val[0] === '[') M(val, x, y + 26, 26, { align: 'center', a }); else text(val, x, y + 26, { font: F.mono, size: 26, color: col, align: 'center', a }); };
+      cell(cx1, r1, '∂a′/∂a', '1', P.amber, eout(prog(t, 26, 0.6))); cell(cx1, r2, '∂b′/∂a', '∗ (messy)', P.dust, eout(prog(t, 28.5, 0.6)));
+      cell(cx2, r1, '∂a′/∂b', '0', P.sage, eout(prog(t, 34, 0.6))); cell(cx2, r2, '∂b′/∂b', '[s|e][a^|s(a)]', P.sage, eout(prog(t, 35.5, 0.6)));
+      const za = eout(prog(t, 36.5, 0.6)); if (za > 0) { ring(cx2, r1, 58, P.rose, za, 2.5); } }
+    const da = eout(prog(t, 37, 0.8)); card(1470, 430, 360, 160, P.sage, da); label('determinant', 1500, 476, da, P.sage);
+    M('det = 1 · e[a^|s(a)]', 1500, 530, 24, { a: da }); M('log|det| = [a|s]([d|a])', 1500, 570, 22, { a: eout(prog(t, 38, 0.8)) });
+    const c3 = eout(prog(t, 40, 0.8)); card(1470, 610, 360, 160, P.sage, c3); label('inverse', 1500, 656, c3, P.sage);
+    M('[d|b] = ([d|b]′ − [a|t])·e[a^|−s]', 1500, 712, 20, { a: c3 }); text('no net is ever inverted', 1500, 748, { font: F.mono, size: 15, color: P.dust, a: c3 });
+    const c4 = eout(prog(t, 47, 0.8)); card(880, 790, 950, 100, P.plum, c4);
+    M('whole flow:  log |det| = [kB|Σ][k_|k] [a|s][a_|k]   — just add them up', 914, 850, 24, { a: c4 });
+  } });
+
+// 06 — exact maximum likelihood
 SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likelihood', sub: 'No judge. No bound. The real thing.',
   caps: [[1, 8, 'Training is pure episode 1: maximum likelihood. No judge like the GAN, no lower bound like the VAE — the exact quantity.'],
          [8, 16, "Push a data point through all the layers to get its z. Its log-probability is the bell curve's score for z, plus every layer's log-stretch."],
@@ -329,25 +474,32 @@ SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likeli
          [40, 47.6, "Why “normalizing”? Because the trained flow turns the data into a normal distribution."]],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8));
-    M('log [p|p]([d|x]) = log N([m|f]([d|x]); 0, I) + [kB|Σ][k_|k] [a|s][a_|k]', 960, 300, 36, { align: 'center', a: a0 });
-    text('bell-curve score of z            every layer’s log-stretch', 960, 350, { font: F.mono, size: 18, color: P.dust, align: 'center', a: eout(prog(t, 8, 0.8)) });
+    M('log [p|p]([d|x]) = log N([m|f]([d|x]); 0, I) + [kB|Σ][k_|k] [a|s][a_|k]', 960, 290, 36, { align: 'center', a: a0 });
+    text('bell-curve score of z            every layer’s log-stretch', 960, 340, { font: F.mono, size: 18, color: P.dust, align: 'center', a: eout(prog(t, 8, 0.8)) });
+    // push the data (and two example points) through the flow
+    const m = square(120, 390, 520), pa = eout(prog(t, 8, 0.8)), ff = t < 40 ? lerp(0, K, ease(prog(t, 9, 6))) : lerp(0, K, ease(prog(t, 40.5, 5)));
+    frame(m, pa); clipTo(m, () => drawPts(m, A.fwd, ff, null, pa * 0.6, 2.2, f => mixc(P.terracotta, P.rose, f / K)));
+    text(t < 40 ? (ff < K - 0.01 ? 'pushing x through the layers…' : 'every point now has its z') : 'data  →  f  →  a normal distribution', 140, 424, { font: F.mono, size: 16, color: P.chalk, a: pa });
+    if (pa > 0) [['on', P.sage], ['off', P.rose]].forEach(([k, col]) => { const e = EX[k], u = ease(ff / K), px = lerp(e.x[0], e.z[0], u), py = lerp(e.x[1], e.z[1], u);
+      const lim = RR - 0.25, cx = clamp(px, -lim, lim), cy = clamp(py, -lim, lim), out = cx !== px || cy !== py;
+      glow(m.X(cx), m.Y(cy), 7, col, pa); if (out) { arrow(m.X(cx) - 34, m.Y(cy), m.X(cx) - 4, m.Y(cy), col, 2.5, pa); text('z far out in the tails →', m.X(cx) - 40, m.Y(cy) - 16, { font: F.mono, size: 15, color: col, align: 'right', a: pa }); } });
     const ea = eout(prog(t, 16, 0.8));
-    [['on', 'on the moons', P.sage], ['off', 'out in the void', P.rose]].forEach(([k, nm, col], i) => { const x = 150 + i * 460, y = 430, e = EX[k], a = ea * eout(prog(t, 16 + i * 1.5, 0.8));
-      card(x, y, 420, 260, col, a); label(nm, x + 30, y + 44, a, col);
-      M(`[d|x] = (${e.x[0].toFixed(2)}, ${e.x[1].toFixed(2)})`, x + 30, y + 92, 20, { a }); M(`  →  [n|z] = (${e.z[0].toFixed(2)}, ${e.z[1].toFixed(2)})`, x + 30, y + 124, 20, { a });
-      M(`log N([n|z]) = ${e.logN.toFixed(2)}`, x + 30, y + 166, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 200, 22, { a });
-      M(`log [p|p]([d|x]) = ${e.logp.toFixed(2)}`, x + 30, y + 236, 24, { a }); });
+    [['on', 'on the moons', P.sage], ['off', 'out in the void', P.rose]].forEach(([k, nm, col], i) => { const x = 680, y = 390 + i * 270, e = EX[k], a = ea * eout(prog(t, 16 + i * 1.5, 0.8));
+      card(x, y, 420, 250, col, a); label(nm, x + 30, y + 42, a, col);
+      M(`[d|x] = (${e.x[0].toFixed(2)}, ${e.x[1].toFixed(2)})  →  [n|z] = (${e.z[0].toFixed(1)}, ${e.z[1].toFixed(1)})`, x + 30, y + 90, 17, { a });
+      M(`log N([n|z]) = ${e.logN.toFixed(2)}`, x + 30, y + 136, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 174, 22, { a });
+      M(`log [p|p]([d|x]) = ${e.logp.toFixed(2)}`, x + 30, y + 222, 24, { a }); });
     const ca = eout(prog(t, 24, 0.8));
-    if (ca > 0) { const x0 = 1100, y0 = 700, w = 700, h = 250, H = A.hist, mx = Math.max(...H.slice(2)), mn = Math.min(...H);
-      card(x0 - 30, y0 - h - 70, w + 60, h + 130, P.plum, ca); text('training −log p (nats per point, real run)', x0, y0 - h - 30, { font: F.mono, size: 16, color: P.dust, a: ca });
+    if (ca > 0) { const x0 = 1170, y0 = 800, w = 640, h = 330, H = A.hist, mx = Math.max(...H.slice(2)), mn = Math.min(...H);
+      card(x0 - 30, 390, w + 60, 520, P.plum, ca); text('training −log p (nats per point, real run)', x0, 432, { font: F.mono, size: 16, color: P.dust, a: ca });
       setA(ca); ctx.strokeStyle = P.plum; ctx.lineWidth = 2.5; ctx.beginPath(); const n = Math.max(2, Math.floor(H.length * ease(prog(t, 24.5, 6))));
       H.slice(0, n).forEach((v, i) => { const X = x0 + i / (H.length - 1) * w, Y = y0 - clamp((v - mn) / (mx - mn)) * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke(); setA(1);
-      const ra = eout(prog(t, 32, 0.8)); text(`held-out: flow ${A.nll.toFixed(2)}   vs   best Gaussian ${A.gauss.toFixed(2)}`, x0, y0 + 40, { font: F.mono, size: 20, color: P.sage, a: ra }); }
-    const na = eout(prog(t, 40, 0.8)); if (na > 0) text('data  →  f  →  a normal distribution', 150, 780, { font: F.serif, italic: true, size: 40, color: P.chalk, a: na });
+      const ra = eout(prog(t, 32, 0.8)); text(`held-out:  flow ${A.nll.toFixed(2)}   vs   best Gaussian ${A.gauss.toFixed(2)}`, x0, y0 + 60, { font: F.mono, size: 19, color: P.sage, a: ra });
+      text('exact numbers, not estimates or bounds', x0, y0 + 92, { font: F.mono, size: 15, color: P.dust, a: ra }); }
   } });
 
-// 05 — layer by layer
-SC.push({ dur: 50, chapter: 'layer by layer', title: 'The real flow, one layer at a time', sub: `${K} coupling layers, trained on two moons.`,
+// 07 — layer by layer
+SC.push({ dur: 50, chapter: 'layers', title: 'The real flow, one layer at a time', sub: `${K} coupling layers, trained on two moons.`,
   caps: [[1, 8, `Here is the real trained flow, one layer at a time: ${K} coupling layers, each a gentle, invertible bend.`],
          [8, 16, 'Forwards, data → noise: each layer nudges the moons a little closer to a round cloud.'],
          [16, 24, "After the last layer, the moons have become a standard bell curve. That's the “normalizing”."],
@@ -365,8 +517,8 @@ SC.push({ dur: 50, chapter: 'layer by layer', title: 'The real flow, one layer a
     arrow(810, 570, 1010, 570, P.dust, 2, ra); text('f⁻¹', 910, 555, { font: F.mono, size: 22, color: P.plum, align: 'center', a: ra });
   } });
 
-// 06 — the exact density
-SC.push({ dur: 40, chapter: 'exact density', title: 'A density you can actually read', sub: 'Exact p(x), everywhere.',
+// 08 — the exact density
+SC.push({ dur: 40, chapter: 'density', title: 'A density you can actually read', sub: 'Exact p(x), everywhere.',
   caps: [[1, 8, "Because every step is exact, we can paint the model's density everywhere — a map a GAN could never draw."],
          [8, 16, 'Bright on the moons, dark in the void — and it integrates to exactly one, guaranteed by construction.'],
          [16, 24, "Depth matters. With only two layers, the flow can't bend enough: the moons blur into one smeared S, and density leaks where no data lives."],
@@ -383,8 +535,8 @@ SC.push({ dur: 40, chapter: 'exact density', title: 'A density you can actually 
     const ia = eout(prog(t, 8, 0.8)); if (ia > 0 && t < 16) M('[pB|∫] [p|p]([d|x]) d[d|x] = 1   exactly', 1350, 560, 34, { align: 'center', a: ia * (1 - ease(prog(t, 15, 1))) });
   } });
 
-// 07 — the catch: topology
-SC.push({ dur: 50, chapter: 'the catch', title: 'The catch: rubber can’t tear', sub: 'What an invertible, continuous map can never do.',
+// 09 — the catch: topology
+SC.push({ dur: 50, chapter: 'catch', title: 'The catch: rubber can’t tear', sub: 'What an invertible, continuous map can never do.',
   caps: [[1, 8, 'Now the catch. Ask a flow to model eight separate blobs.'],
          [8, 16, `It does well — ${A.nllRing.toFixed(2)} nats against a bell curve's ${A.gaussRing.toFixed(2)} — but look closely: thin bridges connect the blobs.`],
          [16, 24, 'A flow is a continuous, invertible warp. Like rubber, it can stretch and squeeze, but never tear. One connected blob cannot become eight separate islands.'],
@@ -399,8 +551,9 @@ SC.push({ dur: 50, chapter: 'the catch', title: 'The catch: rubber can’t tear'
     // rubber sheet cartoon
     const ra = eout(prog(t, 16, 0.8)) * (1 - ease(prog(t, 31.5, 1)));
     if (ra > 0) { card(930, 260, 890, 360, P.plum, ra); label('continuous + invertible = rubber', 964, 306, ra, P.plum);
-      const cx = 1150, cy = 480, st = ease(prog(t, 17, 5)); setA(ra * 0.35); ctx.fillStyle = P.rose; ctx.beginPath(); ctx.ellipse(cx, cy, 90 + 120 * st, 70 - 40 * st, 0, 0, TAU); ctx.fill(); setA(1);
-      ring(cx - 120 * st, cy, 30, P.chalk, ra * st, 1.5); ring(cx + 120 * st, cy, 30, P.chalk, ra * st, 1.5);
+      const cx = 1150, cy = 470, st = ease(prog(t, 17, 5)), d = 40 + 110 * st, r = 62 - 12 * st, neck = lerp(60, 5, st);
+      setA(ra); ctx.fillStyle = mixc(P.surface, P.rose, 0.4); ctx.beginPath(); ctx.arc(cx - d, cy, r, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(cx + d, cy, r, 0, TAU); ctx.fill(); ctx.fillRect(cx - d, cy - neck / 2, 2 * d, neck); setA(1);
+      text(st > 0.5 ? 'the neck thins… but never breaks' : 'one piece of rubber', cx, cy + 110, { font: F.mono, size: 17, color: P.rose, align: 'center', a: ra });
       text('stretch ✓', 1450, 430, { font: F.mono, size: 22, color: P.sage, a: ra }); text('squeeze ✓', 1450, 480, { font: F.mono, size: 22, color: P.sage, a: ra }); text('tear ✗', 1450, 530, { font: F.mono, size: 22, color: P.rose, a: ra }); }
     const ca = eout(prog(t, 32, 0.8));
     if (ca > 0) { card(930, 260, 890, 280, P.rose, ca); label('no compression', 964, 306, ca, P.rose);
@@ -409,11 +562,11 @@ SC.push({ dur: 50, chapter: 'the catch', title: 'The catch: rubber can’t tear'
       para('every layer must be invertible, with a cheap determinant — no ordinary convolutions, attention or pooling without special tricks', 964, 686, 820, { size: 24, a: c2 }); }
   } });
 
-// 08 — continuous flows (a teaser for episode 10)
+// 10 — continuous flows (a teaser for episode 10)
 SC.push({ dur: 40, chapter: 'continuous', title: 'Infinitely many, infinitely thin layers', sub: 'File this away — it returns in episode 10.',
   caps: [[1, 8, 'One more idea — file it away, it comes back in episode 10. What if we used infinitely many, infinitely thin layers?'],
          [8, 16, 'Then each point simply follows a velocity field: dx/dt = v(x, t). The warp becomes a smooth flow, like dye drifting in water.'],
-         [16, 24, 'And the costly determinant becomes something cheap: the density changes at a rate set by the trace, d log p / dt = −tr(∂v/∂x).'],
+         [16, 24, 'And the costly determinant becomes cheap: the density changes at a rate set by the trace of v’s Jacobian — just the sum of its diagonal: d log p / dt = −tr(∂v/∂x).'],
          [24, 31, 'Now any network can be the velocity field — no coupling tricks required. These are continuous normalizing flows.'],
          [31, 39.6, 'Training them was painfully slow… until a much simpler recipe arrived. We will get there: flow matching.']],
   draw(t) {
@@ -430,7 +583,7 @@ SC.push({ dur: 40, chapter: 'continuous', title: 'Infinitely many, infinitely th
     const c3 = eout(prog(t, 31, 0.8)); if (c3 > 0) text('→ episode 10: flow matching', 964, 800, { font: F.serif, italic: true, size: 36, color: P.sage, a: c3 });
   } });
 
-// 09 — build it
+// 11 — build it
 const CODE = [
   '[k|# one affine coupling layer (2-D): keep a, transform b]',
   '[m|def] [p|forward](x, net, m):',
@@ -452,16 +605,16 @@ const CODE = [
 SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'A coupling layer is a handful of lines.',
   caps: [[1, 9, 'A coupling layer is a handful of lines of numpy. The full code, with hand-written backprop and gradient checks, is linked below.'],
          [9, 18, 'Train it on two moons in a few minutes — then try eight blobs and find the bridges, or drop to two layers and watch it fail to bend.'],
-         [18, 31.6, 'Recap: sand is conserved, so p(x) = p(z)·|det ∂z/∂x|. Couplings make that determinant free, and training is exact maximum likelihood.']],
+         [18, 31.6, 'Recap: sand is conserved; the Jacobian is the local slope; its determinant is the local stretch. Couplings make it triangular — so it is free — and training is exact maximum likelihood.']],
   draw(t) {
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 290 + i * 38, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1200, 240, 620, 690, P.sage, ra); label('the whole episode', 1236, 290, ra, P.sage);
-    [['sand is conserved', '[p|p]([d|x]) = [p|p]([n|z])·|det ∂[n|z]/∂[d|x]|'], ['coupling', '[d|b]′ = [d|b]·e[a^|s(a)] + [a|t]([d|a])'], ['free determinant', 'log|det| = [kB|Σ] [a|s]'], ['exact likelihood', 'log [p|p]([d|x]) = log N([m|f]([d|x])) + [kB|Σ][k_|k] [a|s][a_|k]'], ['limits', 'no tearing · no compression']].forEach(([nm, m], i) => {
+    [['sand is conserved (1-D)', '[p|p]([d|x]) = [p|p]([n|z]) / |[m|f]′([n|z])|'], ['the jacobian: slope, grown up', '[p|p]([d|x]) = [p|p]([n|z]) / |det ∂[d|x]/∂[n|z]|'], ['coupling → triangular → free det', '[d|b]′ = [d|b]·e[a^|s(a)] + [a|t]([d|a]),  log|det| = [a|s]'], ['exact likelihood', 'log [p|p]([d|x]) = log N([m|f]([d|x])) + [kB|Σ][k_|k] [a|s][a_|k]'], ['limits', 'no tearing · no compression']].forEach(([nm, m], i) => {
       const ai = eout(prog(t, 18.5 + i * 1.6, 0.8)); text(nm, 1236, 370 + i * 112, { font: F.serif, italic: true, size: 24, color: P.dust, a: ai }); M(m, 1236, 412 + i * 112, 20, { a: ai }); });
   } });
 
-// 10 — hook → energy-based models
+// 12 — hook → energy-based models
 const Efn = x => 0.12 * x ** 4 - 1.1 * x ** 2 + 0.35 * x + 3.0 + 0.4 * Math.sin(3 * x);
 SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'What if any network could define a density?',
   caps: [[1, 8, 'Flows buy exact likelihood with shackles: every layer invertible, every determinant cheap, no tearing allowed.'],
@@ -471,12 +624,15 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
          [31, 38, 'Total freedom. Just one tiny problem: Z — the sum of e^−E over every possible x. For images, an integral over 784 dimensions.'],
          [38, 47.6, 'How do you learn, or even sample from, a distribution you cannot normalise? Next episode: energy-based models.']],
   draw(t) {
+    const sh = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 7.5, 1)));
+    if (sh > 0) [['every layer invertible', -1], ['every determinant cheap', 0], ['no tearing', 1]].forEach(([s0, k], i) => { const x = 960 + k * 60, y = 520 + k * 90 + (t > 7.5 ? (t - 7.5) * 90 * (1 + i * 0.3) : 0);
+      pill(x, y, '⛓  ' + s0, P.rose, sh * eout(prog(t, 1.5 + i * 0.8, 0.6)), { size: 26, align: 'center' }); });
     const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
     const x0 = 160, base = 640, sx = 150, X = x => x0 + (x + 3.3) * sx, Yv = e => base - 30 - (e + 0.5) * 55, a0 = eout(prog(t, 8, 1));
     // energy landscape
     if (a0 > 0) { setA(a0 * 0.15); ctx.fillStyle = P.plum; ctx.beginPath(); ctx.moveTo(X(-3.3), base); for (let i = 0; i <= 200; i++) { const x = -3.3 + 6.6 * i / 200; ctx.lineTo(X(x), Math.min(base, Yv(Efn(x)))); } ctx.lineTo(X(3.3), base); ctx.fill();
       setA(a0); ctx.strokeStyle = P.plum; ctx.lineWidth = 4; ctx.beginPath(); for (let i = 0; i <= 200; i++) { const x = -3.3 + 6.6 * i / 200; i ? ctx.lineTo(X(x), Math.min(base, Yv(Efn(x)))) : ctx.moveTo(X(x), Yv(Efn(x))); } ctx.stroke(); setA(1);
-      text('energy E(x)', X(-0.3), Yv(Efn(-0.3)) - 40, { font: F.mono, size: 20, color: P.plum, a: a0 });
+      text('energy E(x)', X(3.3) + 16, Yv(Efn(3.3)) + 30, { font: F.mono, size: 20, color: P.plum, a: a0 });
       // balls settling into valleys
       for (let k = 0; k < 6; k++) { const xs = -3 + k * 1.2, tt = clamp((t - 15 - k * 0.3) / 6), xb = lerp(xs, xs < -0.3 ? -2.2 : 2.0, ease(tt)) + 0.05 * Math.sin(t * 3 + k); glow(X(xb), Math.min(base, Yv(Efn(xb))) - 10, 8, P.terracotta, a0 * eout(prog(t, 15, 0.8))); } }
     const pa = eout(prog(t, 23, 1));

@@ -116,7 +116,7 @@ scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
 | 10 | Build it | the game in numpy + recap | — |
 | 11 | Hook → flows | GANs can't answer "how likely?"; an invertible warp could | p(x) = p(z)\|det ∂z/∂x\| → *Episode 06: normalizing flows* |
 
-## Episode 06 — Normalizing flows (~7:50)
+## Episode 06 — Normalizing flows (~9:50)
 
 `ep06-flows.html` · playground: `flow-lab.html` · code: `../code/flow.py`
 
@@ -124,19 +124,24 @@ Built from `src/ep06-scenes.js` (`python src/build_ep06.py`). Every flow on scre
 RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
 the layer-by-layer positions, warped grids and density maps are its actual outputs.
 
+The spine of the episode is one idea built up in steps: **slope → Jacobian → determinant →
+triangular → coupling**. Each step answers the question the previous one raises.
+
 | # | Scene | Idea | Math |
 |---|-------|------|------|
-| 00 | Cold open | noise → moons, then run backwards: every point comes home | — |
-| 01 | Probability is sand | 1-D: a slice dz holds p(z)dz; after the bend it sits in dx | p(x) = p(z)·\|dz/dx\| |
-| 02 | Stretch is a determinant | unit square → parallelogram; real warped grid; the D³ cost | p(x) = p(z)·\|det ∂z/∂x\| |
-| 03 | The coupling trick | keep a, transform b; triangular Jacobian; free inverse; stacking | b′ = b·e^s(a) + t(a), log\|det\| = s(a) |
-| 04 | Exact maximum likelihood | worked on-data vs off-data example; real training curve | log p(x) = log N(f(x)) + Σ sₖ |
-| 05 | Layer by layer | the trained 8-layer flow, forwards and inverse, with its grid | — |
-| 06 | Exact density | the model's p(x) everywhere; 8 layers vs 2 | ∫p = 1 by construction |
-| 07 | The catch | 8 blobs → bridges (rubber can't tear); no compression; shackled layers | — |
-| 08 | Continuous flows | infinitely many thin layers; teaser for episode 10 | d log p/dt = −tr(∂v/∂x) |
-| 09 | Build it | a coupling layer in numpy + recap | — |
-| 10 | Hook → EBMs | throw away the shackles: any network as an energy | p(x) = e^−E(x) / Z → *Episode 07: energy-based models* |
+| 00 | Cold open | noise → moons, then backwards; "p(x) = ?" — the question a GAN can't answer | — |
+| 01 | Probability is sand | 1-D: a slice dz holds p(z)dz; zoom in and the curve is a line — the slope is the stretch | dx = f′(z)dz, p(x) = p(z)/\|f′(z)\| |
+| 02 | The slope becomes a matrix | a 2-D map; zoom until a tiny square becomes a parallelogram; nudge z₁, then z₂ — the two output arrows are its edges, and side by side they are the Jacobian | Jᵢⱼ = ∂xᵢ/∂zⱼ |
+| 03 | The determinant | box-and-cut-corners proof of ad − bc; det 2, ½, 0 (crushed flat → not invertible); sand in 2-D | p(x) = p(z)/\|det ∂x/∂z\| |
+| 04 | The price | real warped grid; a general det costs D³ ≈ 10¹⁶ for an image; triangular → product of the diagonal, because a shear (a pushed deck of cards) never changes area | det = d₁·d₂ |
+| 05 | The coupling trick | keep a, transform b; fill in the Jacobian nudge by nudge: 1, 0, ∗, e^s(a) → triangular; free inverse; stacking | log\|det\| = s(a) |
+| 06 | Exact maximum likelihood | push points through the flow; on-data vs off-data (z far in the tails); real training curve | log p(x) = log N(f(x)) + Σ sₖ |
+| 07 | Layer by layer | the trained 8-layer flow, forwards and inverse, with its grid | — |
+| 08 | Exact density | the model's p(x) everywhere; 8 layers vs 2 | ∫p = 1 by construction |
+| 09 | The catch | 8 blobs → bridges (rubber's neck thins but never breaks); no compression; shackled layers | — |
+| 10 | Continuous flows | infinitely many thin layers; teaser for episode 10 | d log p/dt = −tr(∂v/∂x) |
+| 11 | Build it | a coupling layer in numpy + recap | — |
+| 12 | Hook → EBMs | drop the shackles: any network as an energy | p(x) = e^−E(x) / Z → *Episode 07: energy-based models* |
 
 ## Series roadmap
 
