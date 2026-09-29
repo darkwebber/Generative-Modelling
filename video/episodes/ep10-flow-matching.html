@@ -772,9 +772,22 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
 function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
-function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; } if (force || Math.abs(snd.currentTime - now) > 0.25) snd.currentTime = now; if (snd.paused) snd.play().catch(() => {}); }
+// The picture keeps its own clock; the soundtrack follows it. (Reading the clock from the <audio> element froze the picture
+// wherever a streamed mp3 reports a stalled currentTime while still sounding, e.g. mobile in-app browsers.)
+let lastSeek = -1e9;
+function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; }
+  const drift = Math.abs(snd.currentTime - now), t = performance.now();
+  if ((force || (drift > 0.35 && t - lastSeek > 1500)) && !snd.seeking) { try { snd.currentTime = now; } catch (e) {} lastSeek = t; }
+  if (snd.paused) snd.play().catch(() => {}); }
 sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
-function loop(ts) { if (!playing) return; if (soundOn && !snd.paused && snd.readyState >= 2 && !snd.seeking) now = snd.currentTime; else if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); syncAudio(); if (playing) requestAnimationFrame(loop); }
+let drawErr = 0;
+function loop(ts) { if (!playing) return;
+  if (lastTs != null) now += Math.min(0.1, (ts - lastTs) / 1000);
+  // nudge gently toward the soundtrack while it is really advancing, so long plays stay in sync
+  if (soundOn && !snd.paused && !snd.seeking && snd.readyState >= 3) { const d = snd.currentTime - now; if (Math.abs(d) < 0.3) now += d * 0.05; }
+  lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
+  try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
+  syncAudio(); if (playing) requestAnimationFrame(loop); }
 function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
 scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
