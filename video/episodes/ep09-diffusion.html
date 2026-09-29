@@ -209,6 +209,26 @@ function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); c
 function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 // camera shake after an impact at t0
 function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+// ── the season, for the end-card strip: watched episodes lit, this one ringed, the next one pulsing
+const SEASON = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+function seasonStrip(cur, t0, t, y = 830) {
+  const a = eout(prog(t, t0, 0.8)); if (GA * a <= 0.002) return;
+  const n = SEASON.length, x0 = 500, x1 = 1420, X = i => x0 + (x1 - x0) * i / (n - 1);
+  line(x0, y, x1, y, P.border, 1.5, a);
+  const fill = eout(prog(t, t0 + 0.2, 0.07 * cur + 0.3)); line(x0, y, lerp(x0, X(cur - 1), fill), y, P.terracotta, 2, a * 0.8);
+  SEASON.forEach((name, i) => {
+    const ep = i + 1, u = prog(t, t0 + 0.2 + i * 0.07, 0.35), s = pop(u), x = X(i);
+    let col = P.dust, r = 4;
+    if (ep <= cur) { col = P.terracotta; r = 6; }
+    if (ep === cur + 1) { const pl = 0.5 + 0.5 * Math.sin((t - t0) * 4.5); col = P.amber; r = 6; ring(x, y, 10 + 5 * pl, P.amber, a * u * (0.8 - 0.6 * pl), 1.5); }
+    dot(x, y, r * s, col, a * u);
+    if (ep === cur) ring(x, y, 11 * s, P.chalk, a * u, 1.8);
+    text(String(ep).padStart(2, '0'), x, y + 30, { font: F.mono, size: 12, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u });
+    text(name, x, y + 50, { size: 14, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u * (ep <= cur + 1 ? 1 : 0.7) });
+  });
+}
+// ── "try it yourself": the episode's playground, named in the header area of the build-it scene
+function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
 const EPISODE = {"num": "09"};
 
 // ─────────────────────────────────────────────────────────────
@@ -345,7 +365,7 @@ SC.push({ dur: 54, chapter: 'training', title: 'One regression, a thousand noise
          [16, 24, 'Show the network xₜ and t, and ask it to predict ε: the noise that was added. The loss is ‖ε − εθ(xₜ, t)‖².'],
          [24, 32, 'That is episode 8’s denoising score matching, with one network for all thousand noise levels. The predicted noise is the score, rescaled: εθ = −√(1 − ᾱₜ)·sθ.'],
          [32, 40, 'Knowing the noise means knowing the clean image: x̂₀ = (xₜ − √(1 − ᾱₜ)·εθ)/√ᾱₜ. A denoiser, exactly as Tweedie promised.'],
-         [40, 47, 'The network here: two hidden layers of 1,024, with t fed into each, trained 30,000 steps on MNIST. It outputs its guess x̂₀ and reads the noise off it: the same thing, rearranged.'],
+         [40, 47, 'Our network: two layers of 1,024, t fed into each, 30,000 steps on MNIST. It guesses x̂₀ and reads the noise off it.'],
          [47, 53.6, 'Ho, Jain and Abbeel, 2020: “Denoising Diffusion Probabilistic Models”. This one loss is why they work.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8)), cyc = Math.floor(clamp(t - 1, 0, 60) / 7) % TRAIN_T.length, tt = TRAIN_T[cyc], u = ((t - 1) % 7) / 7;
@@ -387,15 +407,32 @@ SC.push({ dur: 52, chapter: 'sampling', title: 'Running it backwards', sub: 'Pre
     const c2 = eout(prog(t, 40, 0.8)); if (c2 > 0) { card(1400, 640, 430, 250, P.amber, c2); text('country', 1428, 710, { font: F.serif, italic: true, size: 34, color: P.amber, a: c2 }); text('→ city', 1500, 770, { font: F.serif, italic: true, size: 34, color: P.amber, a: eout(prog(t, 41, 0.6)) }); text('→ street', 1560, 830, { font: F.serif, italic: true, size: 34, color: P.amber, a: eout(prog(t, 42, 0.6)) }); }
   } });
 
+// 05 — the wow: 64 digits from static, then episode 4's judges (VAE ep 3, GAN ep 5, diffusion) side by side
+const J = A.judges, JM = [['vae', 'VAE · episode 3', P.plum], ['gan', 'GAN · episode 5', P.rose], ['diffusion', 'diffusion · today', P.sage]];
+function judgeBars(t, t0, y, title, key, scale, fmt, real, note, stampAt) {
+  const a = eout(prog(t, t0, 0.8)); if (a <= 0) return;
+  label(title, 830, y, a, P.amber); text(note, 1790, y, { font: F.mono, size: 14, color: P.dust, align: 'right', a });
+  JM.forEach(([k, nm, col], j) => { const v = J[k][key], yy = y + 30 + j * 38, g = eout(prog(t, t0 + 0.4 + j * 0.45, 1.1)), w = 640 * clamp(scale(v));
+    text(nm, 830, yy + 20, { font: F.mono, size: 15, color: col, a });
+    setA(a * 0.9); ctx.fillStyle = col; ctx.fillRect(1030, yy + 6, w * g, 20); setA(1);
+    text(fmt(v), 1030 + w * g + 12, yy + 22, { font: F.mono, size: 16, color: k === 'diffusion' ? P.chalk : P.stone, a: a * g }); });
+  const rx = 1030 + 640 * clamp(scale(real)); line(rx, y + 28, rx, y + 30 + 3 * 38, P.chalk, 1.5, a * 0.6, [4, 4]);
+  text('real data', rx, y + 30 + 3 * 38 + 16, { font: F.mono, size: 12, color: P.stone, align: 'center', a: a * 0.8 });
+  if (stampAt) stamp(stampAt[0], stampAt[2] || 1640, y + 110, P.sage, eout(prog(t, stampAt[1], 0.35)), -0.08);
+}
 // 05 — the wow: 64 digits from static
 const fD = t => NDS * Math.pow(ease(prog(t, 4, 16)), 0.85);
-SC.push({ dur: 50, chapter: 'digits', title: 'Sixty-four digits from nothing', sub: 'The same recipe, now in 784 dimensions.',
+SC.push({ dur: 74, chapter: 'digits', title: 'Sixty-four digits from nothing', sub: 'The same recipe, now in 784 dimensions.',
   caps: [[1, 8, 'Sixty-four images of pure static. Same network, same recipe, now in 784 dimensions.'],
          [8, 19, 'A thousand steps. Watch.'],
-         [20, 28, 'Sixty-four handwritten digits, from nothing but noise and a network that learned to remove it.'],
+         [20, 28, 'Sixty-four handwritten digits from pure noise. Episode 1’s x = g(z), where g is a thousand small denoising steps.'],
          [28, 36, 'Here is what the network believes at each step, x̂₀, for the first eight. At first, a ghostly average of all digits.'],
          [36, 43, 'Then it commits to which digit, surprisingly early. The strokes, the thickness, the little details come last.'],
-         [43, 49.6, 'Composition first, detail last. That order is a big part of why diffusion images look so coherent.']],
+         [43, 49.6, 'Composition first, detail last. That order is a big part of why diffusion images look so coherent.'],
+         [50.5, 57, 'Now call in episode 4’s judges: 2,000 digits from this model, beside our VAE and our GAN.'],
+         [57.5, 64, `FID: VAE ${J.vae.FID.toFixed(1)}, GAN ${J.gan.FID.toFixed(1)}, diffusion ${J.diffusion.FID.toFixed(1)}. Recall ${pct(J.diffusion.recall)}: as varied as real data.`],
+         [64, 70, `The learned judge catches its fakes only ${pct(J.diffusion.C2ST)} of the time. And they are new, not copies of training digits.`],
+         [70, 73.6, 'Small, hand-written, and the season’s best scores so far.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8)), f = fD(t), i = Math.min(NDS - 1, Math.floor(f)), u = f - i, done = t > 20.2;
     const gx = t < 27 ? 614 : 110, gy = 250, cell = t < 27 ? 82 : 76, pad = 4, ga = a0 * (t < 27 ? 1 : 1);
@@ -404,17 +441,25 @@ SC.push({ dur: 50, chapter: 'digits', title: 'Sixty-four digits from nothing', s
     const tt = A.digits.ts[Math.min(NDS, Math.round(f))]; text(t < 21 ? `t = ${tt < 0 ? 0 : tt}` : 'done: 1,000 steps each', t < 27 ? gx - 24 : gx, t < 27 ? 280 : 250 + 8 * (cell + pad) + 30, { font: F.mono, size: 20, color: P.amber, align: t < 27 ? 'right' : 'left', a: a0 });
     const ga2 = t > 20.2 ? Math.exp(-(t - 20.2) * 1.5) : 0; if (ga2 > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; setA(ga2 * 0.35); ctx.fillStyle = P.terracotta; ctx.fillRect(gx - 10, gy - 10, 8 * (cell + pad) + 16, 8 * (cell + pad) + 16); ctx.restore(); setA(1); }
     // watch it think: x̂₀ over time for eight digits
-    const wa = eout(prog(t, 28, 1));
+    const wa = eout(prog(t, 28, 1)) * (1 - ease(prog(t, 49.6, 0.9)));
     if (wa > 0) { const cols = [0, 5, 10, 15, 20, 25, 29, NDS], x0 = 780, y0 = 280, c = 118;
       text('x̂₀ at step →', x0, 262, { font: F.mono, size: 15, color: P.sage, a: wa });
       cols.forEach((s, j) => { const ts = A.digits.ts[s]; text(ts < 0 ? 'final' : `${ts}`, x0 + j * (c + 12) + c / 2, y0 + 8 * 0 - 0, { font: F.mono, size: 13, color: P.dust, align: 'center', a: wa }); });
       for (let r = 0; r < 5; r++) cols.forEach((s, j) => { const im = imgs(DS.x0[s], 8)[r]; drawDigit(im, `x0${s}_${r}`, x0 + j * (c + 12), y0 + 14 + r * (c + 10), c, wa * eout(prog(t, 28.3 + j * 0.25 + r * 0.1, 0.5))); }); }
+    // episode 4's judges, side by side
+    const ja = eout(prog(t, 50.4, 0.9));
+    if (ja > 0) { card(790, 250, 1040, 680, P.amber, ja); text('episode 4’s judges · 2,000 samples each', 830, 292, { font: F.serif, italic: true, size: 24, color: P.chalk, a: ja });
+      judgeBars(t, 52, 350, 'FID  ↓', 'FID', v => v / 55, v => v.toFixed(1), J.real.FID, 'lower is better', ['BEST FID', 60.5]);
+      judgeBars(t, 57.8, 540, 'recall  ↑', 'recall', v => 0.8 * v, pct, J.real.recall, 'share of real variety covered', ['= REAL', 62.8, 1720]);
+      judgeBars(t, 64.2, 730, 'learned judge', 'C2ST', v => (v - 0.5) / 0.5, pct, J.real.C2ST, '50% = can’t tell them apart', null);
+      text(`nearest training image: VAE ${J.vae.NN_train.toFixed(2)} · GAN ${J.gan.NN_train.toFixed(2)} · diffusion ${J.diffusion.NN_train.toFixed(2)} · real ${J.real.NN_train.toFixed(2)}  → not copying`,
+        830, 905, { font: F.mono, size: 15, color: P.sage, a: eout(prog(t, 67, 0.8)) }); }
   } });
 
 // 06 — why it works: a VAE with a thousand layers
 const CHAIN = [NDS, 26, 20, 14, 8, 0];
 SC.push({ dur: 48, chapter: 'why it works', title: 'A VAE with a thousand layers', sub: 'Why such a simple loss is maximum likelihood in disguise.',
-  caps: [[1, 8, 'Why does such a simple loss work? Remember episode 3’s VAE: an encoder squeezes x into a latent z, a decoder rebuilds it, and the ELBO keeps it honest.'],
+  caps: [[1, 8, 'Why does such a simple loss work? Recall episode 3’s VAE: encoder, latent z, decoder — and the ELBO keeping it honest.'],
          [8, 16, 'Diffusion is a VAE with a thousand latent layers. The encoder is the fixed noising process: nothing to learn.'],
          [16, 24, 'The last layer, x₁₀₀₀, is exactly N(0, I) by construction. The VAE’s leash comes for free.'],
          [24, 32, 'Write out the ELBO and it splits into one term per step: how well does the learned reverse step match the true one, given x₀?'],
@@ -491,10 +536,11 @@ const CODE = [
   '    [m|if] t > [a|0]: x += sqrt(betas[t]*([a|1]-abar[t-[a|1]])/([a|1]-abar[t])) * randn(n, [a|784])',
 ];
 SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'The forward process, training and sampling, in fifteen lines.',
-  caps: [[1, 9, 'The whole method fits on a screen: a noise schedule, a regression onto the noise, and a loop that runs it backwards. The full code, with hand-written backprop, is linked below.'],
+  caps: [[1, 9, 'The whole method fits on a screen: a noise schedule, a regression onto the noise, and a loop that runs it backwards. Full code is linked below.'],
          [9, 18, 'Train it on the eight blobs in a minute, or on MNIST in about fifteen minutes. Then swap the sampler for DDIM and count how few steps you need.'],
          [18, 31.6, 'Recap: destroy data slowly with Gaussian noise; learn to predict that noise at every level; run the chain backwards from static.']],
   draw(t) {
+    playPill('ep09-diffusion-lab.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1100, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 40, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1240, 240, 580, 690, P.sage, ra); label('the whole episode', 1276, 290, ra, P.sage);
@@ -520,6 +566,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Curved roads', sub: 'Why so many ste
       const e = PATHS[Math.min(NP, Math.floor(grow))][k]; dot(m.X(e[0]), m.Y(e[1]), 2.6, P.terracotta, a0);
       const sa = eout(prog(t, 16, 1)); if (sa > 0) { const p0 = PATHS[0][k], p1 = PATHS[NP][k]; line(m.X(p0[0]), m.Y(p0[1]), m.X(p0[0] + (p1[0] - p0[0]) * sa), m.Y(p0[1] + (p1[1] - p0[1]) * sa), P.sage, 1.6, sa * 0.9, [5, 4]); } }));
     text('rose: the roads DDIM took · sage dashed: straight lines', 110, 925, { font: F.mono, size: 16, color: P.dust, a: a0 });
+    GA = 1 - ease(prog(t, 38.5, 1));                                  // the cards leave completely for the end card
     const c1 = eout(prog(t, 8, 0.8)); card(830, 250, 1000, 170, P.rose, c1); label('curved roads', 864, 296, c1, P.rose); para('A big step along a curve flies off it, so we take many small steps.', 864, 350, 920, { size: 26, a: c1 });
     const c2 = eout(prog(t, 16, 0.8)); card(830, 440, 1000, 190, P.sage, c2); label('straight roads', 864, 486, c2, P.sage);
     M('[d|x][d_|t] = (1 − t)·[n|noise] + t·[d|data]       velocity: [d|data] − [n|noise]', 864, 550, 26, { a: c2 }); text('one big step would do', 864, 600, { font: F.mono, size: 16, color: P.dust, a: c2 });
@@ -530,6 +577,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Curved roads', sub: 'Why so many ste
       text('Straight lines.', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('Fewer steps.', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: eout(prog(t, 39.3, 1.2)) });
       text('NEXT  ·  EPISODE 10', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40.5, 1)), ls: 4 });
+      seasonStrip(9, 41.7, t);
       text('Flow matching — the straight way from noise to data', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 41, 1)) });
     }
   } });

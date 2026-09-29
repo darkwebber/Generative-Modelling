@@ -61,7 +61,7 @@ SC.push({ dur: 24, chapter: 'intro',
 // 01 — two players
 SC.push({ dur: 36, chapter: 'the game', title: 'Two players, one game', sub: 'A forger and a detective.',
   caps: [[1, 7, 'Last episode we built a learned judge: a classifier trained to tell real images from generated ones.'],
-         [7, 14, 'A GAN puts that judge to work. Player one, the generator G, turns random noise z into samples.'],
+         [7, 14, 'A GAN puts that judge to work. Player one, the generator G, is episode 1’s g: it turns random noise z into samples.'],
          [14, 21, "Player two, the discriminator D, sees real images and G's fakes, and outputs the probability that its input is real."],
          [21, 28, 'Notice where the real data flows: only into D. The generator learns about digits entirely second-hand.'],
          [28, 35.6, 'D is trained to catch fakes. G is trained to fool D. Forger versus detective.']],
@@ -146,7 +146,7 @@ SC.push({ dur: 46, chapter: 'the target', title: 'What the forger is really mini
 // 04 — how the forger learns
 SC.push({ dur: 48, chapter: 'the gradient', title: 'How the forger learns without seeing data', sub: "Follow the slope of the judge's opinion.",
   caps: [[1, 8, 'So how does the generator improve, if it never sees data? Through the judge’s gradient.'],
-         [8, 15, "Colour the plane by the judge's opinion: bright where D thinks 'real', dark where it thinks 'fake'. This is a real snapshot from training."],
+         [8, 15, "Colour the plane by the judge's opinion: bright where D says 'real', dark where it says 'fake'. A real snapshot from training."],
          [15, 23, 'For each fake point, the gradient of D says which direction looks more real. The arrows point uphill.'],
          [23, 31, "Backprop carries that signal through x = G(z) into G's weights. The judge's opinion becomes the forger's lesson."],
          [31, 39, 'One trap. The original loss, log(1 − D(G(z))), goes almost flat when the judge easily spots fakes — early on, exactly when G needs help most.'],
@@ -254,7 +254,7 @@ SC.push({ dur: 48, chapter: 'collapse', title: 'Mode collapse, caught in the act
 const SPIRAL = (() => { const p = [[1, 0.2]]; let x = 1, y = 0.2; const eta = 0.18; for (let i = 0; i < 70; i++) { const nx = x - eta * y, ny = y + eta * x; x = nx; y = ny; p.push([x, y]); } return p; })();
 SC.push({ dur: 46, chapter: 'the game', title: 'A game is not a hill', sub: 'Why GAN training is so temperamental.',
   caps: [[1, 8, "Why is training so temperamental? Because a GAN isn't rolling downhill. It's a game — two players pulling in different directions."],
-         [8, 16, 'The simplest game: V = x · y. Player x wants V small, player y wants it big. The fair outcome sits right in the middle, at zero.'],
+         [8, 16, 'The simplest game: V = x · y. Player x wants V small, player y wants it big. The fair outcome sits in the middle, at zero.'],
          [16, 24, 'Take gradient steps for both at once, and instead of settling, they circle — and spiral outward. Every step overshoots.'],
          [24, 32, "Second problem: if real and fake don't overlap at all, the JSD is stuck at log 2, no matter how far apart they are. Flat. No gradient."],
          [32, 45.6, "Measure how far the mass has to move instead — the Wasserstein, or earth-mover's, distance — and the slope comes back. That idea powers the WGAN."]],
@@ -319,6 +319,7 @@ SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'The wh
          [9, 18, 'Try the ring and change the learning rates to watch mode collapse happen; train on digits in about ten minutes.'],
          [18, 31.6, 'Recap: the judge learns pdata / (pdata + pg), the forger minimises the Jensen–Shannon divergence, and the finish line is a judge stuck at one half.']],
   draw(t) {
+    playPill('ep05-gan-arena.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 42, 20, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1200, 240, 620, 690, P.sage, ra); label('the whole episode', 1236, 290, ra, P.sage);
@@ -366,7 +367,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'The question a GAN cannot answer', s
       text('Can a generator', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('run backwards?', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('NEXT  ·  EPISODE 06', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40, 1)), ls: 4 });
+      seasonStrip(5, 41.2, t);
       text('Normalizing flows — bending space, exactly', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 40.5, 1)) });
-      text('then: energy-based models · score matching · diffusion · flow matching · guidance', 960, 770, { font: F.mono, size: 17, color: P.dust, align: 'center', a: eout(prog(t, 42, 1)) });
     }
   } });

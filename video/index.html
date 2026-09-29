@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generative Modelling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="labs/lab-kit.css">
+<style>
+  main { max-width: 1180px; }
+  h1 { font-size: clamp(36px, 7vw, 64px); margin: 6px 0 8px; }
+  .lede { max-width: 760px; font-size: 17px; }
+  .progress { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 26px 0 8px; font-family: var(--mono); font-size: 13px; }
+  .bar { flex: 1; min-width: 160px; height: 6px; border-radius: 3px; background: var(--elevated); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--terracotta); transition: width .5s; }
+  .continue { color: var(--amber); text-decoration: none; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius: 20px; padding: 5px 14px; }
+  .strip { display: grid; grid-template-columns: repeat(11, 1fr); margin: 18px 0 34px; position: relative; }
+  .strip::before { content: ""; position: absolute; left: 4.5%; right: 4.5%; top: 9px; height: 2px; background: var(--border); }
+  .stop { text-align: center; position: relative; font-family: var(--mono); font-size: 11px; color: var(--dust); text-decoration: none; }
+  .stop b { display: block; width: 14px; height: 14px; margin: 3px auto 8px; border-radius: 50%; background: var(--canvas); border: 2px solid var(--dust); }
+  .stop.done b { background: var(--terracotta); border-color: var(--terracotta); }
+  .stop.next b { border-color: var(--amber); box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 20%, transparent); }
+  .stop span { display: block; font-family: var(--sans); font-size: 12px; color: var(--stone); }
+  .eps { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }
+  .ep { --accent: var(--terracotta); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .ep img { width: 100%; aspect-ratio: 1728 / 950; object-fit: cover; display: block; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .ep .poster { position: relative; display: block; }
+  .ep .poster::after { content: "▶"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: var(--chalk); opacity: 0; background: rgba(19,16,14,.45); transition: opacity .2s; }
+  .ep .poster:hover::after { opacity: 1; }
+  .ep .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .ep h2 { font-family: var(--serif); font-weight: 400; color: var(--chalk); font-size: 25px; margin: 0; }
+  .ep .q { font-family: var(--serif); font-style: italic; color: var(--stone); font-size: 17px; margin: 0 0 6px; }
+  .ep .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .ep .links a, .ep .links button { font-family: var(--mono); font-size: 12px; color: var(--chalk); background: var(--elevated); border: 1px solid var(--border-light); border-radius: 8px; padding: 6px 10px; text-decoration: none; cursor: pointer; }
+  .ep .links a:hover, .ep .links button:hover { border-color: var(--terracotta); }
+  .ep .links button.on { color: var(--sage); border-color: var(--sage); }
+  .ep.soon { opacity: .55; }
+  .ep.soon .poster { display: grid; place-items: center; aspect-ratio: 1728 / 950; background: var(--surface); border-bottom: 1px solid var(--border); font-family: var(--serif); font-style: italic; color: var(--dust); font-size: 22px; }
+  .ep.soon .poster::after { display: none; }
+  .meta { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .how { margin-top: 36px; }
+  .how code { font-family: var(--mono); font-size: 13px; color: var(--chalk); }
+  @media (max-width: 700px) { .strip span { display: none; } .strip { margin-bottom: 22px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">a first-principles season</div>
+  <h1>Generative Modelling</h1>
+  <p class="lede">How machines turn random noise into text, digits and images, built one idea at a time with the maths and code for every model. Each episode ends on the question the next one answers.</p>
+  <div class="progress"><span id="count">0 of 9 watched</span><span class="bar"><i id="fill"></i></span><a class="continue" id="continue" href="#">▶ start with episode 01</a></div>
+  <nav class="strip" id="strip" aria-label="season map"></nav>
+  <section class="eps" id="eps"></section>
+  <section class="card how" style="--accent: var(--sage)">
+    <div class="label" style="color: var(--sage)">how to use this folder</div>
+    <p class="hint" style="font-size:14px">Open any episode page to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in the browser with no install. Every model is plain numpy in <code>../code/</code>, with backprop written by hand. To render an MP4: <code>python src/make.py 9 --render</code>. Your progress is saved in this browser only.</p>
+  </section>
+  <footer>Colours keep one meaning all season: terracotta data · ink distributions · amber knobs · rose noise · plum models · sage insight.</footer>
+</main>
+<script>
+const EPS = [
+  { n: 1, name: 'What is generative modelling?', q: 'What does it mean to learn p(x)?', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', code: 'density.py', len: '8:42', col: '--terracotta' },
+  { n: 2, name: 'Autoregressive generation', q: 'Can a machine write by guessing one piece at a time?', page: 'ep02-autoregressive.html', lab: 'ep02-ar-playground.html', code: 'ar_counting.py', len: '8:47', col: '--amber' },
+  { n: 3, name: 'Autoencoders & VAEs', q: 'Can a machine learn by compressing?', page: 'ep03-autoencoders-vae.html', lab: 'ep03-vae-playground.html', code: 'vae.py', len: '8:42', col: '--plum' },
+  { n: 4, name: 'Grading the imagination', q: 'How do you grade a machine whose job is to make something new?', page: 'ep04-evaluation.html', lab: 'ep04-metric-lab.html', code: 'evals.py', len: '9:30', col: '--sage' },
+  { n: 5, name: 'GANs', q: 'What if the judge could teach?', page: 'ep05-gans.html', lab: 'ep05-gan-arena.html', code: 'gan.py', len: '8:30', col: '--rose' },
+  { n: 6, name: 'Normalizing flows', q: 'Can a generator run backwards?', page: 'ep06-flows.html', lab: 'ep06-flow-lab.html', code: 'flow.py', len: '9:52', col: '--ink' },
+  { n: 7, name: 'Energy-based models', q: 'What if any network could be a density?', page: 'ep07-energy.html', lab: 'ep07-ebm-lab.html', code: 'ebm.py', len: '10:56', col: '--plum' },
+  { n: 8, name: 'Score matching & Langevin', q: 'Forget the landscape: can we learn just the arrows?', page: 'ep08-score.html', lab: 'ep08-score-lab.html', code: 'score.py', len: '10:12', col: '--sage' },
+  { n: 9, name: 'Diffusion models', q: 'Destroy it slowly, learn to undo it.', page: 'ep09-diffusion.html', lab: 'ep09-diffusion-lab.html', code: 'diffusion.py', len: '9:06', col: '--terracotta' },
+  { n: 10, name: 'Flow matching', q: 'Straight lines, fewer steps.', col: '--ink' },
+  { n: 11, name: 'Guidance', q: 'How do we steer what gets generated?', col: '--amber' },
+];
+const SHORT = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+const pad = n => String(n).padStart(2, '0');
+let seen = {};
+try { seen = JSON.parse(localStorage.getItem('gm-season-seen') || '{}') || {}; } catch (e) { seen = {}; }
+const save = () => { try { localStorage.setItem('gm-season-seen', JSON.stringify(seen)); } catch (e) {} };
+function render() {
+  const out = EPS.filter(e => e.page), done = out.filter(e => seen[e.n]).length, next = out.find(e => !seen[e.n]);
+  document.getElementById('count').textContent = `${done} of ${out.length} watched`;
+  document.getElementById('fill').style.width = `${100 * done / out.length}%`;
+  const c = document.getElementById('continue');
+  c.textContent = next ? `▶ ${done ? 'continue with' : 'start with'} episode ${pad(next.n)}` : '✓ season so far: all watched';
+  c.href = next ? `episodes/${next.page}` : '#';
+  document.getElementById('strip').innerHTML = EPS.map((e, i) =>
+    `<a class="stop ${seen[e.n] ? 'done' : ''} ${next && next.n === e.n ? 'next' : ''}" href="${e.page ? '#ep' + e.n : '#'}"><b></b>${pad(e.n)}<span>${SHORT[i]}</span></a>`).join('');
+  document.getElementById('eps').innerHTML = EPS.map(e => e.page ? `
+    <article class="card ep" id="ep${e.n}" style="--accent: var(${e.col})">
+      <a class="poster" href="episodes/${e.page}"><img src="posters/ep${pad(e.n)}.jpg" alt="Episode ${pad(e.n)} title card" loading="lazy"></a>
+      <div class="body"><div class="meta">episode ${pad(e.n)} · ${e.len}</div><h2>${e.name}</h2><p class="q">${e.q}</p>
+        <div class="links"><a href="episodes/${e.page}">▶ watch</a><a href="labs/${e.lab}">playground</a><a href="../code/${e.code}">code</a>
+          <button data-n="${e.n}" class="${seen[e.n] ? 'on' : ''}">${seen[e.n] ? '✓ watched' : 'mark watched'}</button></div></div>
+    </article>` : `
+    <article class="card ep soon" style="--accent: var(${e.col})"><div class="poster">coming next</div>
+      <div class="body"><div class="meta">episode ${pad(e.n)}</div><h2>${e.name}</h2><p class="q">${e.q}</p></div></article>`).join('');
+  document.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => { const n = +b.dataset.n; seen[n] = !seen[n]; save(); render(); });
+}
+// opening an episode from here counts as watching it
+document.addEventListener('click', ev => { const a = ev.target.closest('a[href^="episodes/"]'); if (!a) return; const e = EPS.find(x => a.getAttribute('href').endsWith(x.page || '#')); if (e) { seen[e.n] = true; save(); setTimeout(render, 50); } });
+render();
+</script>
+</body>
+</html>

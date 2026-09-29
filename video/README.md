@@ -6,13 +6,24 @@ the *Midnight Atelier* system — warm darks, film grain, and colours with fixed
 (terracotta = data/tokens, ink = distributions, amber = parameters/knobs, rose =
 noise/dice, plum = models, sage = insight).
 
-## Episode 01 — What is generative modelling? (~7:10)
+**Start here: open `index.html`**. It is the season hub, with every episode in order, its playground and its code,
+and it remembers what you have watched. Pages live in `episodes/`, playgrounds in `labs/`, sources in `src/`.
 
-`generative-modelling.html` · playground: `density-lab.html`
+Every episode ends the same way: the question it leaves open, **NEXT · EPISODE NN**, and a strip of the whole season
+with the episodes watched so far lit and the next one pulsing. Every build-it scene names its playground.
+
+## Episode 01 — What is generative modelling? (~8:42)
+
+`episodes/ep01-generative-modelling.html` · playground: `labs/ep01-density-lab.html` · code: `../code/density.py`
+
+The cold open is a trailer for the season made only from its real models (`ep01-assets.js`, collected by
+`code/export/export_ep01_assets.py` from episodes 02–09): names typed by the episode-02 counting model, the episode-03
+VAE walking its latent space, the episode-05 GAN learning digits epoch by epoch, the episode-06 flow folding noise
+onto the moons, episode-07 marbles rolling into energy valleys and episode-09 digits denoised out of static.
 
 | # | Scene | Math introduced |
 |---|-------|-----------------|
-| 00 | Intro: noise → data | the colour language |
+| 00 | Cold open: six real machines tune in out of static; a bang on the title | the colour language |
 | 01 | Data is points (2-pixel image → ℝ², digit → ℝ⁷⁸⁴) | x ∈ ℝᵈ |
 | 02 | Discriminative: learn the border | p(y \| x) |
 | 03 | Generative: learn where data lives, then sample | p(x), Bayes' rule |
@@ -20,13 +31,15 @@ noise/dice, plum = models, sage = insight).
 | 05 | Maximum likelihood with a live score | θ* = argmax Σ log p_θ(xᵢ) |
 | 06 | Sampling: bend noise through g | x = g(z), p(x) = p(z)\|dz/dx\| |
 | 07 | The catch: random pixels are static | manifolds |
-| 08 | The zoo: AR, VAE, GAN, flows, diffusion | each family's core equation |
+| 08 | The season map: the route from episode 01 to 11, each stop with its idea and equation | each family's core equation |
 | 09 | Big picture: 1,400 points flow onto data | z → g_θ(z) ∼ p_θ ≈ p_data |
-| 10 | Recap | — |
+| 10 | Build it: a mixture of bell curves by EM, and sampling it (`code/density.py`) | Σₖ πₖ N(x; μₖ, σₖ²) |
+| 11 | Recap | — |
+| 12 | Hook → autoregressive: a sentence types itself as the chain rule grows | → *Episode 02* |
 
 ## Episode 02 — Autoregressive generation (~8:47)
 
-`ep02-autoregressive.html` · playground: `ar-playground.html` · code: `../code/`
+`episodes/ep02-autoregressive.html` · playground: `labs/ep02-ar-playground.html` · code: `../code/`
 
 | # | Scene | Idea | Math |
 |---|-------|------|------|
@@ -49,11 +62,11 @@ the "emma" surprise bars) is computed live from the bundled `names.js` dataset.
 
 ## Episode 03 — Autoencoders & VAEs (~8:42)
 
-`ep03-autoencoders-vae.html` · playground: `vae-playground.html` · code: `../code/vae.py`
+`episodes/ep03-autoencoders-vae.html` · playground: `labs/ep03-vae-playground.html` · code: `../code/vae.py`
 
-Built from `src/ep03-scenes.js` + the shared engine: `python src/build.py 3`. Every image,
+Built from `src/scenes/ep03.js` + the shared engine: `python src/build.py 3`. Every image,
 latent map, sample and interpolation is decoded live in the browser from the **real trained
-networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
+networks** (`ep03-assets.js`, exported by `code/export/export_ep03_assets.py`).
 
 | # | Scene | Idea | Math |
 |---|-------|------|------|
@@ -72,10 +85,10 @@ networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
 
 ## Episode 04 — Evaluating generative models (~9:30)
 
-`ep04-evaluation.html` · playground: `metric-lab.html` · code: `../code/evals.py`
+`episodes/ep04-evaluation.html` · playground: `labs/ep04-metric-lab.html` · code: `../code/evals.py`
 
-Built from `src/ep04-scenes.js` (`python src/build.py 4`). Every score on screen comes from
-`ep04-assets.js`, computed by `code/export_ep04_assets.py` on real samples.
+Built from `src/scenes/ep04.js` (`python src/build.py 4`). Every score on screen comes from
+`ep04-assets.js`, computed by `code/export/export_ep04_assets.py` on real samples.
 
 | # | Scene | Idea | Math |
 |---|-------|------|------|
@@ -95,11 +108,11 @@ Built from `src/ep04-scenes.js` (`python src/build.py 4`). Every score on screen
 
 ## Episode 05 — GANs (~8:30)
 
-`ep05-gans.html` · playground: `gan-arena.html` · code: `../code/gan.py`
+`episodes/ep05-gans.html` · playground: `labs/ep05-gan-arena.html` · code: `../code/gan.py`
 
-Built from `src/ep05-scenes.js` (`python src/build.py 5`). The 2-D scenes replay real
+Built from `src/scenes/ep05.js` (`python src/build.py 5`). The 2-D scenes replay real
 training runs frame by frame (samples, the judge's field and its gradients), and the digit
-scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
+scenes use a real MNIST GAN — all trained by `code/export/export_ep05_assets.py`.
 
 | # | Scene | Idea | Math |
 |---|-------|------|------|
@@ -118,10 +131,10 @@ scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
 
 ## Episode 06 — Normalizing flows (~9:50)
 
-`ep06-flows.html` · playground: `flow-lab.html` · code: `../code/flow.py`
+`episodes/ep06-flows.html` · playground: `labs/ep06-flow-lab.html` · code: `../code/flow.py`
 
-Built from `src/ep06-scenes.js` (`python src/build.py 6`). Every flow on screen is a real
-RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
+Built from `src/scenes/ep06.js` (`python src/build.py 6`). Every flow on screen is a real
+RealNVP-style flow trained by exact maximum likelihood in `code/export/export_ep06_assets.py`:
 the layer-by-layer positions, warped grids and density maps are its actual outputs.
 
 The spine of the episode is one idea built up in steps: **slope → Jacobian → determinant →
@@ -145,11 +158,11 @@ triangular → coupling**. Each step answers the question the previous one raise
 
 ## Episode 07 — Energy-based models (~10:50)
 
-`ep07-energy.html` · playground: `ebm-lab.html` · code: `../code/ebm.py`
+`episodes/ep07-energy.html` · playground: `labs/ep07-ebm-lab.html` · code: `../code/ebm.py`
 
-Built from `src/ep07-scenes.js` (`python src/build.py 7`). Every landscape, marble and number on
+Built from `src/scenes/ep07.js` (`python src/build.py 7`). Every landscape, marble and number on
 screen comes from a real energy-based model trained by contrastive divergence in
-`code/export_ep07_assets.py`: its energy map at seven points in training, the Langevin and
+`code/export/export_ep07_assets.py`: its energy map at seven points in training, the Langevin and
 gradient-descent marble paths, a 30,000-step mixing chain, each valley's share of probability,
 and the exact 2-D likelihood (Z summed over a 400 × 400 grid). The 1-D scenes use a real
 25-bump model sculpted from 200 samples, and a real Metropolis chain.
@@ -176,10 +189,10 @@ we must sample → ratios (Metropolis) → slopes (Langevin) → the slope never
 
 ## Episode 08 — Score matching & Langevin dynamics (~10:12)
 
-`ep08-score.html` · playground: `score-lab.html` · code: `../code/score.py`
+`episodes/ep08-score.html` · playground: `labs/ep08-score-lab.html` · code: `../code/score.py`
 
-Built from `src/ep08-scenes.js` (`python src/build.py 8`). The 2-D scenes use real noise-conditional
-score networks trained by denoising score matching in `code/export_ep08_assets.py`. The data are mixtures of
+Built from `src/scenes/ep08.js` (`python src/build.py 8`). The 2-D scenes use real noise-conditional
+score networks trained by denoising score matching in `code/export/export_ep08_assets.py`. The data are mixtures of
 Gaussians, so every learned arrow is checked against the exact score of the noisy data.
 
 The spine: **the score (no Z) → why Langevin's √(2η) is exact → we can't see the true score → integrate by parts
@@ -202,12 +215,12 @@ weights → many noise levels + annealed Langevin → run noise backwards: diffu
 | 11 | Build it | DSM training + annealed Langevin in 15 lines + recap | — |
 | 12 | Hook → diffusion | data dissolves into noise, arrows lead it back; destroy slowly, learn to undo | → *Episode 09: diffusion* |
 
-## Episode 09 — Diffusion models (~8:42)
+## Episode 09 — Diffusion models (~9:06)
 
-`ep09-diffusion.html` · playground: `diffusion-lab.html` · code: `../code/diffusion.py`
+`episodes/ep09-diffusion.html` · playground: `labs/ep09-diffusion-lab.html` · code: `../code/diffusion.py`
 
-Built from `src/ep09-scenes.js` (`python src/build.py 9`). Everything generated on screen comes from real diffusion
-models trained in `code/export_ep09_assets.py`, the title included: a 2-D model trained on the pixels of the word
+Built from `src/scenes/ep09.js` (`python src/build.py 9`). Everything generated on screen comes from real diffusion
+models trained in `code/export/export_ep09_assets.py`, the title included: a 2-D model trained on the pixels of the word
 "Diffusion" writes it out of 5,000 points of static in the cold open.
 
 The spine: **destroy data slowly (and jump to any step in one line) → tiny steps are easy to undo, giant ones aren't →
@@ -222,7 +235,7 @@ are curved: flow matching.**
 | 02 | Undo one small step | the true one-step posterior in 1-D: one narrow bell for a tiny step, two humps for a giant one | x_{t−1} ≈ (x_t + β_t·s)/√(1−β_t) + √β_t·z |
 | 03 | Training | x₀ + ε → x_t → ε_θ, a dial for t, the real loss curve | ‖ε − ε_θ(x_t, t)‖², ε_θ = −√(1−ᾱ)·s_θ, x̂₀ |
 | 04 | Running it backwards | 600 points from N(0, I) to the eight blobs, beside the net's guess x̂₀ at every step | the DDPM step |
-| 05 | Sixty-four digits | 64 MNIST digits born from static; x̂₀ over time for eight of them: composition first, detail last | — |
+| 05 | Sixty-four digits | 64 MNIST digits born from static; x̂₀ over time for eight of them: composition first, detail last; then episode 4's judges on 2,000 samples: FID 9.8 (GAN 21.3, VAE 51.9), recall 89% (real data 88%), learned judge 61% | x = g(z), g = 1,000 denoising steps |
 | 06 | A VAE with a thousand layers | the noising chain as encoder, the ELBO as one KL per step | Σ KL → Σ w_t‖ε − ε_θ‖² |
 | 07 | Fewer steps: DDIM | 1000 / 100 / 20 / 5 steps from the same noise; slerp between two noise images morphs the digit | x_s = √ᾱ_s·x̂₀ + √(1−ᾱ_s)·ε_θ |
 | 08 | In the wild | DALL·E 2, Imagen, Stable Diffusion (latent), conditioning, video / audio / weather / proteins | — |
@@ -240,13 +253,16 @@ video/
                           (u8imgs/imgCanvas/drawImg), rubber stamps, gaussian, memo, camera shake
   src/engine/player.js    timeline, scene header, captions, progress bar, grain & vignette, player,
                           audio sync, window.renderAt / DURATION / READY for the renderer
-  src/epNN-scenes.js      one episode: its data + SC.push({ dur, chapter, title, sub, caps, draw(t) })
-  src/build.py            the episode list; inlines the above into one self-contained epNN-….html
-  src/epNN_audio.py       its soundtrack, on top of src/audio_lib.py → epNN-audio.mp3
+  src/scenes/epNN.js      one episode: its data + SC.push({ dur, chapter, title, sub, caps, draw(t) })
+  src/build.py            the episode list; inlines the above into one self-contained episodes/epNN-….html
+  src/audio/epNN.py       its soundtrack, on top of src/audio/audio_lib.py → episodes/epNN-audio.mp3
+  src/tools/              probe.mjs (read values out of a page for the soundtrack), glyph.mjs (text → points)
   src/make.py             build → audio → render → add sound → 720p preview, in one command
   src/new_episode.py      scaffolds the next episode (scenes, soundtrack, build entry)
-  lab-kit.js / .css       shared by every playground: guide, missions, tactile sound, base styles
-  render.mjs              renders any page to MP4, frame by frame (deterministic)
+  episodes/               every page, with its data (epNN-assets.js) and soundtrack (epNN-audio.mp3): open or publish
+  labs/                   the playgrounds (epNN-….html) + lab-kit.js / .css (guide, missions, tactile sound, styles)
+  index.html, posters/    the season hub
+  render.mjs              renders any page to MP4, frame by frame (deterministic) → renders/ (not in git)
 ```
 
 Scenes draw in a fixed 1920×1080 frame: the header sits above y ≈ 200, content in y 240–930, captions at
@@ -257,15 +273,14 @@ Everything is seeded and time-driven, so any frame can be re-rendered exactly.
 
 ```bash
 python src/new_episode.py 10 ep10-flow-matching.html "Flow Matching"   # scenes + soundtrack skeletons, registered
-# … write src/ep10-scenes.js; export real-model data to ep10-assets.js (window.EP10) and list it in build.py
+# … write src/scenes/ep10.js; export real-model data to episodes/ep10-assets.js (window.EP10) and list it in build.py
 python src/make.py 10                      # page + soundtrack
-python src/make.py 10 --render --preview   # + ep10-…-sound.mp4 and a ~25 MB 720p preview
+python src/make.py 10 --render --preview   # + renders/ep10-…-sound.mp4 and a ~25 MB 720p preview
 ```
 
 ## Playgrounds
 
-Every episode has a hands-on lab: `density-lab.html` (01), `ar-playground.html` (02), `vae-playground.html` (03),
-`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08), `diffusion-lab.html` (09). They share `lab-kit.js` and `lab-kit.css`:
+Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep09-diffusion-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -296,21 +311,21 @@ Every episode has its own soundtrack: a soft generative score plus sound effects
 animation. It is synthesised from scratch in numpy (no samples), deterministically, so the HTML
 player and the MP4 carry identical audio.
 
-- **Engine** — `src/audio_lib.py`: instruments (pad, sub, music box / celesta / marimba / glass /
+- **Engine** — `src/audio/audio_lib.py`: instruments (pad, sub, music box / celesta / marimba / glass /
   kalimba leads, bell chimes, ticks, typewriter keys, dice rattle, rubber stamp, whoosh, riser,
   heartbeat pulse), reverb and mix (score ~5 dB under the effects, about −22 dBFS overall, leaving
   room for narration).
 - **Sync** — cues are written on the scene clock `(scene, local time)`. Motion sounds are generated
   from the animation's own motion curve (same easing as the renderer): loudness follows speed,
   brightness/pitch follows progress. Data-driven moments read their values from the page itself
-  (`src/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
+  (`src/tools/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
   lands, each mode a GAN finds, each mode-collapse hop.
 - **Player** — the shared page (`src/engine/player.js`) has the ♪ button and keeps the audio locked to the
   animation clock through play / pause / scrub / chapter jumps (**M** mutes).
 
 | Episode | Key & colour | Signature sounds |
 |---|---|---|
-| 01 | C lydian · celesta | data points and sampled particles sonified by position; the log-likelihood sings as the knobs turn; static for the random tries |
+| 01 | C lydian · celesta | a trailer that tunes in out of static, each real machine heard doing its own thing (keys for typed names, clacks per GAN epoch, rolling marbles, thinning hiss), a heartbeat, a riser and a bang on the title; data points sonified by position; the log-likelihood sings as the knobs turn; a bell per stop on the season map; a typewriter into episode 02 |
 | 02 | A minor · music box + clock | typewriter for every letter; slot-machine settle into "hello"; dice rattle per sampled letter; the τ slider as a tone |
 | 03 | E minor · glass | the latent code sings as digits melt; loss falls as a tone; a harp cascade as the decoded grid appears |
 | 04 | G minor · marimba | every verdict a rubber stamp (CAUGHT / FOOLED / COPIED); digits dropping into each model; the copier's zero-distance "clink" |
@@ -318,15 +333,15 @@ player and the MP4 carry identical audio.
 | 06 | D dorian · music box | the flow's 8 layer pulses each way; det 2 / ½ / 0 morphs; chains breaking in the hook |
 | 07 | C minor · vibraphone | glass marbles poured, rolling and jiggling at their real speed; a chisel tap per sculpting step (as loud as the landscape moved); coin, wood-block (accepted) or thunk (rejected) per Metropolis proposal; a chime each time the long chain hops a ridge |
 | 08 | B♭ lydian · plucked harp | noise you can hear: a hiss that follows σ, a harp note per rung of the σ ladder, particles rolling at their real speed, the three √(2η) runs each singing their variance, the probe singing its score |
-| 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands |
+| 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands; a tock per judge's bar and stamps on diffusion's wins |
 
 ```bash
-python src/ep01_audio.py   # … ep09_audio.py  → epNN-audio.mp3 next to the episode HTML (or: python src/make.py N)
+python src/audio/ep01.py   # … ep09.py  → episodes/epNN-audio.mp3 next to the page (or: python src/make.py N)
 ```
 
 ## Watch / scrub
 
-Open any episode `.html` in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
+Open `index.html`, or any page in `episodes/`, in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
 jump by chapter. ♪ (or **M**) toggles the sound.
 
 ## Render the MP4s
@@ -338,10 +353,10 @@ cd video
 ./fetch-fonts.sh                                  # cache the Google Fonts locally (once)
 WORKERS=4 python src/make.py 9 --render --preview # build, soundtrack, render, add sound, 720p preview
 # or by hand, for any page:
-WORKERS=4 node render.mjs ep09-diffusion.html 30 ep09-diffusion.mp4
-ffmpeg -i ep09-diffusion.mp4 -i ep09-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep09-diffusion-sound.mp4
+WORKERS=4 node render.mjs episodes/ep09-diffusion.html 30 renders/ep09-diffusion.mp4
+ffmpeg -i renders/ep09-diffusion.mp4 -i episodes/ep09-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest renders/ep09-diffusion-sound.mp4
 ```
 
-`node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section
+`node render.mjs episodes/<page>.html <fps> <out.mp4> <start-s> <end-s>` renders one section
 while iterating. Set `FFMPEG=/path/to/ffmpeg` if ffmpeg isn't on your PATH
 (`pip install imageio-ffmpeg` ships one).

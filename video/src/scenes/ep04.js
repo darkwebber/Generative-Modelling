@@ -45,8 +45,8 @@ const SC = [];
 
 // 00 — cold open
 SC.push({ dur: 24, chapter: 'intro',
-  caps: [[0.6, 6, 'Last time we met three models. A is a little blurry. B is razor sharp. C is sharp and confident.'],
-         [6, 12, 'B turned out to be a photocopier, and C only ever draws ones. So how would a computer have caught them?'],
+  caps: [[0.6, 6, 'Last time: three models. A is a little blurry. B is razor sharp. C is sharp and confident.'],
+         [6, 12, 'B was a photocopier, and C only ever draws ones. How would a computer have caught them?'],
          [12, 18, 'Today we build the judges — one at a time, from first principles.'],
          [18, 23.6, "And we'll catch every single one of them lying."]],
   draw(t) {
@@ -70,9 +70,9 @@ SC.push({ dur: 24, chapter: 'intro',
 
 // 01 — what does "good" mean?
 SC.push({ dur: 40, chapter: 'good?', title: 'What does “good” even mean?', sub: 'Grading a classifier is easy. Grading a generator is not.',
-  caps: [[1, 7, 'With a classifier, grading is easy: there is an answer key. This image is a 7 — did you say 7?'],
+  caps: [[1, 7, 'Grading a classifier is easy: there is an answer key. This image is a 7 — did you say 7?'],
          [7, 14, "A generator has no answer key. Ask for 'a seven' and there are infinitely many right answers."],
-         [14, 21, 'What we actually want is for the whole distribution to match — pθ ≈ pdata — and we only ever see samples of each.'],
+         [14, 21, 'We want the whole distribution to match — pθ ≈ pdata — and we only ever see samples of each.'],
          [21, 29, 'So every metric is a way of comparing two clouds of points. In practice, we check three things.'],
          [29, 39.6, 'Fidelity: does each sample look real? Diversity: do samples cover everything real data does? Novelty: are they new, or copies?']],
   draw(t) {
@@ -101,8 +101,8 @@ SC.push({ dur: 40, chapter: 'good?', title: 'What does “good” even mean?', s
 
 // 02 — judge 1: likelihood
 SC.push({ dur: 50, chapter: 'likelihood', title: 'Judge 1 · Likelihood', sub: 'How probable does the model find real data it has never seen?',
-  caps: [[1, 8, 'Judge number one comes from episode 1: likelihood. Show the model real images it has never seen, and ask how probable it finds them.'],
-         [8, 15, `Our VAE: about ${ELBO.toFixed(0)} nats per image — ${BPD.toFixed(2)} bits per pixel, under its own pixel model. That's how many bits it needs to encode each pixel.`],
+  caps: [[1, 8, 'Judge one comes from episode 1: likelihood. Show the model real images it has never seen, and ask how probable they are.'],
+         [8, 15, `Our VAE: about ${ELBO.toFixed(0)} nats per image — ${BPD.toFixed(2)} bits per pixel, under its own pixel model. The bits it needs per pixel.`],
          [15, 23, "Now the photocopier. Its 'distribution' is just a pile of training images. A brand-new test digit gets probability zero."],
          [23, 30, 'log 0 = −∞: infinitely bad. Likelihood catches the copier instantly — and the one-trick pony too.'],
          [30, 38, 'Why? Likelihood measures coverage. Every real image must get some probability, or you pay without limit.'],
@@ -330,7 +330,7 @@ SC.push({ dur: 48, chapter: 'the judge', title: 'Judge 6 · A judge that learns'
 // 10 — the same judges for language models
 SC.push({ dur: 40, chapter: 'LLMs', title: 'The same judges, for language models', sub: 'Different names, same ideas.',
   caps: [[1, 8, 'The same judges grade today’s language models, under different names.'],
-         [8, 15, 'Likelihood becomes perplexity: e to the average surprise. Our episode-2 name model scores about 3.4 on its training names — as if choosing among 3.4 letters each step.'],
+         [8, 15, 'Likelihood becomes perplexity: e to the average surprise. Our episode-2 name model scores 3.4 — as if choosing among 3.4 letters each step.'],
          [15, 22, 'Answer-key benchmarks — maths, code checked by unit tests — work when there is one right answer. Beware contamination.'],
          [22, 30, 'The learned judge becomes “LLM-as-a-judge”: fast and cheap, but biased toward long, confident-sounding answers.'],
          [30, 39.6, 'And human judgment becomes preference arenas: people vote between two answers, and the votes become Elo ratings, like chess.']],
@@ -350,6 +350,7 @@ SC.push({ dur: 38, chapter: 'scorecard', title: 'The full scorecard', sub: 'Ever
          [16, 24, 'No single number is the truth. Each judge answers one question; you need the whole panel — and your own eyes.'],
          [24, 37.6, "And remember Goodhart's law: when a measure becomes a target, it ceases to be a good measure. Optimise any one judge hard enough, and it will be fooled."]],
   draw(t) {
+    playPill('ep04-metric-lab.html', 16, t);
     const cols = [['IS ↑', 'IS', v => v.toFixed(2)], ['FID ↓', 'FID', v => v.toFixed(1)], ['precision ↑', 'precision', pct], ['recall ↑', 'recall', v => v < 0.01 ? '<1%' : pct(v)], ['NN-train', 'NN_train', v => v.toFixed(2)], ['C2ST → 50%', 'C2ST', pct], ['likelihood', null, null]];
     const x0 = 130, y0 = 280, cw = 225, rh = 90, a0 = eout(prog(t, 0.6, 0.8));
     card(x0 - 20, y0 - 60, 1700, 560, P.plum, a0);
@@ -400,6 +401,7 @@ SC.push({ dur: 46, chapter: 'next', title: 'What if the judge could teach?', sub
       text('A forger and a detective,', 960, 470, { font: F.serif, size: 72, color: P.chalk, align: 'center', a: qa });
       text('teaching each other.', 960, 555, { font: F.serif, size: 72, color: P.chalk, align: 'center', a: qa });
       text('NEXT  ·  EPISODE 05', 960, 660, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 39, 1)), ls: 4 });
+      seasonStrip(4, 40.2, t);
       text('GANs — learning by being judged', 960, 715, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 39.5, 1)) });
     }
   } });

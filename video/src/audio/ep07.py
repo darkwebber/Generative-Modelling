@@ -11,7 +11,7 @@ chain crosses a ridge you hear it hop.
 
 import numpy as np
 
-from audio_lib import Score, assets, ease, eout, hz, prog, scene_durations
+from audio_lib import Score, assets, ease, eout, hz, prog, scene_durations, scene_index
 
 durs = scene_durations(7)
 A = assets(7)
@@ -213,5 +213,9 @@ c(13, 17, 'scratch', 1.3); c(13, 17.3, 'whoosh', 0.9, dur=1.2, f0=3500, f1=200);
 for i in range(12): c(13, 23 + i * 0.11, 'note', 0.35, -0.6 + 0.1 * i, m=[60, 63, 67, 70, 72, 75, 79, 82, 84, 87, 91, 94][i], lead='vibes')
 c(13, 30, 'chime', 0.8, m=79)
 c(13, 38.5, 'thud', 1.1, f=45); c(13, 38.5, 'chime', 1.5, m=60); c(13, 38.55, 'chime', 1.2, m=67); c(13, 39.3, 'chime', 1.0, m=72); c(13, 40.5, 'tick'); c(13, 41, 'chime', 1.0, m=84)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(7, 'next'), 41.7, 7)
+S.play_pill(scene_index(7, 'build it'), 9)
 
 S.render()

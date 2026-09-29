@@ -5,7 +5,7 @@ rubber stamp (CAUGHT / FOOLED / COPIED) landing on the frame the stamp hits.
 """
 import numpy as np
 
-from audio_lib import Score, ease, eout, prog, probe
+from audio_lib import Score, ease, eout, prog, probe, scene_index
 
 (durs, nn_d) = probe('ep04-evaluation.html', ['SC.map(s => s.dur)', '["real","vae","copier"].map(k => PAIRS[k].d)'])
 S = Score('ep04-audio', durs, seed=44)
@@ -113,5 +113,9 @@ S.track(12, 23, 35, lambda t: 74 - 12 * ease(prog(t, 23, 12)), lambda t: 0.8, 0.
 S.cue(12, 31, 'tick'); S.cue(12, 35.5, 'riser', 0.9, dur=2.0, m0=43, m1=55)
 S.cue(12, 37.5, 'thud', 1.0, f=43); S.cue(12, 37.5, 'chime', 1.4, m=62); S.cue(12, 37.55, 'chime', 1.0, m=70)
 S.cue(12, 39, 'tick'); S.cue(12, 39.5, 'chime', 1.0, m=79)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(4, 'next'), 40.2, 4)
+S.play_pill(scene_index(4, 'scorecard'), 16)
 
 S.render()

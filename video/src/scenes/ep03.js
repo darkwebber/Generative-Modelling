@@ -68,10 +68,10 @@ const SC = [];
 
 // 00 — cold open
 SC.push({ dur: 24, chapter: 'intro',
-  caps: [[0.6, 5, 'Every digit you are watching is drawn by the same machine — from just two numbers.'],
+  caps: [[0.6, 5, 'Every digit here is drawn by the same machine — from just two numbers.'],
          [5, 10.5, 'Move the two numbers, and the drawing melts smoothly from one digit into another.'],
          [10.5, 15.5, 'Last episode ended on a question: can a machine learn by compressing?'],
-         [15.5, 20, 'The answer is yes — and compression turns out to be a deep way to understand data.'],
+         [15.5, 20, 'Yes — and compression turns out to be a deep way to understand data.'],
          [20, 23.6, "Let's squeeze some images."]],
   draw(t) {
     const dim = lerp(1, 0.2, ease(prog(t, 15, 1.5))), a0 = eout(prog(t, 0.3, 1));
@@ -130,11 +130,11 @@ SC.push({ dur: 36, chapter: 'compression', title: 'The compression game', sub: '
 const SHOW = [0, 1, 2, 3, 4, 7, 11, 18];
 SC.push({ dur: 50, chapter: 'autoencoder', title: 'The autoencoder', sub: 'Squeeze through a keyhole, then rebuild.',
   caps: [[1, 7, 'Here is the machine. An encoder squeezes 784 pixels down to just 2 numbers: the code, z.'],
-         [7, 13, 'A decoder then tries to rebuild the whole image from those 2 numbers alone.'],
+         [7, 13, 'A decoder rebuilds the whole image from those 2 numbers alone: episode 1’s g, turning a code into data.'],
          [13, 20, 'Training: compare the rebuild with the original, and nudge every weight to shrink the difference.'],
          [20, 27, 'Notice — no labels. Nobody says which digit is which. The image is its own teacher.'],
          [27, 35, 'The only way to pass an exam through a 2-number keyhole is to learn what matters most.'],
-         [35, 42, 'After training, the rebuilds look like this: blurry, mostly right — and some honest mistakes, like a 4 that comes back as a 9.'],
+         [35, 42, 'After training the rebuilds look like this: blurry, mostly right — plus honest mistakes, like a 4 that comes back as a 9.'],
          [42, 49.6, "Those 2 numbers are each image's coordinates in a brand-new space: the latent space."]],
   draw(t) {
     const cyc = Math.floor(Math.max(0, t - 2) / 3.5) % SHOW.length, idx = SHOW[cyc];
@@ -274,7 +274,7 @@ SC.push({ dur: 58, chapter: 'the math', title: 'The math of the VAE', sub: 'Two 
          [8, 15, "Term one, reconstruction: sample z from the image's cloud, decode it, and measure how badly we rebuilt x."],
          [15, 23, 'Term two, the leash: the KL divergence — how far the cloud N(μ, σ²) is from the standard bell curve.'],
          [23, 31, 'For Gaussians it has a closed form. μ² pulls the centre home; σ² − log σ² − 1 is smallest exactly at σ = 1.'],
-         [31, 38, 'Why these two terms? Episode 1 says: maximise log p(x). But here p(x) = ∫ p(x | z) p(z) dz — any code might have drawn x.'],
+         [31, 38, 'Why? Episode 1 says maximise log p(x). But p(x) = ∫ p(x | z) p(z) dz — any code might have drawn x.'],
          [38, 46, 'That integral is intractable. So the VAE maximises a floor beneath it: the Evidence Lower BOund, or ELBO.'],
          [46, 57.6, `Push the floor up and log p(x) must rise too. Our trained VAE: about ${LAST_VAE.test_recon.toFixed(0)} nats of reconstruction plus ${LAST_VAE.test_kl.toFixed(1)} nats of leash, per image.`]],
   draw(t) {
@@ -439,6 +439,7 @@ SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'The he
          [9, 18, 'Train it in a few minutes on a laptop. Then play: change β, give it more latent numbers, or feed it your own images.'],
          [18, 31.6, 'Recap: squeeze to a code, make codes fuzzy, leash them to a bell curve — and every point of the map becomes something you can draw.']],
   draw(t) {
+    playPill('ep03-vae-playground.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8));
     card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 288 + i * 34, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
@@ -481,8 +482,8 @@ SC.push({ dur: 50, chapter: 'next', title: 'A puzzle', sub: 'Three models. Sixte
       text('How do you grade a machine', 960, 470, { font: F.serif, size: 70, color: P.chalk, align: 'center', a: qa });
       text('whose job is to make something new?', 960, 555, { font: F.serif, size: 70, color: P.chalk, align: 'center', a: qa });
       text('NEXT  ·  EPISODE 04', 960, 660, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 42, 1)), ls: 4 });
+      seasonStrip(3, 43.2, t);
       text('Evaluating generative models — and how every metric can lie', 960, 715, { font: F.serif, italic: true, size: 38, color: P.stone, align: 'center', a: eout(prog(t, 42.5, 1)) });
-      text('then: GANs', 960, 780, { font: F.mono, size: 18, color: P.dust, align: 'center', a: eout(prog(t, 44, 1)) });
     }
   } });
 

@@ -136,7 +136,7 @@ SC.push({ dur: 24, chapter: 'intro',
 // 01 — recap and the problem
 SC.push({ dur: 36, chapter: 'recap', title: 'Where we left off', sub: 'A generative model learns p(x) — then samples from it.',
   caps: [[1, 7, 'Last time: a generative model learns p(x), a probability for every possible x — then samples from it.'],
-         [7, 13, "But what is x for text? Take a 5-letter word. Each slot holds one of 27 symbols: a–z, plus an 'end' marker."],
+         [7, 13, "What is x for text? A 5-letter word: each slot holds one of 27 symbols, a–z plus an end marker."],
          [13, 20, "That's 27⁵ — over 14 million possible strings. A table with one probability for each? Already painful."],
          [20, 28, 'A 100-character sentence has 27¹⁰⁰ ≈ 10¹⁴³ possibilities. The observable universe has only about 10⁸⁰ atoms.'],
          [28, 35.6, "We can't write p(x) down directly. We need to break it into small, manageable pieces."]],
@@ -318,7 +318,7 @@ SC.push({ dur: 28, chapter: 'question', title: 'The one question', sub: 'Given e
 SC.push({ dur: 52, chapter: 'counting', title: 'The simplest model: just count', sub: `A dataset of ${NAMES.length} first names, and a table of letter pairs.`,
   caps: [[1, 7, "Let's build the simplest version. Our data: a few hundred first names."],
          [7, 14, 'Mark the start and end of each name with a dot. Then slide a window along, two letters at a time.'],
-         [14, 21, "Each pair is a clue: after '.', we saw 'e'. After 'e', 'm'. After 'm', 'm'. Tally them in a 27 × 27 table."],
+         [14, 21, "Each pair is a clue: after '.', 'e'. After 'e', 'm'. After 'm', 'm'. Tally them all in a 27 × 27 table."],
          [21, 28, 'Do this for every name, and the table lights up with the patterns of the language.'],
          [28, 36, "Read one row — say, after 'a' — and normalise it. That row is a probability distribution for the next letter."],
          [36, 44, "p(b | a) = count(a, b) divided by the row total. That's the entire model."],
@@ -372,7 +372,7 @@ SC.push({ dur: 52, chapter: 'counting', title: 'The simplest model: just count',
 // 06 — generate!
 SC.push({ dur: 50, chapter: 'sampling', title: "Let's generate some names", sub: 'Look up a row, roll the dice, append, repeat.',
   caps: [[1, 7, "Start with the start marker '.', and look up its row: which letters tend to begin a name?"],
-         [7, 14, 'Now roll the dice. A random number u between 0 and 1 lands in one letter’s slice — wider slices get hit more often.'],
+         [7, 14, 'Roll the dice. A random number u between 0 and 1 lands in one letter’s slice — wider slices get hit more often.'],
          [14, 21, 'Append that letter. It becomes the new context: look up its row, roll again.'],
          [21, 29, 'Repeat until we roll the end marker. We just generated a name nobody wrote!'],
          [29, 37, 'Run it again and again: every run takes a different random path.'],
@@ -657,10 +657,11 @@ const CODE = [
   '[m|for] _ [m|in] [p|range]([a|10]): [p|print]([p|sample]())',
 ];
 SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'Everything in the counting model fits in twenty lines of Python.',
-  caps: [[1, 8, 'Everything you just saw fits in about twenty lines of Python. The code is linked below — run it, break it, play with it.'],
+  caps: [[1, 8, 'It all fits in about twenty lines of Python. The code is linked below — run it, break it, play with it.'],
          [8, 16, 'Change the context length, the temperature, or the training data. Train it on cities, Pokémon, or your own writing.'],
          [16, 31.6, 'Recap: split p(x) with the chain rule, learn p(next | past), then sample one piece at a time.']],
   draw(t) {
+    playPill('ep02-ar-playground.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8));
     card(110, 240, 1010, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 150, 290 + i * 30, 19, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
@@ -716,6 +717,7 @@ SC.push({ dur: 42, chapter: 'next', title: 'But something is missing…', sub: '
     if (C > 0) {
       text('Can a machine learn by compressing?', 960, 500, { font: F.serif, size: 78, color: P.chalk, align: 'center', a: C });
       text('NEXT  ·  EPISODE 03', 960, 600, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 37, 1)), ls: 4 });
+      seasonStrip(2, 38.2, t);
       text('Autoencoders, latent spaces & VAEs', 960, 660, { font: F.serif, italic: true, size: 44, color: P.stone, align: 'center', a: eout(prog(t, 37.5, 1)) });
     }
   } });

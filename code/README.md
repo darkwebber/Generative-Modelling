@@ -7,6 +7,7 @@ share (also hand-written) is in `nn.py`: Adam (+ an EMA of the weights), a layer
 a swish MLP (energy, score), a time-conditioned MLP (diffusion, and the next episodes), the 2-D ring and moons
 data, and a finite-difference gradient checker. Episodes 02–04 keep Adam written inline, where it is first explained.
 
+- **Episode 01 · densities:** `density.py` (numpy; a mixture of bell curves fitted by maximum likelihood, and sampled)
 - **Episode 02 · autoregressive:** `ar_counting.py` (pure Python), `ar_neural.py` (numpy)
 - **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
 - **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)
@@ -16,6 +17,23 @@ data, and a finite-difference gradient checker. Episodes 02–04 keep Adam writt
 - **Episode 08 · score matching:** `score.py` (numpy; denoising score matching, noise-conditional net, annealed Langevin)
 - **Episode 09 · diffusion:** `diffusion.py` (numpy; DDPM training and sampling, DDIM, 2-D blobs and MNIST)
 
+The asset exporters (`export/export_epNN_assets.py`) train the models shown in each episode and write their data next to
+the episode page (`../video/episodes/epNN-assets.js`); trained nets are cached in `data/` (not in git). `export/common.py`
+holds the shared paths.
+
+## Episode 01 — densities
+
+| file | what it is |
+|------|------------|
+| `density.py` | a mixture of bell curves, p(x) = Σₖ πₖ N(x; μₖ, σₖ²), fitted by maximum likelihood with EM on the episode's own two-bump data, then sampled: pick a bump, stretch and shift a bell curve of noise |
+| `export/export_ep01_assets.py` | the episode-01 trailer: collects real samples from the models of episodes 02–09 → `../video/episodes/ep01-assets.js` |
+| `../video/labs/ep01-density-lab.html` | fit bumps by hand or with EM, watch the log-likelihood score, draw samples |
+
+```bash
+python density.py            # 1–4 bumps: train vs held-out log-likelihood (two wins; more start memorising)
+python density.py --check    # EM never lowers the likelihood; samples follow the fitted density
+```
+
 ## Episode 02 — autoregressive generation
 
 | file | what it is |
@@ -23,7 +41,7 @@ data, and a finite-difference gradient checker. Episodes 02–04 keep Adam writt
 | `ar_counting.py` | character n-gram model in pure Python: count → normalise → sample, with context length `k`, temperature `τ`, and per-letter surprise scoring |
 | `ar_neural.py` | the same model as an MLP (embeddings → tanh → softmax) in numpy, with **hand-written backprop**, a gradient checker, and a held-out comparison against counting |
 | `names.txt` | the ~380 first names used in the video (use `--big` to download ~32k) |
-| `../video/ar-playground.html` | the interactive playground: open it in a browser |
+| `../video/labs/ep02-ar-playground.html` | the interactive playground: open it in a browser |
 
 ## Five experiments to try
 
@@ -71,8 +89,8 @@ knows about shorter ones.
 | file | what it is |
 |------|------------|
 | `vae.py` | an autoencoder **and** a VAE on MNIST (784 → 256 → 2 → 256 → 784) in numpy, every gradient written by hand, plus a gradient checker. ~5 s per epoch on a laptop CPU |
-| `export_ep03_assets.py` | trains both (30 epochs) and exports weights + latent codes to `../video/ep03-assets.js` for the video and playground |
-| `../video/vae-playground.html` | drag through the latent map, draw a digit and watch it get encoded, sample, interpolate |
+| `export/export_ep03_assets.py` | trains both (30 epochs) and exports weights + latent codes to `../video/episodes/ep03-assets.js` for the video and playground |
+| `../video/labs/ep03-vae-playground.html` | drag through the latent map, draw a digit and watch it get encoded, sample, interpolate |
 
 ```bash
 python vae.py --check                     # every hand-written gradient vs a numerical one
@@ -100,8 +118,8 @@ generate      z ~ N(0, I)  →  x = g_θ(z)
 | file | what it is |
 |------|------------|
 | `evals.py` | Inception Score, FID, precision/recall (k-NN manifolds), nearest-training-image distance and a classifier two-sample test — all from scratch in numpy — plus a 97.8%-accurate digit network (backprop by hand) used as the feature extractor |
-| `export_ep04_assets.py` | computes every number shown in the video → `../video/ep04-assets.js` |
-| `export_ep04_lab.py` | the feature net + image pools for `../video/metric-lab.html` |
+| `export/export_ep04_assets.py` | computes every number shown in the video → `../video/episodes/ep04-assets.js` |
+| `export/export_ep04_lab.py` | the feature net + image pools for `../video/labs/ep04-metric-lab.html` |
 
 ```bash
 python evals.py        # scores five "models" (2,000 samples each) and prints the scorecard
@@ -139,8 +157,8 @@ real data looks distinguishable from itself.
 | file | what it is |
 |------|------------|
 | `gan.py` | a tiny MLP class with hand-written backprop (checked numerically), the GAN game step (original and non-saturating losses), a 2-D ring-of-Gaussians trainer that tracks modes found, and an MNIST GAN |
-| `export_ep05_assets.py` | trains the runs shown in the video and scores the MNIST GAN with episode 04's judges → `../video/ep05-assets.js` |
-| `../video/gan-arena.html` | a GAN training live in the browser; change the learning rates and cause mode collapse yourself |
+| `export/export_ep05_assets.py` | trains the runs shown in the video and scores the MNIST GAN with episode 04's judges → `../video/episodes/ep05-assets.js` |
+| `../video/labs/ep05-gan-arena.html` | a GAN training live in the browser; change the learning rates and cause mode collapse yourself |
 
 ```bash
 python gan.py --check                              # hand-written gradients vs numerical ones
@@ -173,8 +191,8 @@ in practice   min_G −log D(G(z))      (non-saturating: strong gradients when f
 | file | what it is |
 |------|------------|
 | `flow.py` | a RealNVP-style flow: affine coupling layers (s, t from small MLPs), forward and inverse, exact log-likelihood, and the full backward pass by hand (checked numerically) |
-| `export_ep06_assets.py` | trains the flows shown in the video (moons 8 and 2 layers, 8 blobs) → `../video/ep06-assets.js` |
-| `../video/flow-lab.html` | a flow training live in the browser: density, samples, warped grid, a layer scrubber, and a click-to-probe log p(x) |
+| `export/export_ep06_assets.py` | trains the flows shown in the video (moons 8 and 2 layers, 8 blobs) → `../video/episodes/ep06-assets.js` |
+| `../video/labs/ep06-flow-lab.html` | a flow training live in the browser: density, samples, warped grid, a layer scrubber, and a click-to-probe log p(x) |
 
 ```bash
 python flow.py --check                                   # gradients vs numerical; inverse error
@@ -204,8 +222,8 @@ training              min  E_x[ ½|f(x)|² + log 2π − Σₖ sₖ(x) ]
 | file | what it is |
 |------|------------|
 | `ebm.py` | an energy network (2→96→96→96→1, swish) with hand-written backprop for both ∇θ and ∇ₓ; a Langevin sampler; persistent contrastive divergence with a replay buffer; the exact 2-D likelihood (Z summed on a 400 × 400 grid); and the 1-D "sculpting" demo (25 bumps, exact fantasies) |
-| `export_ep07_assets.py` | trains the model shown in the video and exports landscapes, marble paths, the mixing chain, valley shares and the Metropolis chain → `../video/ep07-assets.js` |
-| `../video/ebm-lab.html` | an EBM training live in the browser: landscape or density, fantasies, knobs for Langevin steps, η, jiggle and the E² penalty, and click-to-drop marbles |
+| `export/export_ep07_assets.py` | trains the model shown in the video and exports landscapes, marble paths, the mixing chain, valley shares and the Metropolis chain → `../video/episodes/ep07-assets.js` |
+| `../video/labs/ep07-ebm-lab.html` | an EBM training live in the browser: landscape or density, fantasies, knobs for Langevin steps, η, jiggle and the E² penalty, and click-to-drop marbles |
 
 ```bash
 python ebm.py --check                  # gradients (θ and x) vs numerical
@@ -240,8 +258,8 @@ the score            ∇ₓ log p(x) = −∇ₓE(x)                            
 | file | what it is |
 |------|------------|
 | `score.py` | a noise-conditional score network ([x, y, log σ] → 128 → 128 → 128 → 2, swish) trained by denoising score matching with hand-written backprop; plain and annealed Langevin; exact scores of the Gaussian-mixture data for checking |
-| `export_ep08_assets.py` | trains the nets in the video → `../video/ep08-assets.js` |
-| `../video/score-lab.html` | train a score network live, look at its arrows at any σ (against the true ones), sample with plain or annealed Langevin, drop particles anywhere |
+| `export/export_ep08_assets.py` | trains the nets in the video → `../video/episodes/ep08-assets.js` |
+| `../video/labs/ep08-score-lab.html` | train a score network live, look at its arrows at any σ (against the true ones), sample with plain or annealed Langevin, drop particles anywhere |
 
 ```bash
 python score.py --check            # gradients vs numerical
@@ -269,8 +287,8 @@ annealed Langevin     for σ₁ > … > σ_L: T steps with η = c·σ²    (Song
 | file | what it is |
 |------|------------|
 | `diffusion.py` | a noise predictor ε_θ(x, t): an MLP with a sinusoidal embedding of t added into every hidden layer (swish, EMA weights, optional Fourier features of x), trained on ‖ε − ε_θ(x_t, t)‖² with hand-written backprop (for MNIST the net outputs its clean-image guess x̂₀ = tanh(F) and reports ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ), with Min-SNR weights w_t = min(1, 5/SNR_t): an MLP finds clean images far easier to output than faint noise); ancestral DDPM sampling with the posterior variance; deterministic DDIM with any number of steps |
-| `export_ep09_assets.py` | trains the three nets in the video (the title, the eight blobs, MNIST) → `../video/ep09-assets.js`, plus the MNIST net in 8 bits → `../video/ep09-model.js`. `python export_ep09_assets.py title` (or `ring`, `mnist`) trains just one, so you can run them in parallel |
-| `../video/diffusion-lab.html` | the real MNIST diffusion model running in your browser: watch digits form from static (x_t or the network's guess x̂₀), DDPM vs DDIM at any step count, morph between two noise images, draw something and let the model "fix" it (SDEdit) |
+| `export/export_ep09_assets.py` | trains the three nets in the video (the title, the eight blobs, MNIST) → `../video/episodes/ep09-assets.js`, plus the MNIST net in 8 bits → `../video/labs/ep09-model.js`. `python export/export_ep09_assets.py title` (or `ring`, `mnist`) trains just one, so you can run them in parallel |
+| `../video/labs/ep09-diffusion-lab.html` | the real MNIST diffusion model running in your browser: watch digits form from static (x_t or the network's guess x̂₀), DDPM vs DDIM at any step count, morph between two noise images, draw something and let the model "fix" it (SDEdit) |
 
 ```bash
 python diffusion.py --check                  # gradients vs numerical

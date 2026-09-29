@@ -209,6 +209,26 @@ function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); c
 function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 // camera shake after an impact at t0
 function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+// ── the season, for the end-card strip: watched episodes lit, this one ringed, the next one pulsing
+const SEASON = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+function seasonStrip(cur, t0, t, y = 830) {
+  const a = eout(prog(t, t0, 0.8)); if (GA * a <= 0.002) return;
+  const n = SEASON.length, x0 = 500, x1 = 1420, X = i => x0 + (x1 - x0) * i / (n - 1);
+  line(x0, y, x1, y, P.border, 1.5, a);
+  const fill = eout(prog(t, t0 + 0.2, 0.07 * cur + 0.3)); line(x0, y, lerp(x0, X(cur - 1), fill), y, P.terracotta, 2, a * 0.8);
+  SEASON.forEach((name, i) => {
+    const ep = i + 1, u = prog(t, t0 + 0.2 + i * 0.07, 0.35), s = pop(u), x = X(i);
+    let col = P.dust, r = 4;
+    if (ep <= cur) { col = P.terracotta; r = 6; }
+    if (ep === cur + 1) { const pl = 0.5 + 0.5 * Math.sin((t - t0) * 4.5); col = P.amber; r = 6; ring(x, y, 10 + 5 * pl, P.amber, a * u * (0.8 - 0.6 * pl), 1.5); }
+    dot(x, y, r * s, col, a * u);
+    if (ep === cur) ring(x, y, 11 * s, P.chalk, a * u, 1.8);
+    text(String(ep).padStart(2, '0'), x, y + 30, { font: F.mono, size: 12, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u });
+    text(name, x, y + 50, { size: 14, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u * (ep <= cur + 1 ? 1 : 0.7) });
+  });
+}
+// ── "try it yourself": the episode's playground, named in the header area of the build-it scene
+function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
 const EPISODE = {"num": "06"};
 
 // ─────────────────────────────────────────────────────────────
@@ -259,10 +279,10 @@ const nz = z => Math.exp(-z * z / 2) / Math.sqrt(TAU), px1 = x => { const z = fi
 SC.push({ dur: 52, chapter: 'sand', title: 'Probability is sand', sub: 'Move it around all you like — you can never create or destroy it.',
   caps: [[1, 8, 'Back to basics, in one dimension. Pour probability like sand along a line: a bell curve of noise, z.'],
          [8, 15, 'Now bend the line with a function x = f(z). Every grain moves, but none is created or destroyed.'],
-         [15, 22, 'Take a thin slice of width dz. It holds p(z)·dz of sand. After the bend, the very same sand sits in a slice of width dx.'],
-         [22, 30, 'How wide is dx? Zoom in: up close, the curve is a straight line with slope f′(z). So dx = f′(z)·dz — the slope is the stretch factor.'],
+         [15, 22, 'Take a slice of width dz: it holds p(z)·dz of sand. After the bend, the same sand fills a slice of width dx.'],
+         [22, 30, 'How wide is dx? Up close, the curve is a straight line with slope f′(z). So dx = f′(z)·dz: the slope is the stretch factor.'],
          [30, 38, 'Same sand, so p(x)·dx = p(z)·dz, which gives p(x) = p(z) / |f′(z)|. Steep slope: stretched, thinner. Shallow slope: squeezed, denser.'],
-         [38, 45, "That's episode 1's change of variables. To use it on a data point x we must get back to its z — so f must be invertible."],
+         [38, 45, "That's episode 1's change of variables. To use it on a point x we need its z, so f must be invertible."],
          [45, 51.6, 'Keep hold of one idea: the local slope is the local stretch. In two dimensions, the slope becomes something richer.']],
   draw(t) {
     const zy = 780, xx = 620, ZX = z => 680 + (z + 3) * 100, XY = x => 780 - (x + 3.4) * 78, a0 = eout(prog(t, 0.6, 0.8));
@@ -310,12 +330,12 @@ function pan(x0, y0, S, R) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v =
 function polyPath(pts) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); }
 function sqBoundary(z0, h, n = 24) { const out = []; [[0, 0, 1, 0], [1, 0, 0, 1], [1, 1, -1, 0], [0, 1, 0, -1]].forEach(([a, b, da, db]) => { for (let i = 0; i < n; i++) out.push([z0[0] + (a + da * i / n) * h, z0[1] + (b + db * i / n) * h]); }); return out; }
 SC.push({ dur: 54, chapter: 'jacobian', title: 'In 2-D, the slope becomes a matrix', sub: 'Nudge one input at a time — and watch where the output goes.',
-  caps: [[1, 8, 'Now two dimensions. A map f sends each point z = (z₁, z₂) to a point x = (x₁, x₂) — here it bends a whole grid.'],
-         [8, 15, 'Zoom in on one tiny square. The closer you look, the straighter its edges get: up close, every smooth map is a simple linear stretch.'],
+  caps: [[1, 8, 'Two dimensions: a map f sends each point z = (z₁, z₂) to x = (x₁, x₂). Here it bends a grid.'],
+         [8, 15, 'Zoom in on one tiny square. The closer you look, the straighter its edges: up close, every smooth map is a linear stretch.'],
          [15, 23, 'Which stretch? Nudge z₁ alone by a hair. The output moves along an arrow: how much x₁ changes, and how much x₂ changes, per unit of z₁.'],
          [23, 30, 'Now nudge z₂ alone: a second arrow. These two arrows are exactly the edges of the tiny parallelogram.'],
          [30, 38, 'Write the two arrows side by side, as columns: a 2 × 2 table of partial derivatives. That table is the Jacobian.'],
-         [38, 46, 'Each column answers one question: nudge this input — how does every output respond? Two inputs × two outputs = four numbers. In D dimensions, D × D.'],
+         [38, 46, 'Each column answers one question: nudge this input, how does every output respond? Two inputs × two outputs: four numbers. In D dimensions, D × D.'],
          [46, 53.6, 'It is the slope, grown up: the local stretch of a map with many inputs and many outputs. And it changes from point to point.']],
   draw(t) {
     const Zp = pan(90, 240, 440, 2.4), Xp = pan(600, 240, 440, 2.9), a0 = eout(prog(t, 0.6, 0.8)), w = ease(prog(t, 2, 4));
@@ -376,13 +396,13 @@ const DKEYS = [[20, DM0], [22, [[2, 0.4], [0, 1]]], [26, [[2, 0.4], [0, 1]]], [2
 function dmAt(t) { if (t <= DKEYS[0][0]) return DM0; for (let i = 0; i < DKEYS.length - 1; i++) { const [ta, A1] = DKEYS[i], [tb, B1] = DKEYS[i + 1]; if (t <= tb) { const u = ease((t - ta) / (tb - ta)); return [[lerp(A1[0][0], B1[0][0], u), lerp(A1[0][1], B1[0][1], u)], [lerp(A1[1][0], B1[1][0], u), lerp(A1[1][1], B1[1][1], u)]]; } } return DM0; }
 SC.push({ dur: 50, chapter: 'determinant', title: 'How much area? The determinant', sub: 'One number that says how much a map stretches space.',
   caps: [[1, 7, "For density we don't need all four numbers — just one: by how much did the tiny square's area grow?"],
-         [7, 14, 'Call the arrows (a, c) and (b, d). Box the parallelogram in: the box has area (a + b)(c + d). Now cut away the corners…'],
+         [7, 14, 'Call the arrows (a, c) and (b, d). The box around them has area (a + b)(c + d). Cut away the corners…'],
          [14, 21, '…two pairs of triangles and two rectangles. What is left is exactly ad − bc. That number is the determinant.'],
          [21, 27.5, 'It is the area-stretch factor. det = 2: every area doubles, and the sand spreads out to half the density.'],
-         [27.5, 31, 'det = ½: areas halve, and the sand piles up twice as dense.'],
-         [31, 37.5, "det = 0: the square is crushed flat onto a line. Different points collide, and there's no way back. A flow must never do this."],
+         [27.5, 31, 'det = ½: areas halve, sand piles up twice as dense.'],
+         [31, 37.5, "det = 0: the square is crushed flat. Points collide, with no way back. A flow must never do this."],
          [37.5, 43, 'Same sand before and after:  p(x) · |det J| · area = p(z) · area.'],
-         [43, 49.6, 'So p(x) = p(z) / |det J|. The 1-D slope rule, exactly — with the slope replaced by the determinant of the Jacobian.']],
+         [43, 49.6, 'So p(x) = p(z) / |det J|: the 1-D slope rule, exactly, with the slope replaced by the Jacobian’s determinant.']],
   draw(t) {
     const O = [230, 830], s = 240, a0 = eout(prog(t, 0.6, 0.8)), [a, b] = [DM0[0][0], DM0[0][1]], [c, d] = [DM0[1][0], DM0[1][1]];
     const S = (x, y) => [O[0] + x * s, O[1] - y * s];
@@ -427,10 +447,10 @@ SC.push({ dur: 50, chapter: 'determinant', title: 'How much area? The determinan
 
 // 04 — the cost, and the escape hatch: triangular matrices
 SC.push({ dur: 46, chapter: 'the cost', title: 'The price of a determinant', sub: 'Every point needs one — and in high dimensions they are brutally expensive.',
-  caps: [[1, 8, 'Here is a real trained flow: the noise grid, warped into data space. Tiny cells are where sand piles up; big cells are where it thins.'],
+  caps: [[1, 8, 'A real trained flow: the noise grid, warped into data space. Tiny cells are where sand piles up; big cells, where it thins.'],
          [8, 15.5, 'To score one data point, we need the determinant of its own Jacobian. In D dimensions a general determinant costs about D³ operations.'],
          [15.5, 23, 'For a 256 × 256 colour image, D ≈ 200,000, so D³ ≈ 10¹⁶ — for every image, at every training step. Hopeless.'],
-         [23, 31, 'Unless the Jacobian is special. If it is triangular — all zeros on one side of the diagonal — the determinant is just the product of the diagonal.'],
+         [23, 31, 'Unless the Jacobian is special. If it is triangular — all zeros on one side of the diagonal — the determinant is the product of the diagonal.'],
          [31, 39, 'Why? The off-diagonal part only shears: it slides strips past each other, like pushing a deck of cards. Shearing never changes area.'],
          [39, 45.6, 'Only the diagonal stretches. So here is the design goal: a flexible map whose Jacobian is triangular by construction.']],
   draw(t) {
@@ -462,8 +482,8 @@ SC.push({ dur: 56, chapter: 'coupling', title: 'The coupling trick', sub: 'A fle
          [8, 16, 'Leave a completely alone. Transform b with a stretch and a shift that depend only on a:  b′ = b · e^s(a) + t(a).'],
          [16, 24, 'Watch one real layer: every point slides along one axis only, by an amount that depends on where it sits along the other.'],
          [24, 33, 'Now fill in the Jacobian, one nudge at a time. Nudge a: a′ moves by exactly 1, and b′ moves by something messy — we will not need it.'],
-         [33, 40, 'Nudge b: a′ does not move at all — a zero in the corner! — and b′ moves by e^s(a). Triangular. So det = 1 · e^s(a), however complicated s and t are.'],
-         [40, 47, 'Inverting is just as easy:  b = (b′ − t(a)) · e^−s(a). And s and t can be any neural networks at all — we never have to invert them.'],
+         [33, 40, 'Nudge b: a′ stays put — a zero! — and b′ moves by e^s(a). So det = e^s(a), for any s and t.'],
+         [40, 47, 'Inverting is just as easy: b = (b′ − t(a)) · e^−s(a). And s, t can be any networks: we never invert them.'],
          [47, 55.6, 'One layer can only bend one half. So stack layers, swapping the roles of a and b each time — and the log-determinants simply add up.']],
   draw(t) {
     const m = square(120, 240, 680), a0 = eout(prog(t, 0.6, 0.8)), f = t < 47 ? ease(prog(t, 16, 3.5)) - ease(prog(t, 20, 3.5)) + ease(prog(t, 24, 3.5)) : lerp(1, 4, ease(prog(t, 48, 7)));
@@ -567,7 +587,7 @@ SC.push({ dur: 50, chapter: 'catch', title: 'The catch: rubber can’t tear', su
          [8, 16, `It does well — ${A.nllRing.toFixed(2)} nats against a bell curve's ${A.gaussRing.toFixed(2)} — but look closely: thin bridges connect the blobs.`],
          [16, 24, 'A flow is a continuous, invertible warp. Like rubber, it can stretch and squeeze, but never tear. One connected blob cannot become eight separate islands.'],
          [24, 32, 'So some samples always land on the bridges, in places no real data lives.'],
-         [32, 40, 'Second catch: no compression. The latent z must have exactly as many numbers as the data — 784 in, 784 out. Episode 3’s VAE squeezed digits into 2.'],
+         [32, 40, 'Second catch: no compression. z must have exactly as many numbers as the data — 784 in, 784 out. Episode 3’s VAE squeezed digits into 2.'],
          [40, 49.6, "Third: every layer is shackled. It must be invertible, with a determinant we can afford — which rules out most of the architectures you'd love to use."]],
   draw(t) {
     const m = square(150, 240, 700), a0 = eout(prog(t, 0.6, 0.8)), da = eout(prog(t, 4, 1.5));
@@ -592,7 +612,7 @@ SC.push({ dur: 50, chapter: 'catch', title: 'The catch: rubber can’t tear', su
 SC.push({ dur: 40, chapter: 'continuous', title: 'Infinitely many, infinitely thin layers', sub: 'File this away — it returns in episode 10.',
   caps: [[1, 8, 'One more idea — file it away, it comes back in episode 10. What if we used infinitely many, infinitely thin layers?'],
          [8, 16, 'Then each point simply follows a velocity field: dx/dt = v(x, t). The warp becomes a smooth flow, like dye drifting in water.'],
-         [16, 24, 'And the costly determinant becomes cheap: the density changes at a rate set by the trace of v’s Jacobian — just the sum of its diagonal: d log p / dt = −tr(∂v/∂x).'],
+         [16, 24, 'The costly determinant turns cheap: density changes at the rate −tr(∂v/∂x), the trace of v’s Jacobian — just the sum of its diagonal.'],
          [24, 31, 'Now any network can be the velocity field — no coupling tricks required. These are continuous normalizing flows.'],
          [31, 39.6, 'Training them was painfully slow… until a much simpler recipe arrived. We will get there: flow matching.']],
   draw(t) {
@@ -633,6 +653,7 @@ SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'A coup
          [9, 18, 'Train it on two moons in a few minutes — then try eight blobs and find the bridges, or drop to two layers and watch it fail to bend.'],
          [18, 31.6, 'Recap: sand is conserved; the Jacobian is the local slope; its determinant is the local stretch. Couplings make it triangular — so it is free — and training is exact maximum likelihood.']],
   draw(t) {
+    playPill('ep06-flow-lab.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 290 + i * 38, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1200, 240, 620, 690, P.sage, ra); label('the whole episode', 1236, 290, ra, P.sage);
@@ -678,6 +699,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
       text('What if any network', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('could be a density?', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('NEXT  ·  EPISODE 07', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40, 1)), ls: 4 });
+      seasonStrip(6, 41.2, t);
       text('Energy-based models — sculpting a landscape', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 40.5, 1)) });
     }
   } });

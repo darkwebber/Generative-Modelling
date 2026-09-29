@@ -10,7 +10,7 @@ picture sharpens (country → city → street). Particles following the arrows r
 
 import numpy as np
 
-from audio_lib import Score, assets, ease, eout, prog, scene_durations
+from audio_lib import Score, assets, ease, eout, prog, scene_durations, scene_index
 
 durs = scene_durations(8)
 A = assets(8)
@@ -161,5 +161,9 @@ harp(12, 17, LADDER[0], 0.8); ladder(12, f12, 17, 30.1, 0.9)
 S.roll(12, 17, 30.5, lambda t: speed(ANN, f12, t), 0.9, -0.3, seed=3)
 c(12, 8, 'tick'); c(12, 15, 'tick'); c(12, 23, 'tick')
 c(12, 38.5, 'thud', 1.1, f=45); c(12, 38.5, 'chime', 1.5, m=58); c(12, 38.55, 'chime', 1.2, m=65); c(12, 39.3, 'chime', 1.0, m=70); c(12, 40.5, 'tick'); c(12, 41, 'chime', 1.0, m=82)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(8, 'next'), 41.7, 8)
+S.play_pill(scene_index(8, 'build it'), 9)
 
 S.render()

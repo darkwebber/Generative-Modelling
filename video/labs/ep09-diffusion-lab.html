@@ -72,7 +72,7 @@
       <div class="row"><button class="primary" id="sde">noise &amp; redraw</button><button id="clear">clear</button></div>
     </section>
   </div>
-  <footer>The same model in Python: <span style="font-family:var(--mono)">code/diffusion.py</span>, exported by <span style="font-family:var(--mono)">code/export_ep09_assets.py</span> (weights stored in 8 bits here). Net: [x (784), sinusoidal embedding of t (64)] → 1024 → 1024 → 784, swish, t fed into every hidden layer; the output is its guess x̂₀ (through tanh) and the noise is read off it, ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ). Linear β from 0.0001 to 0.02 over 1,000 steps.</footer>
+  <footer>The same model in Python: <span style="font-family:var(--mono)">code/diffusion.py</span>, exported by <span style="font-family:var(--mono)">code/export/export_ep09_assets.py</span> (weights stored in 8 bits here). Net: [x (784), sinusoidal embedding of t (64)] → 1024 → 1024 → 784, swish, t fed into every hidden layer; the output is its guess x̂₀ (through tanh) and the noise is read off it, ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ). Linear β from 0.0001 to 0.02 over 1,000 steps.</footer>
 </main>
 <script src="ep09-model.js"></script>
 <script>

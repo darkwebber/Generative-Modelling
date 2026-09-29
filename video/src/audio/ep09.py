@@ -13,7 +13,7 @@ import sys
 
 import numpy as np
 
-from audio_lib import ROOT, Score, assets, ease, eout, prog, scene_durations
+from audio_lib import ROOT, Score, assets, ease, eout, prog, scene_durations, scene_index
 
 sys.path.insert(0, os.path.join(ROOT, '..', 'code'))
 durs = scene_durations(9)
@@ -42,7 +42,7 @@ S.score(CH, [
     ([(0, 'Fm9'), (16, 'Dbmaj7#11'), (24, 'Ebmaj9'), (40, 'Bbsus')], 0.7, .8),            # 02 reverse
     ([(0, 'Cm9'), (16, 'Abmaj7'), (32, 'Ebmaj9'), (47, 'Bbsus')], 0.9, .9),               # 03 training
     ([(0, 'Abmaj7'), (24, 'Fm9'), (40, 'Ebmaj9')], 0.8, .9),                              # 04 sampling
-    ([(0, 'Cm9'), (8, 'Abmaj7'), (14, 'Bbsus'), (20.2, 'Eb'), (28, 'Ebmaj9')], 0.4, 1.0),  # 05 digits
+    ([(0, 'Cm9'), (8, 'Abmaj7'), (14, 'Bbsus'), (20.2, 'Eb'), (28, 'Ebmaj9'), (50, 'Cm9'), (57.5, 'Abmaj7'), (64, 'Fm9'), (70, 'Eb')], 0.4, 1.0),  # 05 digits + judges
     ([(0, 'Gm7'), (16, 'Cm9'), (32, 'Abmaj7'), (40, 'Bbsus')], 0.7, .8),                  # 06 why it works
     ([(0, 'Ebmaj9'), (16, 'Fm9'), (24, 'Abmaj7'), (40, 'Bbsus')], 0.9, .9),               # 07 ddim
     ([(0, 'Ebmaj9'), (18, 'Cm9'), (27, 'Abmaj7'), (36, 'Eb')], 1.0, 1.0),                 # 08 in the wild
@@ -108,6 +108,13 @@ c(5, 20.2, 'thud', 1.0, f=40)
 for mi, g_ in ((51, 0.85), (58, 0.75), (63, 0.8), (67, 0.7), (70, 0.6), (75, 0.6), (79, 0.5)): c(5, 20.2 + 0.01 * (mi % 4), 'chime', g_, (mi - 66) / 30, m=mi, bright=1.2)
 for j in range(8): c(5, 28.3 + j * 0.25, 'note', 0.5, -0.6 + 0.17 * j, m=[63, 65, 67, 70, 72, 75, 79, 82][j], lead='celesta')
 c(5, 36, 'tick'); c(5, 43, 'chime', 0.9, m=75)
+# episode 4's judges: a whoosh as the card slides in, a tock per bar (higher for better), stamps on the wins
+c(5, 50.3, 'whoosh', 0.8, dur=1.2, f0=500, f1=3000)
+for t0 in (52, 57.8, 64.2):
+    for j in range(3): c(5, t0 + 0.4 + j * 0.45, 'tock', 0.8, -0.3 + 0.3 * j, f=900 + 350 * j)
+c(5, 60.5, 'stamp', 0.9, 0.5); c(5, 62.8, 'stamp', 0.9, 0.5)
+c(5, 67, 'chime', 0.7, 0.2, m=79)
+for mi, g_ in ((51, 0.6), (58, 0.5), (63, 0.6), (70, 0.5), (75, 0.45)): c(5, 70 + 0.02 * (mi % 3), 'chime', g_, (mi - 63) / 30, m=mi)
 
 # 06 why it works — forward (rose) and backward (sage) sweeps, typed ELBO
 for j in range(6): c(6, 1 + j * 0.3, 'note', 0.4, -0.6 + 0.24 * j, m=79 - 2 * j, lead='celesta')
@@ -137,5 +144,9 @@ m(10, 1, 8.1, lambda t: ease(prog(t, 1, 7)), 0.7, lo=250, hi=1600, tone=(51, 63)
 for i in range(10): c(10, 16 + i * 0.1, 'note', 0.35, -0.6 + 0.13 * i, m=63 + 2 * i, lead='celesta')
 c(10, 8, 'tick'); c(10, 24, 'chime', 0.9, m=77)
 c(10, 38.5, 'thud', 0.8, f=45); c(10, 38.5, 'chime', 1.0, m=63); c(10, 38.55, 'chime', 0.85, m=70); c(10, 39.3, 'chime', 1.0, m=75); c(10, 40.5, 'tick'); c(10, 41, 'chime', 1.0, m=87)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(9, 'next'), 41.7, 9)
+S.play_pill(scene_index(9, 'build it'), 9)
 
 S.render()

@@ -5,7 +5,7 @@ point sings as it wanders; a harp-like cascade as the decoded grid appears.
 """
 import numpy as np
 
-from audio_lib import Score, ease, eout, prog, probe
+from audio_lib import Score, ease, eout, prog, probe, scene_index
 
 (durs, recon) = probe('ep03-autoencoders-vae.html', ['SC.map(s => s.dur)', 'A.histAE.map(h => h.recon)'])
 S = Score('ep03-audio', durs, seed=33)
@@ -111,5 +111,9 @@ S.cue(11, 15.2, 'stamp', 1.0, 0.0); S.cue(11, 22.2, 'stamp', 1.0, 0.6); S.cue(11
 S.cue(11, 34, 'riser', 0.9, dur=2.0, m0=40, m1=52)
 S.cue(11, 36, 'thud', 1.0, f=41); S.cue(11, 36, 'chime', 1.3, m=64); S.cue(11, 36.05, 'chime', 0.9, m=71)
 S.cue(11, 42, 'tick'); S.cue(11, 42.5, 'chime', 1.0, m=83); S.cue(11, 44, 'tick', 0.6)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(3, 'next'), 43.2, 3)
+S.play_pill(scene_index(3, 'build it'), 9)
 
 S.render()

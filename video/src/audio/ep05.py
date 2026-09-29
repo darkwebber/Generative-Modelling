@@ -5,7 +5,7 @@ game; real training runs are sonified: each newly found mode chimes, each mode-c
 """
 import numpy as np
 
-from audio_lib import Score, ease, eout, prog, probe
+from audio_lib import Score, ease, eout, prog, probe, scene_index
 
 (durs, modes, hop_dom, epochs) = probe('ep05-gans.html', ['SC.map(s => s.dur)', 'A.healthy.map(s => s.modes)',
                                                            'A.hop.map((s, i) => dominant("hop", i).k)', 'EPOCHS'])
@@ -113,5 +113,9 @@ S.cue(11, 31, 'note', lead='kalimba', m=78)
 S.cue(11, 36.5, 'riser', 0.9, dur=2.0, m0=42, m1=54)
 S.cue(11, 38.5, 'thud', 1.0, f=42); S.cue(11, 38.5, 'chime', 1.4, m=61); S.cue(11, 38.55, 'chime', 1.0, m=69)
 S.cue(11, 40, 'tick'); S.cue(11, 40.5, 'chime', 1.0, m=78)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(5, 'next'), 41.2, 5)
+S.play_pill(scene_index(5, 'build it'), 9)
 
 S.render()

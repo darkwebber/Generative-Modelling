@@ -6,7 +6,7 @@ driven by the flow's own layer-by-layer motion (8 pulses per pass).
 
 import numpy as np
 
-from audio_lib import Score, ease, prog, scene_durations
+from audio_lib import Score, ease, prog, scene_durations, scene_index
 
 durs = scene_durations(6)
 S = Score('ep06-audio', durs, seed=6)
@@ -88,5 +88,9 @@ c(12, 7.5, 'whoosh', 1.2, dur=1.4, f0=3000, f1=250)
 m(12, 15, 22.6, lambda t: -sum(ease(np.clip((t - 15 - k * 0.3) / 6, 0, 1)) for k in range(6)), 0.6, lo=120, hi=500)
 c(12, 23, 'chime', m=74)
 c(12, 38.5, 'thud', 1.1, f=45); c(12, 38.5, 'chime', 1.5, m=62); c(12, 38.55, 'chime', 1.2, m=69); c(12, 40, 'tick'); c(12, 40.5, 'chime', 1.0, m=86)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(6, 'next'), 41.2, 6)
+S.play_pill(scene_index(6, 'build it'), 9)
 
 S.render()

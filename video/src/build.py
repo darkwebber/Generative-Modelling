@@ -22,7 +22,7 @@ ROOT = os.path.dirname(HERE)
 
 # num: (page, <title>, data scripts loaded before the engine, extra EPISODE options)
 EPISODES = {
-    1: ('ep01-generative-modelling.html', 'Generative Modelling Explained', [], {'header': '', 'chapterLabel': [12, 1]}),
+    1: ('ep01-generative-modelling.html', 'Generative Modelling Explained', ['ep01-assets.js'], {}),
     2: ('ep02-autoregressive.html', 'Autoregressive Generation Explained', ['names.js'], {}),
     3: ('ep03-autoencoders-vae.html', 'Autoencoders and VAEs', ['ep03-assets.js'], {}),
     4: ('ep04-evaluation.html', 'Evaluating Generative Models', ['ep04-assets.js'], {}),

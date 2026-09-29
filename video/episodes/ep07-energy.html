@@ -209,6 +209,26 @@ function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); c
 function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 // camera shake after an impact at t0
 function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+// ── the season, for the end-card strip: watched episodes lit, this one ringed, the next one pulsing
+const SEASON = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+function seasonStrip(cur, t0, t, y = 830) {
+  const a = eout(prog(t, t0, 0.8)); if (GA * a <= 0.002) return;
+  const n = SEASON.length, x0 = 500, x1 = 1420, X = i => x0 + (x1 - x0) * i / (n - 1);
+  line(x0, y, x1, y, P.border, 1.5, a);
+  const fill = eout(prog(t, t0 + 0.2, 0.07 * cur + 0.3)); line(x0, y, lerp(x0, X(cur - 1), fill), y, P.terracotta, 2, a * 0.8);
+  SEASON.forEach((name, i) => {
+    const ep = i + 1, u = prog(t, t0 + 0.2 + i * 0.07, 0.35), s = pop(u), x = X(i);
+    let col = P.dust, r = 4;
+    if (ep <= cur) { col = P.terracotta; r = 6; }
+    if (ep === cur + 1) { const pl = 0.5 + 0.5 * Math.sin((t - t0) * 4.5); col = P.amber; r = 6; ring(x, y, 10 + 5 * pl, P.amber, a * u * (0.8 - 0.6 * pl), 1.5); }
+    dot(x, y, r * s, col, a * u);
+    if (ep === cur) ring(x, y, 11 * s, P.chalk, a * u, 1.8);
+    text(String(ep).padStart(2, '0'), x, y + 30, { font: F.mono, size: 12, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u });
+    text(name, x, y + 50, { size: 14, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u * (ep <= cur + 1 ? 1 : 0.7) });
+  });
+}
+// ── "try it yourself": the episode's playground, named in the header area of the build-it scene
+function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
 const EPISODE = {"num": "07"};
 
 // ─────────────────────────────────────────────────────────────
@@ -288,7 +308,7 @@ const SC = [];
 
 // 00 — cold open
 SC.push({ dur: 28, chapter: 'intro',
-  caps: [[0.6, 6, 'A landscape of hills and valleys. Nobody drew it: a neural network sculpted it, one number for every point.'],
+  caps: [[0.6, 6, 'A landscape of hills and valleys. Nobody drew it: a network sculpted it, one number per point.'],
          [6, 12, 'Drop marbles anywhere. Let them roll downhill — and keep giving them small random kicks.'],
          [12, 18.5, 'They settle into eight valleys: the exact shape of the data. No generator. No decoder. No invertible layers.'],
          [18.5, 27.6, 'Today: energy-based models — the loosest rules in generative modelling, and the strangest way to draw a sample.']],
@@ -314,7 +334,7 @@ SC.push({ dur: 42, chapter: 'energy', title: 'One number per point', sub: 'The l
          [9, 17, 'An energy-based model promises almost nothing. Take any network, any architecture, and have it output one number: the energy, E(x).'],
          [17, 25, 'Low energy means “this looks like data”. High energy means “this doesn’t”. That is the whole model: a landscape over every possible x.'],
          [25, 33, `Probe the real trained landscape, measured from its lowest point: on a blob, ${PB.blob.toFixed(1)}. Between two blobs, ${PB.between.toFixed(1)}. Out in the corner, ${PB.corner.toFixed(1)}.`],
-         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is far easier than drawing one. The drawing is where it gets hard.']],
+         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is easier than drawing one. That is the hard part.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8));
     // the promises every earlier family had to make
@@ -343,14 +363,14 @@ SC.push({ dur: 42, chapter: 'energy', title: 'One number per point', sub: 'The l
 
 // 02 — from energy to probability
 SC.push({ dur: 54, chapter: 'boltzmann', title: 'From energy to probability', sub: 'Three reasonable demands force a single answer.',
-  caps: [[1, 7, 'A landscape is not yet a probability. We need a rule that turns each energy into a likelihood. Let’s derive it.'],
+  caps: [[1, 7, 'A landscape is not yet a probability. We need a rule that turns energy into likelihood. Let’s derive it.'],
          [7, 13, 'Demand one: probabilities can’t be negative, so p must be a positive function of the energy.'],
          [13, 19, 'Demand two: lower energy should mean more likely. Downhill is where the data lives.'],
          [19, 26, 'Demand three: if x has two independent parts, their energies should add — and their probabilities must multiply.'],
-         [26, 33, 'Only one function turns sums into products: the exponential. So p(x) ∝ e^−E(x). Each extra unit of energy makes x e ≈ 2.72 times less likely.'],
-         [33, 40, 'Flip the landscape upside down and exponentiate: deep valleys become tall peaks. This valley is ' + Math.exp(Efn(0) - Efn(-2.1)).toFixed(0) + '× more likely than the hilltop.'],
-         [40, 47, 'Last step: probabilities must add up to one. So divide by the total area under e^−E — a number called Z, the partition function.'],
-         [47, 53.6, 'You have met this before: episode 2’s softmax. Its logits are negative energies, and Z was a sum over 27 letters. Same rule — now over every possible x.']],
+         [26, 33, 'Only the exponential turns sums into products. So p(x) ∝ e^−E(x): each unit of energy makes x e ≈ 2.72 times less likely.'],
+         [33, 40, 'Flip and exponentiate: deep valleys become tall peaks. This valley is ' + Math.exp(Efn(0) - Efn(-2.1)).toFixed(0) + '× more likely than the hilltop.'],
+         [40, 47, 'Last step: probabilities must sum to one. So divide by the total area under e^−E, a number called Z: the partition function.'],
+         [47, 53.6, 'It’s episode 2’s softmax: logits are negative energies, Z a sum over 27 letters. Same rule, now over every x.']],
   draw(t) {
     const X0 = 150, X1 = 1010, X = x => X0 + (x + 3.3) / 6.6 * (X1 - X0), Yt = e => 560 - (e + 0.6) * 44, a0 = eout(prog(t, 0.6, 0.8));
     axes1(X0, X1, 560, a0); curve(Efn, -3.3, 3.3, X, Yt, P.plum, 4, a0, 240, [P.plum, 0.1], 560); text('energy E(x)', X1 - 150, 290, { font: F.mono, size: 20, color: P.plum, a: a0 });
@@ -387,8 +407,8 @@ SC.push({ dur: 54, chapter: 'boltzmann', title: 'From energy to probability', su
 const zRows = [['letters (episode 2)', '27', 'instant', P.sage], ['this 1-D curve', '661 grid points', 'instant', P.sage], ['this episode’s 2-D data', '400 × 400 = 160,000', 'a fraction of a second', P.sage], ['one 28 × 28 image, 256 shades', '256⁷⁸⁴ ≈ 10¹⁸⁸⁸', 'never', P.rose]];
 SC.push({ dur: 44, chapter: 'Z', title: 'The price tag: Z', sub: 'A sum over every possible x.',
   caps: [[1, 8, 'Z is the total of e^−E over every possible x. For 27 letters, that’s 27 terms. Easy.'],
-         [8, 15, 'For a curve, add up a few hundred grid points. For this episode’s 2-D data, a 400 × 400 grid: 160,000 evaluations. Still fine.'],
-         [15, 22, 'Every extra dimension multiplies the count. A 28 × 28 image with 256 shades per pixel has 256⁷⁸⁴ ≈ 10¹⁸⁸⁸ possibilities — far more than the 10⁸⁰ atoms in the universe.'],
+         [8, 15, 'For a curve, add up a few hundred grid points. For this 2-D data, a 400 × 400 grid: 160,000 evaluations. Still fine.'],
+         [15, 22, 'Each dimension multiplies the count. A 28 × 28 image with 256 shades: 256⁷⁸⁴ ≈ 10¹⁸⁸⁸ possibilities. The universe has 10⁸⁰ atoms.'],
          [22, 29, 'Worse: Z depends on the network’s weights. Every training step changes the landscape — and with it, the impossible sum.'],
          [29, 36, 'But here is a gift. Compare two points instead: p(a) / p(b). The Zs cancel. Only the energy difference remains.'],
          [36, 43.6, 'Hold on to that: ratios, and slopes, never need Z. They are how we will learn — and how we will sample.']],
@@ -424,14 +444,14 @@ SC.push({ dur: 44, chapter: 'Z', title: 'The price tag: Z', sub: 'A sum over eve
 
 // 04 — learning: push down, pull up
 SC.push({ dur: 56, chapter: 'push & pull', title: 'Learning: push down, pull up', sub: 'Maximum likelihood — and where the gradient of Z hides.',
-  caps: [[1, 8, 'Learning is episode 1 again: make the data likely. Take the log: log p(x) = −E(x) − log Z. Energy term, minus the dreaded Z.'],
+  caps: [[1, 8, 'Learning is episode 1 again: make the data likely. log p(x) = −E(x) − log Z: energy, minus the dreaded Z.'],
          [8, 15, 'Differentiate with respect to the weights θ. The first term is easy: backprop through the network. The second is the problem.'],
-         [15, 22, 'The gradient of log Z is one over Z times the gradient of Z. And Z is an integral of e^−E, so the gradient slides inside.'],
+         [15, 22, 'The gradient of log Z is ∇Z over Z. And Z is an integral of e^−E, so the gradient slides inside.'],
          [22, 29, 'Look at what appears inside the integral: e^−E divided by Z. That is exactly pθ — the model’s own distribution!'],
-         [29, 36, 'An integral against pθ is just an average over samples from the model. The impossible Z has turned into “ask the model to dream”.'],
+         [29, 36, 'An integral against pθ is an average over the model’s own samples. The impossible Z has become “ask the model to dream”.'],
          [36, 44, 'So the recipe: lower the energy under every data point. Raise it under every fantasy — every sample the model currently believes in.'],
-         [44, 50, 'Digging where the data is, and filling in where the model is wrong. The landscape gets sculpted, one push at a time.'],
-         [50, 55.6, 'When the fantasies land exactly where the data is, the two pushes cancel. The gradient is zero. Learning is done.']],
+         [44, 50, 'Dig where the data is, fill where the model is wrong: the landscape is sculpted one push at a time.'],
+         [50, 55.6, 'When fantasies land exactly where the data is, the two pushes cancel. The gradient is zero: learning is done.']],
   draw(t) {
     const x0 = 110, a0 = eout(prog(t, 0.6, 0.8)), fade = 1 - ease(prog(t, 35.5, 1));
     const rows = [[1, 'log [p|p][k_|θ]([d|x]) = −[m|E][k_|θ]([d|x]) − log [a|Z][k_|θ]'], [8, '∇[k_|θ] log [p|p][k_|θ]([d|x]) = −∇[k_|θ][m|E][k_|θ]([d|x]) − ∇[k_|θ] log [a|Z][k_|θ]'],
@@ -466,7 +486,7 @@ SC.push({ dur: 56, chapter: 'push & pull', title: 'Learning: push down, pull up'
 // 05 — watch a landscape get sculpted (real 1-D run)
 const scF = t => NF * Math.pow(prog(t, 4, 35), 1.7);
 SC.push({ dur: 48, chapter: 'sculpt', title: 'Watch a landscape get sculpted', sub: `Real training in 1-D: ${SCU.data.length} data points, a landscape made of 25 bumps.`,
-  caps: [[1, 8, `Here is that rule running for real. ${SCU.data.length} data points, drawn from a hidden landscape. The model starts perfectly flat: every x equally likely.`],
+  caps: [[1, 8, `That rule, running for real: ${SCU.data.length} points from a hidden landscape. The model starts flat: every x equally likely.`],
          [8, 16, 'Each step: dig down under every data point, and raise the ground under the model’s fantasies — fresh samples from its current landscape.'],
          [16, 24, 'At first the fantasies are everywhere, so the ground rises everywhere except where the data sits. Valleys appear.'],
          [24, 32, 'As the valleys deepen, the fantasies fall into them too — and the two pushes start to cancel.'],
@@ -502,9 +522,9 @@ const MSLOW = 12, mT0 = 9, mDT = 1.45, kAt = t => (t < mT0 ? 0 : t < mT0 + MSLOW
 SC.push({ dur: 54, chapter: 'metropolis', title: 'Sampling with ratios', sub: 'Propose a step. Flip a biased coin. No Z required.',
   caps: [[1, 9, 'We can’t normalise. But we can compare. That is enough to sample, with a trick from 1953.'],
          [9, 16, 'From where the marble sits, propose a random step. If it goes downhill, always take it.'],
-         [16, 23, 'If it goes uphill by ΔE, take it only with probability e^−ΔE: flip a coin weighted by the ratio of the two probabilities. Z cancels.'],
+         [16, 23, 'Uphill by ΔE? Take it only with probability e^−ΔE: a coin weighted by the ratio of the two probabilities. Z cancels.'],
          [23, 31, 'Accepted, rejected, accepted… Mostly the marble lingers in valleys, but now and then it climbs a hill.'],
-         [31, 39, 'Speed it up and keep a record of every place it has been. The histogram grows toward e^−E / Z — the true distribution, with no Z ever computed.'],
+         [31, 39, 'Speed it up and record every place it visits. The histogram grows toward e^−E / Z — the true distribution, with no Z ever computed.'],
          [39, 46, `${MET.length.toLocaleString('en-US')} steps, ${(metAcc * 100).toFixed(0)}% accepted. Metropolis and colleagues invented this at Los Alamos, to simulate atoms on one of the first computers.`],
          [46, 53.6, 'But it guesses blindly. In high dimensions almost every random step goes uphill — the steps must shrink like 1/√D. In 784 dimensions, a crawl.']],
   draw(t) {
@@ -548,12 +568,12 @@ SC.push({ dur: 54, chapter: 'metropolis', title: 'Sampling with ratios', sub: 'P
 
 // 07 — use the slope: gradient descent vs Langevin
 SC.push({ dur: 56, chapter: 'langevin', title: 'Use the slope', sub: 'Roll downhill — and keep jiggling.',
-  caps: [[1, 8, 'Our landscape is a neural network, so backprop gives us its slope, ∇E(x), for free — at any point, in any number of dimensions.'],
+  caps: [[1, 8, 'Our landscape is a neural network, so backprop gives its slope, ∇E(x), for free: at any point, in any dimension.'],
          [8, 15, 'Obvious idea: roll every marble downhill. x ← x − η∇E(x). Let’s drop the same 420 marbles on the real landscape.'],
          [15, 22, 'They all end up at the very bottoms. A handful of points, not a distribution: that is optimisation, not sampling.'],
          [22, 29, 'Now add a small random kick at every step. Same marbles, same slope — plus a jiggle of size √(2η).'],
          [29, 37, 'The kicks stop the marbles collapsing. They spread across each valley and settle into its shape — the shape of e^−E.'],
-         [37, 45, `This is Langevin dynamics: ${NL * 4} steps with η = ${A.eta}. Paul Langevin wrote it in 1908 for a pollen grain in water: a pull, plus random molecular kicks.`],
+         [37, 45, `This is Langevin dynamics: ${NL * 4} steps with η = ${A.eta}. Langevin wrote it in 1908 for a pollen grain: a pull, plus random kicks.`],
          [45, 55.6, 'Why this size of kick? Why does slope plus jiggle land on exactly e^−E — no Z anywhere? Hold that thought. It is the heart of episode 8.']],
   draw(t) {
     const L = square(90, 250, 620), Rm = square(740, 250, 620), a0 = eout(prog(t, 0.6, 0.8));
@@ -576,12 +596,12 @@ SC.push({ dur: 56, chapter: 'langevin', title: 'Use the slope', sub: 'Roll downh
 // 08 — sculpting in 2-D, for real
 const NS = A.train.length - 1, trF = t => NS * ease(prog(t, 6, 38));
 SC.push({ dur: 56, chapter: 'training', title: 'Sculpting in 2-D, for real', sub: 'Contrastive divergence: Langevin fantasies from a replay buffer.',
-  caps: [[1, 8, 'Now the real thing in two dimensions: a small network sculpting a landscape for the eight blobs that gave the flow so much trouble.'],
+  caps: [[1, 8, 'Now for real, in two dimensions: a small network sculpting a landscape for the eight blobs that troubled the flow.'],
          [8, 16, `Every step: take a batch of fantasies from a buffer, let them roll for ${A.k} Langevin steps, then push down on data and up on fantasies.`],
          [16, 24, 'At first the fantasies are scattered everywhere, so the ground rises everywhere else. Eight valleys begin to open.'],
          [24, 32, 'Fantasies that wander between the blobs raise ridges there. Watch them grow into walls.'],
          [32, 40, 'The two energies chase each other: once fantasies sit as low as the data, the pushes cancel.'],
-         [40, 47, 'This is contrastive divergence — Hinton’s recipe from 2002 — in its modern form: Langevin fantasies kept in a replay buffer (Du & Mordatch, 2019).'],
+         [40, 47, 'This is contrastive divergence — Hinton, 2002 — in its modern form: Langevin fantasies kept in a replay buffer (Du & Mordatch, 2019).'],
          [47, 55.6, 'One small extra: a gentle penalty on E² stops the energies running off to infinity. Training an EBM is a balancing act.']],
   draw(t) {
     const m = square(110, 250, 620), a0 = eout(prog(t, 0.6, 0.8)), f = trF(t), i = Math.min(NS - 1, Math.floor(f)), u = ease(f - i), S0 = A.train[i], S1 = A.train[i + 1];
@@ -607,7 +627,7 @@ SC.push({ dur: 56, chapter: 'training', title: 'Sculpting in 2-D, for real', sub
 
 // 09 — the result
 SC.push({ dur: 42, chapter: 'result', title: 'Eight valleys, no bridges', sub: 'What an energy can do that rubber can’t.',
-  caps: [[1, 8, 'The sculpted landscape’s density, e^−E / Z — computed exactly, because in 2-D we can afford to sum Z over a 400 × 400 grid.'],
+  caps: [[1, 8, 'The sculpted density, e^−E / Z, computed exactly: in 2-D we can afford to sum Z over a 400 × 400 grid.'],
          [8, 16, 'Next to it, episode 6’s flow on the same data: thin bridges, because rubber can’t tear. The energy simply raises a mountain between valleys.'],
          [16, 24, 'And Langevin marbles dropped from pure noise land in all eight valleys, evenly, with nothing on the ridges.'],
          [24, 32, `Yet its exact score is ${A.nll.toFixed(2)} nats per point, against the flow’s ${A.nllFlow.toFixed(2)}. A perfect model would score ${A.perfect.toFixed(2)}.`],
@@ -634,7 +654,7 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
   caps: [[1, 8, `Measure how much probability each valley really holds: ${(shMax * 100).toFixed(1)}% in the deepest, ${(shMin * 100).toFixed(1)}% in the shallowest. The data puts 12.5% in each.`],
          [8, 15, 'But the training fantasies looked perfect. Why? Each one rolls into whichever valley is nearest — and stays there.'],
          [15, 24, `Follow a single marble for ${A.chainSteps.toLocaleString('en-US')} Langevin steps. It crosses a ridge just ${A.cross === 1 ? 'once' : A.cross + ' times'}.`],
-         [24, 32, 'So training never compares one valley with another. The fantasies can’t tell it that some valleys are too deep. Moving between modes — mixing — is the hard part of sampling.'],
+         [24, 32, 'So training never compares one valley with another; the fantasies can’t report that some are too deep. Moving between modes, mixing, is the hard part.'],
          [32, 40, 'Second catch: cost. Every sample takes hundreds of network evaluations. A GAN or a flow needs one.'],
          [40, 47, 'Third: in high dimensions Z stays unknown, so there is no exact likelihood to report. Here, in 2-D, we cheated with a grid.'],
          [47, 53.6, 'Flexible and elegant — but hard to train, and slow to sample. Yet the idea is hiding everywhere.']],
@@ -699,10 +719,11 @@ const CODE = [
   '    E.[p|step](lr)',
 ];
 SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'A sampler and a training loop, in a dozen lines.',
-  caps: [[1, 9, 'The whole method fits on a screen: a Langevin sampler, and a loop that pushes energy down on data and up on fantasies. Full code, with hand-written backprop, is linked below.'],
+  caps: [[1, 9, 'It all fits on a screen: a Langevin sampler, and a loop pushing energy down on data and up on fantasies. Full code below.'],
          [9, 18, 'Try moons instead of blobs, drop the jiggle and watch samples collapse, or shorten the chains and watch training wobble.'],
          [18, 31.6, 'Recap: energy becomes probability through e^−E / Z. Z is impossible, but its gradient is an average over fantasies. Sample with ratios or with slopes. The price: slow, poorly mixing chains.']],
   draw(t) {
+    playPill('ep07-ebm-lab.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 40, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1200, 240, 620, 690, P.sage, ra); label('the whole episode', 1236, 290, ra, P.sage);
@@ -714,7 +735,7 @@ SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'A samp
 SC.push({ dur: 48, chapter: 'next', title: 'Only the slope?', sub: 'Where Z quietly disappears.',
   caps: [[1, 8, 'Look again at the sampler: slope, plus a jiggle. It never once used the energy itself — only its slope.'],
          [8, 16, 'Take the slope of log p with respect to x: the slope of −E, minus the slope of log Z.'],
-         [16, 23, 'But Z is a single number, a total over all x. It doesn’t change when x moves, so its slope is zero. Z vanishes.'],
+         [16, 23, 'But Z is one number, a total over all x. It doesn’t change when x moves, so its slope is zero. Z vanishes.'],
          [23, 30, 'What remains, ∇ₓ log p(x), has a name: the score. At every point, an arrow toward more probable x.'],
          [30, 38, 'So why sculpt a landscape at all? What if a network learned the arrows directly — no energy, no Z, no fantasies?'],
          [38, 47.6, 'Next episode: score matching — and why slope plus jiggle lands on exactly the right distribution. Follow the arrows.']],
@@ -740,6 +761,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Only the slope?', sub: 'Where Z quie
       text('Forget the landscape.', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('Learn the arrows.', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: eout(prog(t, 39.3, 1.2)) });
       text('NEXT  ·  EPISODE 08', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40.5, 1)), ls: 4 });
+      seasonStrip(7, 41.7, t);
       text('Score matching & Langevin dynamics — follow the arrows', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 41, 1)) });
     }
   } });

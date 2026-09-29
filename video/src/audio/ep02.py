@@ -5,7 +5,7 @@ for the autoregressive loop; typewriter keys for every letter that appears; dice
 """
 import numpy as np
 
-from audio_lib import Score, ease, eout, prog, probe
+from audio_lib import Score, ease, eout, prog, probe, scene_index
 
 HTML = 'ep02-autoregressive.html'
 VOC = '.abcdefghijklmnopqrstuvwxyz'
@@ -154,5 +154,9 @@ S.motion(12, 29, 35, lambda t: 0.5 + 0.5 * np.sin((t - 29) * 1.3 - np.pi / 2), 0
 S.cue(12, 33.5, 'riser', 0.9, dur=2.0, m0=45, m1=57)
 S.cue(12, 35.5, 'thud', 1.0, f=45); S.cue(12, 35.5, 'chime', 1.4, m=69); S.cue(12, 35.55, 'chime', 1.0, m=76)
 S.cue(12, 37, 'tick'); S.cue(12, 37.5, 'chime', 1.0, m=84)
+
+# the season strip on the end card, the playground pill in the build-it scene
+S.season_strip(scene_index(2, 'next'), 38.2, 2)
+S.play_pill(scene_index(2, 'build it'), 9)
 
 S.render()

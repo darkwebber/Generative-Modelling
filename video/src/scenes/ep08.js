@@ -54,9 +54,9 @@ const SC = [];
 
 // 00 — cold open
 SC.push({ dur: 28, chapter: 'intro',
-  caps: [[0.6, 6, 'Last time we sculpted a landscape, then only ever used its slope. So skip the landscape. Here are just the arrows.'],
+  caps: [[0.6, 6, 'Last time we sculpted a landscape, then used only its slope. So here are just the arrows.'],
          [6, 12, 'Drop particles anywhere. Each one follows the arrows, with a small random kick at every step.'],
-         [12, 18.5, 'Watch the arrows change as the noise level falls: first a broad, blurry pull, then sharp detail. The particles land on the data.'],
+         [12, 18.5, 'As the noise level falls the arrows change: first a broad pull, then sharp detail. The particles land on the data.'],
          [18.5, 27.6, 'Today: the score. How to learn it from data alone, how to sample with it, and the last idea before diffusion models.']],
   draw(t) {
     const dim = lerp(1, 0.14, ease(prog(t, 18.3, 1.4))), m = square(560, 170, 800); GA = dim;
@@ -78,9 +78,9 @@ SC.push({ dur: 28, chapter: 'intro',
 SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point', sub: 'The slope of log p, and why Z never shows up.',
   caps: [[1, 8, 'Start with a density p(x). Take its log: the peaks stay peaks, and the tiny tails turn into gentle, usable slopes.'],
          [8, 15, 'At any x, the slope of log p is the score: s(x) = d/dx log p(x). Positive means “more probable to the right”.'],
-         [15, 22, 'Draw it as an arrow at every point. The arrows point toward where data is likely, and grow longer the further out you go.'],
+         [15, 22, 'Draw it as an arrow at every point. The arrows point toward likely data, and grow longer the further out you go.'],
          [22, 29, 'Another reading: s = p′(x) / p(x), how fast p grows as a fraction of itself. A relative slope.'],
-         [29, 36, 'And Z? log p = log p̃ − log Z. Z is a constant, so its slope is zero. The score never needs normalising.'],
+         [29, 36, 'And Z? log p = log p̃ − log Z; Z is constant, so its slope is zero. The score never needs normalising.'],
          [36, 43, 'For a bell curve, the score is −(x − μ)/σ²: a spring pulling back to the centre, stiffer when the bell is narrow.'],
          [43, 49.6, 'In two dimensions the score is a gradient: an arrow field over the plane. That field is what we want to learn.']],
   draw(t) {
@@ -109,10 +109,10 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
 
 // 02 — why the jiggle is √(2η)
 SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub: 'A pull and a kick, in perfect balance.',
-  caps: [[1, 8, 'Last episode left a question: why is the random kick exactly √(2η)? Test it on the simplest target: a bell curve with variance 1.'],
-         [8, 15, 'Its score is −x. So each step shrinks x by a factor (1 − η), then adds a kick. Three runs: no kick, the √(2η) kick, and double that.'],
+  caps: [[1, 8, 'Last episode asked: why is the kick exactly √(2η)? Test it on the simplest target: a bell curve with variance 1.'],
+         [8, 15, 'Its score is −x: each step shrinks x by (1 − η), then kicks. Three runs: no kick, √(2η), and double.'],
          [15, 24, 'No kick: everything collapses onto the peak. Double kick: the cloud spreads four times too wide. The √(2η) kick lands exactly on the bell.'],
-         [24, 32, 'Why? Track the variance. The pull multiplies it by (1 − η)², a loss of about 2η per step. The kick adds back exactly 2η. They balance at 1.'],
+         [24, 32, 'Why? Track the variance. The pull multiplies it by (1 − η)², losing about 2η per step. The kick adds back exactly 2η. Balance at 1.'],
          [32, 40, 'The same balance holds for any p, in any dimension. The arrows push probability uphill; the jiggle spreads it back out.'],
          [40, 48, 'The uphill flow is p·s = p·∇log p = ∇p. The spreading flow is −∇p. They cancel exactly, so p stops changing: it is the stationary distribution.'],
          [48, 57.6, 'So Langevin needs only the score: no energy, no Z. If we can learn the arrows, we can sample.']],
@@ -144,7 +144,7 @@ SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub:
 
 // 03 — learning arrows we can't see
 SC.push({ dur: 40, chapter: 'the problem', title: 'Learning arrows we can’t see', sub: 'We have samples, not scores.',
-  caps: [[1, 8, 'So: learn a network s[k_|θ](x) that outputs an arrow for every x. The natural goal is to make its arrows match the true ones, on average over the data.'],
+  caps: [[1, 8, 'So: learn a network sθ(x) with an arrow at every x, matching the true arrows on average over the data.'],
          [8, 16, 'Minimise E‖sθ(x) − ∇ₓ log p(x)‖². But the true arrows are exactly what we don’t know. We only have samples.'],
          [16, 24, 'It’s like being asked to copy a map nobody will show you. Two tricks get around it.'],
          [24, 32, 'The first, from Aapo Hyvärinen in 2005, removes the unknown term with calculus. The second, from Pascal Vincent in 2011, uses noise.'],
@@ -163,7 +163,7 @@ SC.push({ dur: 40, chapter: 'the problem', title: 'Learning arrows we can’t se
 
 // 04 — Hyvärinen: integrate by parts
 SC.push({ dur: 54, chapter: 'hyvärinen', title: 'Trick 1: integrate by parts', sub: 'The unknown score cancels out.',
-  caps: [[1, 8, 'Write the goal out in one dimension. The squared error splits into three averages, and the last one doesn’t depend on θ at all.'],
+  caps: [[1, 8, 'Write the goal out in one dimension. The squared error splits into three averages; the last doesn’t depend on θ.'],
          [8, 16, 'The troublesome middle term: p times sθ times p′/p. The p’s cancel, leaving sθ times p′.'],
          [16, 24, 'Integrate by parts: move the derivative from p onto sθ. The boundary term vanishes because p fades to zero far away.'],
          [24, 32, 'What’s left is the average of sθ² + 2·sθ′ over the data. No true score anywhere: only samples.'],
@@ -231,7 +231,7 @@ SC.push({ dur: 58, chapter: 'denoising', title: 'Trick 2: add noise, point home'
 // 06 — training it for real
 const trF = t => (A.snaps.length - 1) * ease(prog(t, 4, 26));
 SC.push({ dur: 48, chapter: 'training', title: 'Training it for real', sub: `One network, ${SIG.length} noise levels, ${A.snapSteps[A.snapSteps.length - 1].toLocaleString('en-US')} steps.`,
-  caps: [[1, 8, 'Now train it on the eight blobs from the last two episodes. One network sees both the noisy point and the noise level σ, and predicts the noise.'],
+  caps: [[1, 8, 'Now train it on the eight blobs. One network sees the noisy point and the noise level σ, and predicts the noise.'],
          [8, 16, `Each step: take clean points, pick a noise level between ${SIG[0].toFixed(1)} and ${SIG[SIG.length - 1].toFixed(2)}, shake, and regress onto the noise.`],
          [16, 24, `Watch the arrows at σ ≈ ${SIG[A.mid].toFixed(1)} organise themselves: random at first, then all pointing toward the ring.`],
          [24, 32, 'The loss never reaches zero, and it shouldn’t: when shaken points overlap, nobody could tell which one a noisy point came from.'],
@@ -285,7 +285,7 @@ SC.push({ dur: 56, chapter: 'catch', title: 'The catch: arrows in the desert', s
 const anF = t => NS * clamp((t - 22) / 30);
 SC.push({ dur: 60, chapter: 'many scales', title: 'Noise at many scales', sub: 'Blur first, sharpen later: annealed Langevin.',
   caps: [[1, 8, 'The fix: train the network at many noise levels at once. That’s why it takes σ as an input.'],
-         [8, 15, 'At σ = 3 the data is blurred into one broad hill. Its arrows reach everywhere, and every region has noisy training points, so they are reliable.'],
+         [8, 15, 'At σ = 3 the data blurs into one broad hill. Its arrows reach everywhere, and noisy points cover every region: reliable.'],
          [15, 22, 'Step the noise down and the field sharpens: first a ring, then eight separate valleys.'],
          [22, 30, 'Annealed Langevin: start particles from noise at the largest σ, take a few Langevin steps, lower σ, and repeat.'],
          [30, 38, 'Big steps while the noise is big, tiny careful steps at the end: the step size shrinks like σ².'],
@@ -362,6 +362,7 @@ SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'Traini
          [9, 18, 'Try the 80/20 blobs: sample with only the smallest σ, then with all ten, and compare the shares yourself.'],
          [18, 31.6, 'Recap: the score is the slope of log p, with no Z. Langevin balances pull and kick exactly. Noise makes the score learnable. Many noise levels make it samplable.']],
   draw(t) {
+    playPill('ep08-score-lab.html', 9, t);
     const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1060, 690, P.plum, a);
     CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 40, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
     const ra = eout(prog(t, 18, 0.8)); card(1200, 240, 620, 690, P.sage, ra); label('the whole episode', 1236, 290, ra, P.sage);
@@ -394,6 +395,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Noise, in slow motion', sub: 'What a
       text('Destroy it slowly.', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
       text('Learn to undo it.', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: eout(prog(t, 39.3, 1.2)) });
       text('NEXT  ·  EPISODE 09', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40.5, 1)), ls: 4 });
+      seasonStrip(8, 41.7, t);
       text('Diffusion models — noise, run backwards', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 41, 1)) });
     }
   } });

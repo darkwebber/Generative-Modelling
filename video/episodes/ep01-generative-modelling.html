@@ -37,7 +37,7 @@
   </div>
   <div class="chapters" id="chapters"></div>
 </div>
-
+<script src="ep01-assets.js"></script>
 <script>
 // ─────────────────────────────────────────────────────────────
 //  Midnight Atelier engine — tokens, maths, drawing helpers.
@@ -209,7 +209,27 @@ function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); c
 function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 // camera shake after an impact at t0
 function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
-const EPISODE = {"num": "01", "header": "", "chapterLabel": [12, 1]};
+// ── the season, for the end-card strip: watched episodes lit, this one ringed, the next one pulsing
+const SEASON = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+function seasonStrip(cur, t0, t, y = 830) {
+  const a = eout(prog(t, t0, 0.8)); if (GA * a <= 0.002) return;
+  const n = SEASON.length, x0 = 500, x1 = 1420, X = i => x0 + (x1 - x0) * i / (n - 1);
+  line(x0, y, x1, y, P.border, 1.5, a);
+  const fill = eout(prog(t, t0 + 0.2, 0.07 * cur + 0.3)); line(x0, y, lerp(x0, X(cur - 1), fill), y, P.terracotta, 2, a * 0.8);
+  SEASON.forEach((name, i) => {
+    const ep = i + 1, u = prog(t, t0 + 0.2 + i * 0.07, 0.35), s = pop(u), x = X(i);
+    let col = P.dust, r = 4;
+    if (ep <= cur) { col = P.terracotta; r = 6; }
+    if (ep === cur + 1) { const pl = 0.5 + 0.5 * Math.sin((t - t0) * 4.5); col = P.amber; r = 6; ring(x, y, 10 + 5 * pl, P.amber, a * u * (0.8 - 0.6 * pl), 1.5); }
+    dot(x, y, r * s, col, a * u);
+    if (ep === cur) ring(x, y, 11 * s, P.chalk, a * u, 1.8);
+    text(String(ep).padStart(2, '0'), x, y + 30, { font: F.mono, size: 12, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u });
+    text(name, x, y + 50, { size: 14, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u * (ep <= cur + 1 ? 1 : 0.7) });
+  });
+}
+// ── "try it yourself": the episode's playground, named in the header area of the build-it scene
+function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
+const EPISODE = {"num": "01"};
 
 // ─────────────────────────────────────────────────────────────
 //  Data sets (all seeded — every render is identical)
@@ -312,26 +332,90 @@ const sigm = v => 1 / (1 + Math.exp(-v));
 // ─────────────────────────────────────────────────────────────
 const SC = [];
 
-// 00 — cold open
-SC.push({ dur: 20, chapter: 'intro',
+// 00 — cold open: a trailer for the season, made only from its real models (data: code/export/export_ep01_assets.py)
+const E1 = window.EP1, TBANG = 22.5;
+const TILES = [
+  { ep: '02', name: 'autoregressive', col: P.amber, x: 110, y: 170 }, { ep: '03', name: 'VAE', col: P.plum, x: 690, y: 170 }, { ep: '05', name: 'GAN', col: P.rose, x: 1270, y: 170 },
+  { ep: '06', name: 'normalizing flow', col: P.ink, x: 110, y: 530 }, { ep: '07', name: 'energy-based model', col: P.plum, x: 690, y: 530 }, { ep: '09', name: 'diffusion', col: P.sage, x: 1270, y: 530 }];
+const TW = 540, TH = 320, TT = i => 1.5 + i * 3.3;                       // tile i tunes in at TT(i)
+const T_VAE = memo('t_vae', () => u8imgs(E1.vae)), T_GAN = memo('t_gan', () => E1.gan.x.map(u8imgs)), T_DIF = memo('t_dif', () => E1.diffusion.x.map(u8imgs));
+const T_STATIC = memo('t_static', () => { const c = document.createElement('canvas'); c.width = 135; c.height = 80; return { c, g: c.getContext('2d'), k: -1 }; });
+function tileStatic(x, y, w, h, t, a, seed) { if (GA * a <= 0.003) return; const S = T_STATIC, k = Math.floor(t * 24) * 7 + seed;
+  if (S.k !== k) { S.k = k; const im = S.g.createImageData(135, 80), r = rng(k); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 200; im.data[i] = v; im.data[i + 1] = v * 0.92; im.data[i + 2] = v * 0.86; im.data[i + 3] = 255; } S.g.putImageData(im, 0, 0); }
+  setA(a); ctx.imageSmoothingEnabled = false; ctx.drawImage(S.c, x, y, w, h); ctx.imageSmoothingEnabled = true; setA(1); }
+function landscape1(map) { return memo('t_land', () => { const n = map.n, h = Float32Array.from(b64bytes(map.u8), v => v / 255), c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d'), im = g.createImageData(n, n), lo = hx('#151110'), hi = hx('#7a6ca6');
+  for (let q = 0; q < n * n; q++) { const u = Math.pow(h[q], 1.15); for (let ch = 0; ch < 3; ch++) im.data[q * 4 + ch] = lo[ch] + (hi[ch] - lo[ch]) * u; im.data[q * 4 + 3] = 255; }
+  g.putImageData(im, 0, 0); return c; }); }
+const lerpStage = (S, f, k) => { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return [lerp(S[i][k][0], S[i + 1][k][0], u), lerp(S[i][k][1], S[i + 1][k][1], u)]; };
+function digitGrid(imgsAt, x, y, cell, a, key) { for (let q = 0; q < 9; q++) drawImg(cached(key + q, () => imgCanvas(imgsAt[q], P.terracotta)), x + (q % 3) * (cell + 6), y + Math.floor(q / 3) * (cell + 6), cell, a, { bg: true }); }
+function tileContent(i, x, y, t, a) {
+  const tl = t - TT(i), cx = x + TW / 2, cy = y + TH / 2 - 10;
+  if (i === 0) {                                                        // names typed by the counting model, letters settling out of noise
+    const per = 2.2, k = Math.floor(Math.max(0, tl) / per) % E1.names.length, w = E1.names[k], u = (Math.max(0, tl) % per) / per, n = Math.min(w.length, Math.floor(u * 1.6 * w.length + 1));
+    const r = rng(Math.floor(t * 18)), abc = 'abcdefghijklmnopqrstuvwxyz'; let s = '';
+    for (let j = 0; j < n; j++) s += (j === n - 1 && u * 1.6 * w.length - j < 0.6) ? abc[Math.floor(r() * 26)] : w[j];
+    text(s + (Math.floor(t * 3) % 2 ? '▍' : ' '), cx, cy + 20, { font: F.mono, size: 64, color: P.chalk, align: 'center', a });
+    M('[p|p]( next letter | letters so far )', cx, cy + 90, 20, { align: 'center', a: a * 0.9 });
+  }
+  if (i === 1) {                                                        // the VAE decoder walking a loop through its 2-number code
+    const f = (Math.max(0, tl) * 7) % 48, j = Math.floor(f), u = f - j, sz = 210, ang = f / 48 * TAU;
+    drawImg(cached('tv' + j, () => imgCanvas(T_VAE[j], P.terracotta)), cx - sz / 2 - 60, cy - sz / 2 + 10, sz, a * (1 - u), { bg: true });
+    drawImg(cached('tv' + (j + 1) % 48, () => imgCanvas(T_VAE[(j + 1) % 48], P.terracotta)), cx - sz / 2 - 60, cy - sz / 2 + 10, sz, a * u, { bg: false });
+    ring(cx + 170, cy + 10, 55, P.border, a, 1.5); dot(cx + 170 + 55 * Math.cos(ang), cy + 10 + 55 * Math.sin(ang), 7, P.rose, a);
+    text('z  (2 numbers)', cx + 170, cy + 95, { font: F.mono, size: 15, color: P.rose, align: 'center', a });
+  }
+  if (i === 2) {                                                        // the GAN's generator, epoch by epoch
+    const s = Math.min(E1.gan.epochs.length - 1, Math.floor(clamp(tl / 4.2) * E1.gan.epochs.length));
+    digitGrid(T_GAN[s], cx - 130, y + 34, 80, a, 'tg' + s + '_'); text(`epoch ${E1.gan.epochs[s]}`, cx + 190, cy + 10, { font: F.mono, size: 18, color: P.rose, align: 'center', a });
+  }
+  if (i === 3) {                                                        // the flow carrying noise onto the moons
+    const f = (E1.flow.length - 1) * ease(prog(tl, 0.4, 3.2)), s = 62;
+    for (let k = 0; k < E1.flow[0].length; k++) { const [px, py] = lerpStage(E1.flow, f, k); dot(cx + px * s, cy + 10 - py * s, 2.6, mixc(P.rose, P.terracotta, f / 8), a * 0.9); }
+  }
+  if (i === 4) {                                                        // Langevin marbles rolling into the energy valleys
+    const R = E1.ebm.R, S = TH - 40, x0 = cx - S / 2, y0 = y + 14, L = E1.ebm.lang, f = (L.length - 1) * clamp(Math.max(0, tl) / 4.5) ** 0.75;
+    setA(a); ctx.drawImage(landscape1(E1.ebm.E), x0, y0, S, S); setA(1);
+    for (let k = 0; k < L[0].length; k++) { const [px, py] = lerpStage(L, f, k); dot(x0 + (px + R) / (2 * R) * S, y0 + (R - py) / (2 * R) * S, 2.6, P.terracotta, a * 0.95); }
+  }
+  if (i === 5) {                                                        // diffusion: nine digits denoised out of static
+    const n = T_DIF.length - 1, s = Math.round(n * Math.pow(ease(prog(tl, 0.3, 4.2)), 0.85));
+    digitGrid(T_DIF[s], cx - 130, y + 34, 80, a, 'td' + s + '_');
+    const ts = E1.diffusion.ts[s]; text(ts < 0 ? 'done' : `t = ${ts}`, cx + 190, cy + 10, { font: F.mono, size: 18, color: P.sage, align: 'center', a });
+  }
+}
+SC.push({ dur: 36, chapter: 'intro',
   caps: [[0.6, 5, 'Every AI that writes, paints or composes is quietly doing one thing:'],
-         [5, 10, 'turning random noise into something that looks real.'],
-         [10, 15, "Let's build that idea from scratch — the intuition and the math."],
-         [15, 19.6, 'Watch the colours: each one means something, and it will never change.']],
+         [5, 10.5, 'turning random noise into something that looks real.'],
+         [10.5, 16.5, 'Names, digits, shapes, landscapes: six different machines, and every one of them is real.'],
+         [16.5, 22, 'Each is a different answer to one question. This season, we build them all.'],
+         [26, 31.5, 'From first principles, with the math, and with code you can run yourself.'],
+         [31.5, 35.6, 'Watch the colours: each one means something, and it never changes.']],
   draw(t) {
-    const pl = mk(960, 520, 290);
-    const dim = lerp(1, 0.16, ease(prog(t, 9.2, 1.6)));
-    for (let i = 0; i < 800; i++) {
-      const p = FIN[i]; const u = ease(prog(t, 2.6 + 1.4 * p.r, 4.5));
-      const [x, y] = finPos(p, u, 0.5);
-      dot(pl.X(x), pl.Y(y), 2.8, mixc(P.rose, P.terracotta, u), eout(prog(t, 0.2 + p.r, 1.2)) * 0.85 * dim);
-    }
-    const a = eout(prog(t, 9.6, 1.4));
-    text('Generative Modelling', 960, 470 + (1 - a) * 18, { font: F.serif, size: 132, color: P.chalk, align: 'center', a, ls: -1 });
-    text('what it is  ·  how it differs  ·  the math underneath', 960, 548, { size: 34, color: P.stone, align: 'center', a: eout(prog(t, 10.4, 1.2)) });
+    const [sx, sy] = shake(t, TBANG, 12); ctx.save(); ctx.translate(sx, sy);
+    const dimT = 1 - 0.82 * ease(prog(t, TBANG - 0.4, 0.8)), hot = t >= TBANG ? Math.exp(-(t - TBANG) * 1.3) : 0;
+    tileStatic(0, 0, 1920, 1080, t, 0.10 * (1 - ease(prog(t, 1, 2.5))), 3);                   // the whole screen starts as static
+    TILES.forEach((T, i) => {
+      const a = eout(prog(t, TT(i), 0.6)) * dimT; if (a <= 0) return; GA = 1;
+      rbox(T.x, T.y, TW, TH, 16, rgba(P.surface, 0.9), P.border, a);
+      ctx.save(); ctx.beginPath(); ctx.roundRect(T.x, T.y, TW, TH, 16); ctx.clip();
+      tileContent(i, T.x, T.y, t, a * eout(prog(t, TT(i) + 0.5, 1.2)));
+      tileStatic(T.x, T.y, TW, TH, t, a * 0.55 * (1 - ease(prog(t, TT(i) + 0.3, 1.4))), i);   // each tile tunes in out of static
+      ctx.restore();
+      if (hot > 0.01) rbox(T.x, T.y, TW, TH, 16, null, T.col, hot * 0.9, 2.5);
+      text(`EP ${T.ep}`, T.x + 18, T.y + TH - 16, { font: F.mono, size: 15, color: T.col, a, ls: 2 });
+      text(T.name, T.x + TW - 18, T.y + TH - 16, { font: F.serif, italic: true, size: 20, color: P.stone, align: 'right', a });
+    });
+    if (hot > 0.01) ring(960, 500, 180 + (t - TBANG) * 1500, P.chalk, hot * 0.35, 3);
+    ctx.restore();
+    const a = eout(prog(t, TBANG, 0.9));
+    text('EPISODE 01', 960, 370, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a: eout(prog(t, TBANG + 0.5, 1)), ls: 4 });
+    text('Generative Modelling', 960, 500 + (1 - a) * 18, { font: F.serif, size: 132, color: P.chalk, align: 'center', a, ls: -1 });
+    text('what it is  ·  how it differs  ·  the math underneath', 960, 574, { size: 32, color: P.stone, align: 'center', a: eout(prog(t, TBANG + 1, 1.2)) });
+    text('By the end of this season you’ll have built every one of those machines, from scratch.', 960, 660, { font: F.serif, italic: true, size: 30, color: P.chalk, align: 'center', a: eout(prog(t, 25, 1.4)) });
     const list = [[P.terracotta, 'x  data'], [P.ink, 'p  distribution'], [P.amber, 'θ  parameters'], [P.rose, 'z  noise'], [P.plum, 'g  model']];
-    ctx.font = `400 22px ${F.mono}`; let tw = list.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 22 * 2.1 + 14, -14);
-    let cx = 960 - tw / 2; list.forEach(([c, s], i) => { cx += tag(cx, 630, c, s, eout(prog(t, 15.2 + i * 0.5, 0.6)), 22) + 14; });
+    ctx.font = `400 22px ${F.mono}`; const tw = list.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 22 * 2.1 + 14, -14);
+    let cx = 960 - tw / 2; list.forEach(([c, s], i) => { cx += tag(cx, 740, c, s, eout(prog(t, 31.6 + i * 0.4, 0.6)), 22) + 14; });
   } });
 
 // 01 — data is points
@@ -446,7 +530,7 @@ SC.push({ dur: 44, chapter: 'generative', title: 'Generative models learn where 
          [14, 21, "Now that faraway point gets p(x) ≈ 0. The model knows it isn't a plausible cat."],
          [21, 29, 'And here is the magic: sample from p(x), and brand-new points appear that look like they belong.'],
          [29, 36, "That's generation. New images, sentences, sounds — all are samples from a learned p(x)."],
-         [36, 43.6, "Bonus: with Bayes' rule a model of p(x | y) gives you p(y | x) for free. The landscape contains the border — not the other way round."]],
+         [36, 43.6, "Bonus: with Bayes' rule, a model of p(x | y) gives p(y | x) for free. The landscape contains the border, not the reverse."]],
   draw(t) {
     const pl = mk(640, 600, 225);
     drawHeat(pl, 0.95 * ease(prog(t, 4.5, 5)));
@@ -527,7 +611,7 @@ SC.push({ dur: 40, chapter: 'density', title: 'What exactly is p(x)?', sub: 'Bui
 
 // 05 — maximum likelihood
 SC.push({ dur: 50, chapter: 'likelihood', title: 'Learning p(x): make the data likely', sub: 'Pick a family of shapes with knobs θ — then turn the knobs.',
-  caps: [[1, 7, "We never get to see the true p(x). So we pick a family of shapes with adjustable knobs, θ, and tune them."],
+  caps: [[1, 7, "We never see the true p(x). So we pick a family of shapes with knobs, θ, and tune them."],
          [7, 13, 'The simplest family: a bell curve. Two knobs — its centre μ and its width σ.'],
          [13, 20, 'How good is a guess? Read off the height of the curve at every data point: its likelihood.'],
          [20, 27, 'Multiply those heights together — in practice, add their logs. Bigger means the model finds the data more plausible.'],
@@ -681,45 +765,54 @@ SC.push({ dur: 40, chapter: 'the catch', title: 'The catch: real data is a thin 
     }
   } });
 
-// 08 — the zoo
-const ZOO = [
-  { name: 'Autoregressive', desc: 'Generate one piece at a time, each conditioned on everything so far.', eq: ['[p|p]([d|x]) = [kB|∏][k_|i] [p|p]([d|x][d_|i] | [d|x][d_|<i])'], ex: 'e.g. GPT · PixelCNN · WaveNet', icon: 'ar' },
-  { name: 'VAE', desc: 'Squeeze data into a small latent code z, then learn to decode z back into data.', eq: ['log [p|p]([d|x]) ≥ E[log [p|p]([d|x]|[n|z])]', '         − KL([m|q]([n|z]|[d|x]) ‖ [p|p]([n|z]))'], ex: 'e.g. VAE · VQ-VAE', icon: 'vae' },
-  { name: 'GAN', desc: 'A generator g forges samples; a discriminator D tries to catch them. Both improve.', eq: ['min[m_|g] max[m_|D] E[log [m|D]([d|x])]', '  + E[log(1 − [m|D]([m|g]([n|z])))]'], ex: 'e.g. StyleGAN · BigGAN', icon: 'gan' },
-  { name: 'Normalizing flow', desc: 'An invertible warp between noise and data, so p(x) can be computed exactly.', eq: ['[p|p]([d|x]) = [p|p]([n|z]) · |det ∂[n|z]/∂[d|x]|', '[d|x] = [m|g]([n|z]),  [n|z] = [m|g]⁻¹([d|x])'], ex: 'e.g. RealNVP · Glow', icon: 'flow' },
-  { name: 'Diffusion', desc: 'Gradually drown data in noise, then train a network to undo it, one small step at a time.', eq: ['[d|x][d_|t] = [a|√ᾱ][a_|t] [d|x][d_|0] + [a|√(1−ᾱ][a_|t][a|)] [n|ε]', 'loss = ‖[n|ε] − [m|ε][m_|θ]([d|x][d_|t], t)‖²'], ex: 'e.g. Stable Diffusion · DALL·E 3 · Sora', icon: 'diff' },
-];
-function zooIcon(kind, x, y, t, a) {
-  GA = a;
-  if (kind === 'ar') { const n = Math.floor((t * 2.5) % 9); for (let i = 0; i < 7; i++) { setA(1); ctx.strokeStyle = P.borderLight; ctx.lineWidth = 1.5; ctx.strokeRect(x + i * 22, y + 30, 17, 17); if (i < n) { setA(0.9); ctx.fillStyle = P.terracotta; ctx.fillRect(x + i * 22 + 2, y + 32, 13, 13); } if (i === n && n < 7) { setA(0.5 + 0.5 * Math.sin(t * 10)); ctx.strokeStyle = P.plum; ctx.lineWidth = 2.5; ctx.strokeRect(x + i * 22 - 2, y + 28, 21, 21); } } }
-  if (kind === 'vae') { setA(0.9); ctx.strokeStyle = P.plum; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y + 5); ctx.lineTo(x + 60, y + 30); ctx.lineTo(x + 60, y + 50); ctx.lineTo(x, y + 75); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + 150, y + 5); ctx.lineTo(x + 90, y + 30); ctx.lineTo(x + 90, y + 50); ctx.lineTo(x + 150, y + 75); ctx.closePath(); ctx.stroke(); glow(x + 75, y + 40, 6 + Math.sin(t * 3), P.rose, 1); }
-  if (kind === 'gan') { const u = (Math.sin(t * 2.2) + 1) / 2; ring(x + 20, y + 40, 20, P.plum, 1, 2); ring(x + 130, y + 40, 20, P.plum, 1, 2); text('g', x + 20, y + 48, { font: F.mono, size: 20, color: P.plum, align: 'center' }); text('D', x + 130, y + 48, { font: F.mono, size: 20, color: P.plum, align: 'center' }); glow(lerp(x + 44, x + 106, u), y + 40, 5, P.terracotta, 1); }
-  if (kind === 'flow') { const amp = 8 * Math.sin(t * 1.6); setA(0.8); ctx.strokeStyle = P.ink; ctx.lineWidth = 1.5; for (let j = 0; j < 4; j++) { ctx.beginPath(); for (let i = 0; i <= 30; i++) { const X = x + i * 5, Y = y + 10 + j * 20 + amp * Math.sin(i * 0.3 + j); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.stroke(); } for (let i = 0; i <= 6; i++) { ctx.beginPath(); for (let j = 0; j <= 12; j++) { const X = x + i * 25 + amp * Math.sin(j * 0.4 + i), Y = y + 10 + j * 5; j ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.stroke(); } }
-  if (kind === 'diff') { const u = (Math.sin(t * 1.3) + 1) / 2, r = rng(5); for (let i = 0; i < 14; i++) { const ang = i / 14 * TAU, sx = x + 75 + 30 * Math.cos(ang), sy = y + 40 + 30 * Math.sin(ang), nx = x + 10 + r() * 130, ny = y + 5 + r() * 70; dot(lerp(nx, sx, u), lerp(ny, sy, u), 4, mixc(P.rose, P.terracotta, u), 1); } }
-  GA = 1; setA(1);
+// 08 — the season map: every way to make a flexible p(x) trainable, in the order we build them
+const ROUTE = [
+  { ep: '01', name: 'What is p(x)?', tag: 'where the data lives', eq: '[p|p]([d|x])', col: P.terracotta, t: 1 },
+  { ep: '02', name: 'Autoregressive', tag: 'one piece at a time', eq: '[p|p]([d|x]) = ∏ [p|p]([d|x][d_|t] | [d|x][d_|<t])', col: P.amber, t: 7.5 },
+  { ep: '03', name: 'VAEs', tag: 'squeeze into a code, decode it', eq: 'ELBO ≤ log [p|p]([d|x])', col: P.plum, t: 10.8 },
+  { ep: '04', name: 'Evaluation', tag: 'how do you grade a generator?', eq: 'FID · precision · recall', col: P.sage, t: 14 },
+  { ep: '05', name: 'GANs', tag: 'a forger and a judge', eq: '[m|D]* = [p|p][k_|d] / ([p|p][k_|d] + [p|p][k_|g])', col: P.rose, t: 17.5 },
+  { ep: '06', name: 'Flows', tag: 'invertible warps, exact p(x)', eq: '[p|p]([d|x]) = [p|p]([n|z]) / |det J|', col: P.ink, t: 20.5 },
+  { ep: '07', name: 'Energy', tag: 'any landscape at all', eq: '[p|p]([d|x]) ∝ e^−E([d|x])', col: P.plum, t: 24 },
+  { ep: '08', name: 'Score', tag: 'learn only the arrows', eq: '[s|s]([d|x]) = ∇ log [p|p]([d|x])', col: P.sage, t: 27 },
+  { ep: '09', name: 'Diffusion', tag: 'noise, run backwards', eq: '‖[n|ε] − [m|ε][m_|θ]([d|x][d_|t], t)‖²', col: P.terracotta, t: 30.5 },
+  { ep: '10', name: 'Flow matching', tag: 'straight roads, noise → data', eq: 'd[d|x]/dt = [m|v][m_|θ]([d|x], t)', col: P.ink, t: 34 },
+  { ep: '11', name: 'Guidance', tag: 'steer it: text → image', eq: '[p|p]([d|x] | [c|caption])', col: P.amber, t: 37.5 }];
+const STOP = i => i < 6 ? [150 + i * 300, 330] : [1650 - (i - 6) * 375, 650];
+function routePath(u) {                                              // position along the route, u ∈ [0, 10]
+  const i = Math.min(9, Math.floor(u)), f = u - i, [x0, y0] = STOP(i), [x1, y1] = STOP(i + 1);
+  if (i === 5) { const ang = -Math.PI / 2 + Math.PI * f; return [1650 + 190 * Math.cos(ang), 490 + 160 * Math.sin(ang)]; }   // the bend down to the second row
+  return [lerp(x0, x1, f), lerp(y0, y1, f)];
 }
-SC.push({ dur: 46, chapter: 'the zoo', title: 'Five tricks for learning p(x)', sub: 'Each family is a different way to make a flexible, trainable generative model.',
-  caps: [[1, 8, 'Researchers found several clever ways to make a flexible p(x) actually trainable.'],
-         [8, 15, 'Autoregressive: generate one piece at a time. This is exactly how GPT-style language models write.'],
-         [15, 22, 'VAEs: squeeze data into a small code z, and learn to decode codes back into data.'],
-         [22, 29, 'GANs: a forger and a detective, locked in a game until the fakes are indistinguishable.'],
-         [29, 36, 'Flows: an invertible warp, so the change-of-variables formula gives an exact p(x).'],
-         [36, 45.6, "Diffusion: add noise step by step, then learn to reverse it. The engine behind today's image and video generators."]],
+SC.push({ dur: 56, chapter: 'season map', title: 'The route: a map of the season', sub: 'Every way to make a flexible p(x) trainable, in the order we will build them.',
+  caps: [[1, 7.5, 'There are several clever ways to make a flexible p(x) trainable. This season walks through them, in order.'],
+         [7.5, 14, 'Autoregressive models generate one piece at a time. VAEs squeeze data into a small code, then decode it.'],
+         [14, 20.5, 'Then a detour: how do you grade a generator? The answer turns a judge into a teacher: GANs.'],
+         [20.5, 27, 'Flows warp noise with an invertible map, so p(x) is exact. Energy models let any network be a landscape.'],
+         [27, 34, 'Score models learn only the arrows toward likelier data. Diffusion runs noise backwards, one small step at a time.'],
+         [34, 41, 'Flow matching straightens the road from noise to data. Guidance steers it: type a caption, get that picture.'],
+         [41, 49, 'Each stop fixes a weakness of the one before. By the end, you will know how modern image generators work.'],
+         [49, 55.6, 'And you will have built every one of them, from scratch.']],
   draw(t) {
-    const pos = [[100, 240], [680, 240], [1260, 240], [390, 600], [970, 600]], w = 560, h = 330;
-    ZOO.forEach((z, i) => {
-      const t0 = 8 + 7 * i, a = eout(prog(t, t0 - 0.4, 0.8)); if (a <= 0) return;
-      const [x, y] = pos[i]; const active = t >= t0 && t < t0 + 7;
-      card(x, y, w, h, P.plum, a);
-      if (active) { ctx.save(); setA(a * 0.8); ctx.strokeStyle = P.plum; ctx.lineWidth = 2; ctx.shadowColor = P.plum; ctx.shadowBlur = 16; ctx.beginPath(); ctx.roundRect(x, y, w, h, 18); ctx.stroke(); ctx.restore(); setA(1); }
-      text(z.name, x + 34, y + 62, { font: F.serif, size: 38, color: P.chalk, a });
-      zooIcon(z.icon, x + w - 190, y + 18, t, a);
-      para(z.desc, x + 34, y + 124, w - 68, { size: 23, a });
-      z.eq.forEach((e, k) => M(e, x + 34, y + 236 + k * 36, 21, { a }));
-      text(z.ex, x + 34, y + h - 22, { font: F.mono, size: 16, color: P.dust, a });
+    const a0 = eout(prog(t, 0.6, 0.8));
+    // the track: dashed where we have not been yet, solid terracotta behind the traveller
+    const reach = ROUTE.reduce((acc, s, i) => t >= s.t ? i : acc, 0), trav = t < 41 ? reach : 10 * ease(prog(t, 41, 7.5));
+    ctx.save(); setA(a0 * 0.8); ctx.strokeStyle = P.borderLight; ctx.lineWidth = 3; ctx.setLineDash([6, 8]); ctx.beginPath();
+    for (let u = 0; u <= 10.001; u += 0.05) { const [x, y] = routePath(Math.min(u, 10)); u ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); ctx.restore(); setA(1);
+    ctx.save(); setA(a0); ctx.strokeStyle = P.terracotta; ctx.lineWidth = 4; ctx.beginPath();
+    for (let u = 0; u <= trav + 1e-6; u += 0.05) { const [x, y] = routePath(Math.min(u, trav)); u ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); ctx.restore(); setA(1);
+    ROUTE.forEach((s, i) => {
+      const a = eout(prog(t, s.t, 0.7)) * a0; if (a <= 0) return; const [x, y] = STOP(i), p = pop(prog(t, s.t, 0.5));
+      const lit = t >= 41 && trav >= i - 0.02, here = i === 0;
+      dot(x, y, 12 * p, lit || here ? s.col : P.elevated, a); ring(x, y, 12 * p, s.col, a, 2.5);
+      if (here) { const pl = 0.5 + 0.5 * Math.sin(t * 3); ring(x, y, 18 + 8 * pl, P.terracotta, a * (0.8 - 0.6 * pl), 2); text('you are here', x, y - 30, { font: F.mono, size: 14, color: P.terracotta, align: 'center', a }); }
+      text(s.ep, x, y + 42, { font: F.mono, size: 15, color: s.col, align: 'center', a, ls: 2 });
+      text(s.name, x, y + 78, { font: F.serif, size: 30, color: P.chalk, align: 'center', a });
+      text(s.tag, x, y + 108, { size: 18, color: P.stone, align: 'center', a });
+      M(s.eq, x, y + 142, 16, { align: 'center', a: a * 0.95 });
     });
-    const la = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 7.5, 0.6)));
-    if (la > 0) M('all of them:  learn  [p|p][a_|θ]([d|x]) ≈ [p|p][k_|data]([d|x])', 960, 560, 40, { align: 'center', a: la });
+    if (t >= 41) { const [x, y] = routePath(trav); glow(x, y, 9, P.chalk, eout(prog(t, 41, 0.5)) * (1 - ease(prog(t, 49, 1)))); }
+    const fa = eout(prog(t, 49, 1)); if (fa > 0) text('built from scratch, one stop at a time', 960, 910, { font: F.serif, italic: true, size: 30, color: P.amber, align: 'center', a: fa });
   } });
 
 // 09 — finale
@@ -737,7 +830,36 @@ SC.push({ dur: 30, chapter: 'big picture', title: 'Noise in, meaning out', sub: 
     M('[n|z] ∼ N(0, I)   →   [d|x] = [m|g][a_|θ]([n|z])   ∼   [p|p][a_|θ]([d|x]) ≈ [p|p][k_|data]([d|x])', 960, 897, 32, { align: 'center', a: ma });
   } });
 
-// 10 — recap
+// 10 — build it (code/density.py)
+const CODE1 = [
+  '[k|# a mixture of bell curves: knobs θ = weights w, centres m, widths s]',
+  '[m|def] [p|pdf](x, w, m, s):',
+  '    [m|return] (w * normal(x[:, [m|None]], m, s)).sum([a|1])',
+  '',
+  '[k|# fit by maximum likelihood (EM): every step raises Σ log p(xᵢ)]',
+  '[m|for] _ [m|in] [p|range]([a|200]):',
+  '    r = w * normal(x[:, [m|None]], m, s);  r /= r.sum([a|1], keepdims=[m|True])',
+  '    n = r.sum([a|0]);  w = n / [p|len](x);  m = (r * x[:, [m|None]]).sum([a|0]) / n',
+  '    s = sqrt((r * (x[:, [m|None]] - m)**[a|2]).sum([a|0]) / n)',
+  '',
+  '[k|# sample: noise in, data out]',
+  'k = choice([p|len](w), size=[a|5], p=w)',
+  'x_new = m[k] + s[k] * randn([a|5])',
+];
+SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'A density you can fit and sample, in a dozen lines of numpy.',
+  caps: [[1, 9, 'Everything in this episode fits in a dozen lines of numpy: a mixture of bell curves, fitted by maximum likelihood.'],
+         [9, 18, 'Fit one, two, three, four bumps. Two wins on unseen data; more bumps start memorising the training points.'],
+         [18, 31.6, 'Then sample: pick a bump, stretch and shift a bell curve of noise. Noise in, data out. The code is linked below, with a playground to try it live.']],
+  draw(t) {
+    playPill('ep01-density-lab.html', 9, t);
+    const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1100, 690, P.plum, a);
+    CODE1.forEach((l, i) => { if (l) M(l, 136, 300 + i * 46, 19, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
+    const ra = eout(prog(t, 9, 0.8)); card(1240, 240, 580, 690, P.sage, ra); label('the whole episode', 1276, 290, ra, P.sage);
+    [['data', 'points [d|x] ∈ ℝᵈ'], ['a density', '[p|p]([d|x]) ≥ 0,  ∫ [p|p] = 1'], ['learning', 'max[a_|θ] Σ log [p|p][a_|θ]([d|x][d_|i])'], ['generating', '[d|x] = [m|g]([n|z]),  [n|z] ~ N(0, 1)'], ['the catch', 'data lives on thin slivers']].forEach(([nm, m], i) => {
+      const ai = eout(prog(t, 9.5 + i * 1.6, 0.8)); text(nm, 1276, 370 + i * 112, { font: F.serif, italic: true, size: 24, color: P.dust, a: ai }); M(m, 1276, 412 + i * 112, 21, { a: ai }); });
+  } });
+
+// 11 — recap
 SC.push({ dur: 34, chapter: 'recap', title: 'Two questions, two kinds of model', sub: 'Everything in one frame.',
   caps: [[1, 8, 'Recap. Discriminative models learn p(y | x): the border between answers.'],
          [8, 15, "Generative models learn p(x): the whole landscape of what's plausible."],
@@ -770,7 +892,35 @@ SC.push({ dur: 34, chapter: 'recap', title: 'Two questions, two kinds of model',
       text('“To create, a model must first understand', 960, 500, { font: F.serif, size: 62, color: P.chalk, align: 'center', a: qa });
       text('where the data lives.”', 960, 580, { font: F.serif, size: 62, color: P.chalk, align: 'center', a: qa });
       M('learn  [p|p][a_|θ]([d|x])   ·   sample  [n|z]   ·   generate  [d|x] = [m|g][a_|θ]([n|z])', 960, 680, 28, { align: 'center', a: eout(prog(t, 26, 1)) });
-      text('thanks for watching', 960, 780, { font: F.serif, italic: true, size: 28, color: P.terracotta, align: 'center', a: eout(prog(t, 29, 1)) });
+    }
+  } });
+
+// 12 — the hook: one piece at a time (episode 02's cold open types this very sentence)
+const TYPE1 = 'Once upon a time, a machine learned to write';
+SC.push({ dur: 34, chapter: 'next', title: 'Where we start', sub: 'The simplest trick of all.',
+  caps: [[1, 8, 'So which trick comes first? The simplest one: never try to write p(x) down in one go.'],
+         [8, 15, 'Break the data into pieces, and guess each piece from the ones before it: a letter, then the next.'],
+         [15, 21, 'Multiply those small guesses and you get p(x) exactly. It is how every chatbot writes.'],
+         [21.5, 33.6, 'Next episode: autoregressive models. Writing the future, one piece at a time.']],
+  draw(t) {
+    const dimAll = 1 - ease(prog(t, 21, 1)); GA = dimAll;                     // the demo leaves completely for the end card
+    const n = Math.min(TYPE1.length, Math.floor(clamp((t - 2) / 16) * TYPE1.length)), a0 = eout(prog(t, 0.6, 0.8));
+    ctx.font = `400 44px ${F.mono}`; const cw = ctx.measureText('m').width, x0 = 960 - cw * TYPE1.length / 2;
+    text(TYPE1.slice(0, n) + (Math.floor(t * 3) % 2 && n < TYPE1.length ? '▍' : ''), x0, 420, { font: F.mono, size: 44, color: P.chalk, a: a0 });
+    // the chain rule grows one factor per letter: the last few factors, with the newest lit
+    if (n > 0) { const k0 = Math.max(0, n - 4), terms = [];
+      for (let k = k0; k < n; k++) { const c = TYPE1[k] === ' ' ? '␣' : TYPE1[k], ctxs = k === 0 ? '' : ' | ' + (k > 3 ? '…' : '') + TYPE1.slice(Math.max(0, k - 3), k).replace(/ /g, '␣');
+        terms.push(`[p|p]([${k === n - 1 ? 'd' : 't'}|${c}]${ctxs})`); }
+      M('[p|p]([d|x]) = ' + (k0 > 0 ? '… · ' : '') + terms.join(' · ') + (n < TYPE1.length ? ' · …' : ''), 960, 540, 28, { align: 'center', a: a0 * eout(prog(t, 8, 1)) }); }
+    const ca = eout(prog(t, 8, 0.8)); card(560, 610, 800, 110, P.amber, ca);
+    text('each guess only ever picks among a few dozen letters', 960, 676, { font: F.serif, italic: true, size: 28, color: P.chalk, align: 'center', a: ca });
+    GA = 1;
+    const qa = eout(prog(t, 21.5, 1.2));
+    if (qa > 0) {
+      text('One piece at a time.', 960, 470, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
+      text('NEXT  ·  EPISODE 02', 960, 600, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 22.5, 1)), ls: 4 });
+      seasonStrip(1, 23.7, t);
+      text('Autoregressive generation — writing the future, one piece at a time', 960, 655, { font: F.serif, italic: true, size: 40, color: P.stone, align: 'center', a: eout(prog(t, 23, 1)) });
     }
   } });
 

@@ -72,6 +72,12 @@ def assets(n):
     return json.loads(re.search(r'window\.EP\d+ = (\{.*\});', src, re.S).group(1))
 
 
+def scene_index(n, chapter):
+    """Index of the scene with this chapter name in episode n (so cues survive scenes being added or moved)."""
+    src = open(os.path.join(SCENES, f'ep{n:02d}.js'), encoding='utf-8').read()
+    return re.findall(r"SC\.push\(\{ dur: [\d.]+, chapter: '([^']+)'", src).index(chapter)
+
+
 class Score:
     def __init__(self, name, durs, seed=1):
         self.name, self.durs = name, [float(d) for d in durs]
@@ -272,6 +278,15 @@ class Score:
             t += period; k += 1
 
     # ── sound effects ──────────────────────────────────────────
+    # ── the season's shared end-card language (engine: seasonStrip / playPill in kit.js)
+    def season_strip(self, sc, t0, cur, n=11):
+        """Dots light left to right, each a soft tick rising in pitch; the next episode's dot rings like a bell."""
+        for i in range(min(cur, n)): self.cue(sc, t0 + 0.2 + i * 0.07, 'tick', 0.45, -0.7 + 0.14 * i, f=1500 + 170 * i)
+        if cur < n: self.cue(sc, t0 + 0.2 + cur * 0.07, 'chime', 0.75, -0.7 + 0.14 * cur, m=84, bright=1.2)
+
+    def play_pill(self, sc, t0):
+        self.cue(sc, t0, 'clink', 0.5, 0.7, f=2600); self.cue(sc, t0 + 0.05, 'chime', 0.35, 0.7, m=91)
+
     def cue(self, sc, t, kind, gain=1.0, pan=0.0, **kw):
         T, a, s = self.at(sc, t), self.add, self.sfx
         if kind == 'tick': a(s, T, self.blip(kw.get('f', 1500)), 0.10 * gain, pan)
