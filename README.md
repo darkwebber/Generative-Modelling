@@ -8,6 +8,8 @@ answers.
 **Start here:** open [`video/index.html`](video/index.html) in a browser. It is the season hub: every episode in order,
 its playground and its code, and it remembers what you have watched.
 
+**What comes next:** [`CURRICULUM.md`](CURRICULUM.md) maps the whole series, Season 1 to Season 9.
+
 | # | Episode | The question | Playground | Code |
 |---|---------|--------------|------------|------|
 | 01 | What is generative modelling? | what does it mean to learn p(x)? | `ep01-density-lab` | `density.py` |
