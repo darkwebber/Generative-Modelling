@@ -242,6 +242,37 @@ are curved: flow matching.**
 | 09 | Build it | forward, training and sampling in 15 lines + recap | — |
 | 10 | Hook → flow matching | the curved roads DDIM took vs straight lines from noise to data | → *Episode 10: flow matching* |
 
+## Episode 10 — Flow matching (~10:42)
+
+`episodes/ep10-flow-matching.html` · playground: `labs/ep10-flow-lab.html` · code: `../code/flow_matching.py`
+
+Built from `src/scenes/ep10.js` (`python src/build.py 10`). Everything generated on screen comes from real
+flow-matching models trained in `code/export/export_ep10_assets.py`: the cold open writes "Flow Matching" out of static
+in four network calls (last episode needed a thousand), with a reflowed 2-D model trained on the pixels of the words.
+
+The spine: **generation is motion along a wind → the simplest road is a straight line xₜ = (1 − t)z + t·x with
+constant velocity x − z → random pairs make roads cross, and a network can only give one arrow per place and time →
+regression learns the average, and the averaged wind still delivers the same crowd at every moment, without crossings →
+one line of loss → eight blobs and 64 digits → big Euler strides and episode 4's judge → reflow straightens the roads
+until one step is enough → velocity, noise, clean guess and score are one arrow → a request as an input: guidance.**
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | 5,000 points of static become the title in 4 Euler steps of a reflowed model; one pip per network call | x ← x + Δt·v_θ(x, t) |
+| 01 | Generation is motion | a learned wind carries noise to the eight blobs; episode 1's g(z), episode 6's flow, Euler on a curved road | dx/dt = v(x, t) |
+| 02 | The simplest road | straight lines from noise to data; 600 random pairs, and they cross everywhere | xₜ = (1 − t)z + t·x, dxₜ/dt = x − z |
+| 03 | When roads cross | at t = ½ one spot has a fan of directions; its average vs the trained network | v(x, t) = E[x − z \| xₜ = x] |
+| 04 | The averaged wind still delivers | 36 random straight roads cross over and over, the wind's roads never; same histogram of the crowd at every t | the continuity equation, in words |
+| 05 | One regression | a random road, a random moment, the miss; why one random target per sample is enough | ‖v_θ(xₜ, t) − (x − z)‖² |
+| 06 | Training it for real | 3 × 256 swish MLP, the real loss curve (it levels off at the width of the fan), share per blob | — |
+| 07 | Sixty-four digits | MNIST in 32 Euler steps, and x̂ along the way: the mean digit, then a digit, then detail | x̂ = xₜ + (1 − t)·v_θ |
+| 08 | How few steps? | 1/2/4/8 steps on the blobs (1 step lands in the middle, radius 0.08); digits at 1–32 steps vs episode 9's DDIM; FID vs calls: 142 vs 210 at two, 48 vs 53 at four, level from eight (32 steps: 9.8, DDPM with 1,000: 9.8) | — |
+| 09 | Straighten the roads | reflow: pair each z with where the flow sends it, train again; straightness 0.545 → 1.000; one step lands the whole ring; digits in one step: FID 264 → 19 | new pairs (z, flow(z)) |
+| 10 | One family | diffusion's curved road vs the straight one; x̂, ẑ and the score from one v; episodes 6, 8, 9, 10 | x̂ = xₜ + (1 − t)v, ẑ = xₜ − t·v, s = −ẑ/(1 − t) |
+| 11 | In the wild | Stable Diffusion 3, Flux, Movie Gen / Voicebox, InstaFlow | — |
+| 12 | Build it | training in five lines, sampling in two + recap | — |
+| 13 | Hook → guidance | a flow told which blob to draw; v = v_∅ + w·(v_y − v_∅); "Ask, and it will draw." | → *Episode 11: guidance* |
+
 ## How it's built
 
 ```
@@ -280,7 +311,7 @@ python src/make.py 10 --render --preview   # + renders/ep10-…-sound.mp4 and a 
 
 ## Playgrounds
 
-Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep09-diffusion-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
+Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep10-flow-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -336,7 +367,7 @@ player and the MP4 carry identical audio.
 | 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands; a tock per judge's bar and stamps on diffusion's wins |
 
 ```bash
-python src/audio/ep01.py   # … ep09.py  → episodes/epNN-audio.mp3 next to the page (or: python src/make.py N)
+python src/audio/ep01.py   # … ep10.py  → episodes/epNN-audio.mp3 next to the page (or: python src/make.py N)
 ```
 
 ## Watch / scrub

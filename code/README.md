@@ -16,6 +16,7 @@ data, and a finite-difference gradient checker. Episodes 02–04 keep Adam writt
 - **Episode 07 · energy-based models:** `ebm.py` (numpy; Langevin sampling and contrastive divergence in 2-D)
 - **Episode 08 · score matching:** `score.py` (numpy; denoising score matching, noise-conditional net, annealed Langevin)
 - **Episode 09 · diffusion:** `diffusion.py` (numpy; DDPM training and sampling, DDIM, 2-D blobs and MNIST)
+- **Episode 10 · flow matching:** `flow_matching.py` (numpy; straight-road regression, Euler sampling, reflow, a label-conditioned net with guidance)
 
 The asset exporters (`export/export_epNN_assets.py`) train the models shown in each episode and write their data next to
 the episode page (`../video/episodes/epNN-assets.js`); trained nets are cached in `data/` (not in git). `export/common.py`
@@ -312,3 +313,40 @@ DDPM step       x_{t−1} = (x_t − β_t/√(1 − ᾱ_t)·ε_θ) / √(1 − �
 DDIM step       x_s = √ᾱ_s·x̂₀ + √(1 − ᾱ_s)·ε_θ                               (Song, Meng & Ermon, 2021; no fresh noise)
 why it works    the ELBO of a VAE whose 1000 latent layers are the noising chain splits into one Gaussian KL per step
 ```
+
+## Episode 10 — flow matching and reflow
+
+| file | what it is |
+|------|------------|
+| `flow_matching.py` | a velocity net v_θ(x, t) (episode 9's time-embedded MLP), trained on ‖v_θ(xₜ, t) − (x₁ − x₀)‖² with xₜ = (1 − t)·x₀ + t·x₁, x₀ noise and x₁ data, with hand-written backprop (for MNIST the net outputs its clean-image guess x̂₁ = tanh(F) and reports v = (x̂₁ − x)/(1 − t), weighted by min(1, 5(1 − t)²)); Euler sampling with any number of steps; reflow (retrain on the pairs (x₀, flow(x₀))); straightness; an optional one-hot label with a null slot (dropped 10% of the time) and guided sampling v = v_∅ + w·(v_y − v_∅), a preview of episode 11 |
+| `export/export_ep10_assets.py` | trains the nets in the video (the title and its reflow, the eight blobs and their reflow, the labelled blobs, MNIST and its reflow), scores MNIST with episode 4's judges against episode 9's DDIM at the same number of calls → `../video/episodes/ep10-assets.js`, and writes the lab's nets → `../video/labs/ep10-model.js`. `python export/export_ep10_assets.py glyph` (or `ring`, `cond`, `mnist`) trains just one, so you can run them in parallel |
+| `../video/labs/ep10-flow-lab.html` | the real models running in your browser: flow noise onto the ring with 1–64 Euler steps (round 1 vs reflow), scrub the wind through time and trace probe roads, ask the labelled model for a blob and turn up the guidance, make digits in a handful of steps |
+
+```bash
+python flow_matching.py --check              # gradients vs numerical (4 variants)
+python flow_matching.py --data ring          # 8 blobs, then Euler with 1 / 4 / 32 steps
+python flow_matching.py --data mnist --plot  # digits from noise in 32 steps
+```
+
+From the video (eight blobs at radius 2; MNIST scored on 2,000 samples, lower FID is better):
+
+```
+blobs, 1 Euler step      round 1: radius 0.08 (everything in the middle)    after reflow: radius 2.00
+straightness             round 1: 0.545                                     after reflow: 1.000
+MNIST FID by calls       1      2      4      8      16     32     100
+  flow matching          264    142    48     22.2   13.1   9.8    8.1
+  DDIM (episode 9)       —      210    53     21.4   13.1   10.5   9.1        (DDPM, 1,000 calls: 9.8)
+  after reflow           19.5   17.9   17.0   16.2   15.7
+```
+
+```
+path            xₜ = (1 − t)·x₀ + t·x₁                  x₀ ~ N(0, I), x₁ ~ data, t ~ U(0, 1)
+target          dxₜ/dt = x₁ − x₀                        (a straight road at constant speed)
+loss            E ‖v_θ(xₜ, t) − (x₁ − x₀)‖²              (Lipman et al., 2023; Liu et al., 2023; Albergo & Vanden-Eijnden, 2023)
+optimum         v*(x, t) = E[x₁ − x₀ | xₜ = x]          its flow carries N(0, I) to the data, marginal by marginal
+sampling        x ← x + Δt·v_θ(x, t),  Δt = 1/K
+reflow          new pairs (x₀, flow(x₀)): they never cross, so the new roads are straight
+one arrow       x̂₁ = xₜ + (1 − t)·v,   x̂₀ = xₜ − t·v,   score = −x̂₀/(1 − t)
+guidance        v = v_∅ + w·(v_y − v_∅)                 (episode 11)
+```
+
