@@ -273,6 +273,36 @@ until one step is enough → velocity, noise, clean guess and score are one arro
 | 12 | Build it | training in five lines, sampling in two + recap | — |
 | 13 | Hook → guidance | a flow told which blob to draw; v = v_∅ + w·(v_y − v_∅); "Ask, and it will draw." | → *Episode 11: guidance* |
 
+## Episode 11 — Guidance (~10:16) · season finale
+
+`episodes/ep11-guidance.html` · playground: `labs/ep11-guidance-lab.html` · code: `../code/guidance.py`
+
+Built from `src/scenes/ep11.js` (`python src/build.py 11`). Everything generated on screen comes from real models
+trained in `code/export/export_ep11_assets.py`: in the cold open one conditional flow spells "Guidance" letter by letter,
+each letter a request y. The season ends here, and hooks into Season 2 (see `../CURRICULUM.md`).
+
+The spine: **what asking means, p(x | y), and Bayes' rule → recipe 1: give the network the request as an input (with a
+"none" slot) → digits on request, heard softly → Bayes as arrows: log, then ∇ → recipe 2: add a noisy classifier's
+arrow, times w → recipe 3: that arrow is v_y − v_∅, so no classifier is needed → what w asks for, p(x)·p(y | x)^w → the
+price: certainty up, variety down → saying no → every request was a number; to draw what we say, a machine must read.**
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | one flow, eight requests: the title drawn letter by letter from the same kind of noise | y = “G”, “u”, … |
+| 01 | What asking means | p(x) vs p(x \| y = 3) as a filter; Bayes' rule; a classifier p(y \| x) on a probe point | p(x \| y) = p(y \| x)·p(x)/p(y) |
+| 02 | Recipe 1: tell the network | the request as a one-hot input, the ∅ slot, the same regression; flows asked for ∅, 3, 7 | v(x, t, y) = E[x − z \| xₜ = x, y] |
+| 03 | Digits on request | 10 × 8 grid, same noise down each column (style vs content); the digit reader agrees 86% | — |
+| 04 | Bayes, as arrows | log, then ∇; the classifier's arrow from a real noisy classifier; plus the no-request wind ≈ the labelled network's own wind (3° apart) | ∇ log p(x\|y) = ∇ log p(x) + ∇ log p(y\|x) |
+| 05 | Recipe 2: classifier guidance | the classifier must read noisy points; scores → velocities; w = 0, 1, 4 | Δv = (1 − t)/t·Δs; p(x)·p(y\|x)^w |
+| 06 | Recipe 3: classifier-free | one point: v_∅, v_y, the push between them, w = 1 → 3 | v = v_∅ + w·(v_y − v_∅) |
+| 07 | What the dial does | two overlapping classes at w = 0, 1, 2, 4, 8: on A's side 48% → 100%, spread 0.76 → 0.27; target vs samples | p(x)·p(A \| x)^w |
+| 08 | The price of listening | sevens at w = 0…8; judges: agrees 10% → 86% → 100%, FID best 3.0 at w = 1.5, recall 86% → 15%; the title at w = 2.5 keeps half of each letter | — |
+| 09 | Saying no | ask 3, avoid 2: at w = 1.25 it lands on 3's far side; at w = 2 it overshoots | v = v_neg + w·(v_y − v_neg) |
+| 10 | In the wild | GLIDE, Imagen, Stable Diffusion's guidance scale and negative prompt, FLUX.1 [dev] guidance distillation | — |
+| 11 | Build it | one line in training, two calls in sampling + recap | — |
+| 12 | Every request was a number | one-hots vs a sentence; y must become meaning; reading | — |
+| 13 | Season 1 → Season 2 | the season strip complete; *Machines that read*, starting with tokens | → *Season 2* |
+
 ## How it's built
 
 ```
@@ -311,7 +341,7 @@ python src/make.py 10 --render --preview   # + renders/ep10-…-sound.mp4 and a 
 
 ## Playgrounds
 
-Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep10-flow-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
+Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep11-guidance-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -367,7 +397,7 @@ player and the MP4 carry identical audio.
 | 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands; a tock per judge's bar and stamps on diffusion's wins |
 
 ```bash
-python src/audio/ep01.py   # … ep10.py  → episodes/epNN-audio.mp3 next to the page (or: python src/make.py N)
+python src/audio/ep01.py   # … ep11.py  → episodes/epNN-audio.mp3 next to the page (or: python src/make.py N)
 ```
 
 ## Watch / scrub

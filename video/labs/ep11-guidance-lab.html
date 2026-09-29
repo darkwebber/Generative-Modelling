@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guidance Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab-kit.css">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5; --clay:#a0735c;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+    color-scheme: dark;
+  }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; text-wrap:balance; }
+  .grid { display:grid; grid-template-columns: 1.1fr 1fr; gap:18px; }
+  .wide { grid-column: 1 / -1; }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  canvas { display:block; }
+  canvas.sq { width:100%; aspect-ratio:1; border-radius:10px; border:1px solid var(--border); background:var(--surface); }
+  canvas#dg { width:100%; aspect-ratio:2; border-radius:10px; border:1px solid var(--border); background:var(--surface); image-rendering:pixelated; }
+  .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; }
+  .blobs button { min-width:38px; }
+  .formula { font-family:var(--mono); font-size:14px; color:var(--stone); background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin:10px 0; overflow-x:auto; white-space:nowrap; }
+  .formula b { color:var(--amber); font-weight:400; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .knobs { grid-template-columns: 110px 1fr 56px; } }
+</style>
+<script src="lab-kit.js"></script>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 11 · playground</div>
+  <h1>Guidance Lab: ask a generator for what you want</h1>
+  <p class="sub">The real guidance models from the video run in your browser. Each is episode 10’s flow with one more input, the request y. Ask for a blob, a class or a digit, then turn the dial w: v = v<sub>∅</sub> + w·(v<sub>y</sub> − v<sub>∅</sub>). Watch the samples obey, and watch what obedience costs.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--terracotta)">
+      <canvas id="arena" class="sq" width="560" height="560" aria-label="noise points flowing to the requested blob"></canvas>
+      <div class="row" style="margin-top:12px"><button class="primary" id="go">flow ▶</button><button id="arrows">arrows: off</button><button id="seed">new noise</button><span class="stat" id="prog">ready</span></div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the request and the dial</div>
+      <div class="knobs" style="margin-bottom:0"><span>ask for</span><div class="row blobs" id="ask"></div><span></span></div>
+      <div class="knobs" style="margin-top:6px"><span>avoid</span><div class="row blobs" id="avoid"></div><span></span></div>
+      <div class="knobs"><span>guidance w</span><input id="gw" type="range" min="0" max="6" step="0.25" value="1"><span class="v" id="gwv"></span></div>
+      <div class="formula" id="formula"></div>
+      <div class="stat">on the requested blob: <b id="hit">–</b></div>
+      <div class="stat">spread of the landed points: <b id="spread">–</b></div>
+      <div class="label" style="margin-top:14px">what to look for</div>
+      <p class="hint" style="color:var(--stone);font-size:14px">At <b>w = 0</b> the request is ignored: every blob. At <b>w = 1</b>, plain p(x | y). Above 1 the points squeeze toward the blob’s most certain part. Pick something to <b>avoid</b> next door and the points slide away from it; push hard (w ≥ 2) and they overshoot.</p>
+    </section>
+    <section class="card" style="--accent:var(--sage)">
+      <div class="label">the arrows at one point</div>
+      <p class="hint">Click anywhere on the map. Grey: the wind with no request, v<sub>∅</sub>. Plum: with the request, v<sub>y</sub>. Sage: their difference, the request’s push. Amber: what the dial makes of it.</p>
+      <canvas id="probe" class="sq" width="560" height="560" aria-label="the guidance arrows at a chosen point"></canvas>
+      <div class="knobs"><span>time t</span><input id="tt" type="range" min="0.05" max="0.95" step="0.01" value="0.55"><span class="v" id="ttv"></span></div>
+    </section>
+    <section class="card" style="--accent:var(--ink)">
+      <div class="label">two overlapping classes</div>
+      <p class="hint">Class A on the left, B on the right, overlapping in the middle. Ask for A, and slide w. The ink curve is what p(x)·p(A | x)<sup>w</sup> asks for, across the panel.</p>
+      <canvas id="clouds" class="sq" width="560" height="560" aria-label="two overlapping classes under the guidance dial"></canvas>
+      <div class="knobs"><span>guidance w</span><input id="cw" type="range" min="0" max="8" step="0.5" value="1"><span class="v" id="cwv"></span></div>
+      <div class="stat">on A’s side: <b id="cA">–</b> · spread: <b id="cS">–</b></div>
+    </section>
+    <section class="card wide" style="--accent:var(--plum)">
+      <div class="label">digits on request</div>
+      <p class="hint">The conditional MNIST network (2.7 million weights, 8-bit here): the same noise, asked for one digit, with 16 Euler steps and two calls per step. Turn w up and watch the digits get bolder, then samey.</p>
+      <div class="grid" style="grid-template-columns:minmax(0,560px) 1fr">
+        <canvas id="dg" width="560" height="280" aria-label="eight digits drawn on request"></canvas>
+        <div>
+          <div class="row blobs" id="dask"></div>
+          <div class="knobs"><span>guidance w</span><input id="dw" type="range" min="0" max="8" step="0.5" value="1"><span class="v" id="dwv"></span></div>
+          <div class="row"><button class="primary" id="dgo">draw 8 ▶</button><button id="dseed">new noise</button></div>
+          <div class="stat" id="dprog">ready</div>
+          <p class="hint" style="color:var(--stone);font-size:14px">In the video: at w = 1 a digit reader agreed with the request 86% of the time; at w = 1.5 97%, and FID was best; by w = 4 every digit was right, but the variety had collapsed.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer>The same models in Python: <span style="font-family:var(--mono)">code/guidance.py</span>, exported by <span style="font-family:var(--mono)">code/export/export_ep11_assets.py</span>. 2-D nets: [x (2), one-hot request with a “none” slot, sinusoidal embedding of t (64)] → 256 → 256 → 256 → 2, trained with the request hidden 10% of the time. MNIST: 784 + 11 → 1024 → 1024 → 784 with a clean-image head, warm-started from episode 10.</footer>
+</main>
+<script src="ep11-model.js"></script>
+<script>
+const $ = id => document.getElementById(id), MD = window.EP11M;
+function b64f32(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Float32Array(u.buffer); }
+function b64i8(s) { const bin = atob(s), u = new Int8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = (bin.charCodeAt(i) << 24) >> 24; return u; }
+const f32 = w => ({ a: w.shape[0], b: w.shape[1] || 1, w: b64f32(w.f) });
+const deq = w => { const [a, b] = w.shape, q = b64i8(w.q), o = new Float32Array(a * b); for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) o[i * b + j] = q[i * b + j] * w.s[j]; return { a, b, w: o }; };
+function temb(t, ED) { const h = ED / 2, e = new Float32Array(ED); for (let k = 0; k < h; k++) { const f = Math.exp(-Math.log(1000) * k / h), a = (t + 1) * f; e[k] = Math.sin(a); e[k + h] = Math.cos(a); } return e; }
+function matvec(v, L, out) { const { a, b, w } = L; for (let i = 0; i < a; i++) { const vi = v[i]; if (!vi) continue; const r = i * b; for (let j = 0; j < b; j++) out[j] += vi * w[r + j]; } return out; }
+function makeNet(N, quant) { const W = N.W.map(quant ? deq : f32), U = N.U.map(quant ? deq : f32), B = N.b.map(v => quant ? Float32Array.from(v) : b64f32(v.f)), WO = quant ? deq(N.Wo) : f32(N.Wo), BO = quant ? Float32Array.from(N.bo) : b64f32(N.bo.f);
+  return { W, U, B, WO, BO, ed: N.ed, cond: N.cond || 0,
+    run(xs, t) { const e = temb(t * 999, this.ed), eu = this.U.map((u, l) => matvec(e, u, Float32Array.from(this.B[l])));
+      return xs.map(x => { let h = x; for (let l = 0; l < this.W.length; l++) { const z = matvec(h, this.W[l], Float32Array.from(eu[l])); for (let j = 0; j < z.length; j++) z[j] = z[j] / (1 + Math.exp(-z[j])); h = z; } return matvec(h, this.WO, Float32Array.from(this.BO)); }); } }; }
+const NETS = { blobs: makeNet(MD.blobs), clouds: makeNet(MD.clouds) };
+let MN = null; const mnist = () => MN || (MN = makeNet(MD.mnist, true));
+// the wind for 2-D points with request y (null = the "none" slot)
+function wind(net, pts, t, y) { const D = pts[0].length, xs = pts.map(p => { const v = new Float32Array(D + net.cond + 1); for (let d = 0; d < D; d++) v[d] = p[d]; v[D + (y == null ? net.cond : y)] = 1; return v; }); return net.run(xs, t); }
+// the guided wind: v_neg + w·(v_y − v_neg), with v_neg the "none" wind unless something is avoided
+function guided(net, pts, t, y, w, neg = null) { const vn = wind(net, pts, t, neg); if (y == null || w === 0) return vn; const vy = wind(net, pts, t, y); return vn.map((a, i) => a.map((v, d) => v + w * (vy[i][d] - v))); }
+
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const BL = Array.from({ length: 8 }, (_, k) => [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)]);
+const COL = ['#c4654a', '#d4a853', '#7a9e7e', '#6889b1', '#8b7bb5', '#b5707e', '#a0735c', '#ede6db'];
+const R = 1.7, toPx = (c, v, i, r = R) => i ? (r - v) / (2 * r) * c.height : (v + r) / (2 * r) * c.width, fromPx = (c, px, py, r = R) => [px / c.width * 2 * r - r, r - py / c.height * 2 * r];
+const nearest = p => { let b = 0, d = 1e9; BL.forEach((q, k) => { const e = Math.hypot(p[0] - q[0], p[1] - q[1]); if (e < d) { d = e; b = k; } }); return [b, d]; };
+const mix = (a, b, u) => { const h = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)), A = h(a), B = h(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * u)).join(',')})`; };
+function backdrop(g, c, want = -1, avoid = -1) { g.fillStyle = '#1c1816'; g.fillRect(0, 0, c.width, c.height); g.lineWidth = 1.5;
+  BL.forEach((b, k) => { g.strokeStyle = k === avoid ? '#b5707e' : COL[k]; g.globalAlpha = want < 0 || want === k || avoid === k ? 0.85 : 0.25; g.setLineDash(k === avoid ? [5, 4] : []); g.beginPath(); g.arc(toPx(c, b[0], 0), toPx(c, b[1], 1), 20, 0, 2 * Math.PI); g.stroke();
+    g.setLineDash([]); g.fillStyle = COL[k]; g.font = '13px JetBrains Mono, monospace'; g.textAlign = 'center'; g.fillText(String(k + 1), toPx(c, b[0] * 1.32, 0), toPx(c, b[1] * 1.32, 1) + 4); }); g.globalAlpha = 1; g.textAlign = 'left'; }
+function arrowTo(g, x0, y0, x1, y1, col, lw = 2) { g.strokeStyle = col; g.fillStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); const a = Math.atan2(y1 - y0, x1 - x0), h = 5 + lw * 2;
+  g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - h * Math.cos(a - 0.4), y1 - h * Math.sin(a - 0.4)); g.lineTo(x1 - h * Math.cos(a + 0.4), y1 - h * Math.sin(a + 0.4)); g.fill(); }
+
+// ── the arena: 400 points, 24 Euler steps, the request, the dial, a negative
+const arena = $('arena'), ag = arena.getContext('2d'); let want = 2, avoid = null, Z = [], traj = null, running = false, showArrows = false;
+let asked = 0, dialed = new Set(), negTried = false, probed = 0, tSlid = 0, cloudWs = new Set(), digitAsks = new Set(), digitHighW = false;
+const newNoise = () => { Z = Array.from({ length: 400 }, () => [gauss() * 0.75, gauss() * 0.75]); traj = null; };
+newNoise();
+function drawArena(f = 0) { backdrop(ag, arena, want == null ? -1 : want, avoid == null ? -1 : avoid); const K = traj ? traj.length - 1 : 0, i = Math.min(K - 1, Math.floor(f)), u = f - i;
+  const pts = !traj ? Z : f >= K ? traj[K] : traj[i].map((p, k) => [p[0] + (traj[i + 1][k][0] - p[0]) * u, p[1] + (traj[i + 1][k][1] - p[1]) * u]);
+  if (showArrows && !running) { const w = +$('gw').value, G = []; for (let a = -1.5; a <= 1.51; a += 0.25) for (let b = -1.5; b <= 1.51; b += 0.25) G.push([a, b]); const V = guided(NETS.blobs, G, 0.6, want, w, avoid);
+    G.forEach((p, k) => { const v = V[k], L = Math.hypot(...v), s = 0.1 * Math.min(1, 2.5 / Math.max(L, 1e-6)); ag.globalAlpha = Math.min(0.9, 0.3 + L / 4); arrowTo(ag, toPx(arena, p[0], 0), toPx(arena, p[1], 1), toPx(arena, p[0] + v[0] * s, 0), toPx(arena, p[1] + v[1] * s, 1), '#8b7bb5', 1.3); }); ag.globalAlpha = 1; }
+  const done = traj && f >= K; pts.forEach(p => { const [b, d] = nearest(p); ag.fillStyle = done && d < 0.3 ? COL[b] : mix('#b5707e', '#c4654a', traj ? Math.min(1, f / K) : 0); ag.beginPath(); ag.arc(toPx(arena, p[0], 0), toPx(arena, p[1], 1), 2.6, 0, 2 * Math.PI); ag.fill(); }); }
+function flow() { if (running) return; running = true; const K = 24, w = +$('gw').value; traj = [Z.map(p => p.slice())]; LabKit.sfx.whoosh(0.5);
+  for (let k = 0; k < K; k++) { const x = traj[k], v = guided(NETS.blobs, x, k / K, want, w, avoid); traj.push(x.map((p, i) => [p[0] + v[i][0] / K, p[1] + v[i][1] / K])); }
+  const t0 = performance.now(), per = 70; let lastI = -1;
+  const anim = now => { const f = Math.max(0, Math.min(K, (now - t0) / per)), i = Math.floor(f); if (i !== lastI && i < K) { LabKit.sfx.clack(i / K, -0.3); lastI = i; } drawArena(f); LabKit.sfx.roll(f < K ? 0.5 : 0);
+    if (f < K) requestAnimationFrame(anim); else finish(w); }; requestAnimationFrame(anim); }
+function finish(w) { running = false; LabKit.sfx.roll(0); const end = traj[traj.length - 1];
+  const on = want == null ? null : end.filter(p => { const [b, d] = nearest(p); return b === want && d < 0.3; }); $('hit').textContent = on == null ? 'no request' : `${Math.round(on.length / end.length * 100)}%`;
+  if (on && on.length > 3) { const c = BL[want], r = on.map(p => Math.hypot(p[0] - c[0], p[1] - c[1])); $('spread').textContent = (r.reduce((a, b) => a + b) / r.length).toFixed(3); } else $('spread').textContent = '–';
+  $('prog').innerHTML = `done: <b>24</b> steps, ${want == null || w === 0 ? 1 : 2} calls each`; if (want != null) { asked++; dialed.add(w); } if (avoid != null && want != null && w > 1) negTried = true;
+  on && on.length / end.length > 0.6 ? LabKit.sfx.success() : LabKit.sfx.thunk(); drawArena(traj.length - 1); }
+function formula() { const w = (+$('gw').value).toFixed(2), base = avoid == null ? 'v<sub>∅</sub>' : `v<sub>${avoid + 1}</sub>`; $('formula').innerHTML = want == null ? 'v = v<sub>∅</sub> &nbsp;(no request)' : `v = ${base} + <b>${w}</b>·(v<sub>${want + 1}</sub> − ${base})`; }
+const row = (el, labs, onPick, sel) => { labs.forEach(([lab, val, col]) => { const b = document.createElement('button'); b.textContent = lab; if (col) b.style.color = col; if (val === sel) b.classList.add('on'); b.onclick = () => { el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); onPick(val); LabKit.sfx.key(); }; el.appendChild(b); }); };
+row($('ask'), [['none', null], ...BL.map((_, k) => [String(k + 1), k, COL[k]])], v => { want = v; formula(); drawArena(traj ? traj.length - 1 : 0); }, 2);
+row($('avoid'), [['none', null], ...BL.map((_, k) => [String(k + 1), k, COL[k]])], v => { avoid = v; formula(); drawArena(traj ? traj.length - 1 : 0); }, null);
+$('gw').oninput = () => { $('gwv').textContent = (+$('gw').value).toFixed(2); formula(); LabKit.sfx.tick(+$('gw').value / 6); if (showArrows) drawArena(traj ? traj.length - 1 : 0); };
+$('go').onclick = flow;
+$('arrows').onclick = () => { showArrows = !showArrows; $('arrows').textContent = 'arrows: ' + (showArrows ? 'on' : 'off'); $('arrows').classList.toggle('on', showArrows); drawArena(traj ? traj.length - 1 : 0); };
+$('seed').onclick = () => { if (running) return; newNoise(); drawArena(); LabKit.sfx.patter(10, 0.3); };
+
+// ── one point, its arrows
+const pc = $('probe'), pg = pc.getContext('2d'); let P0 = [0.7, 0.7];
+function drawProbe() { const t = +$('tt').value; $('ttv').textContent = t.toFixed(2); backdrop(pg, pc, want == null ? -1 : want, avoid == null ? -1 : avoid); const w = +$('gw').value, y = want == null ? 2 : want;
+  const [vn] = wind(NETS.blobs, [P0], t, avoid), [vy] = wind(NETS.blobs, [P0], t, y), d = [vy[0] - vn[0], vy[1] - vn[1]], g = [vn[0] + w * d[0], vn[1] + w * d[1]], S = 0.3;
+  const O = [toPx(pc, P0[0], 0), toPx(pc, P0[1], 1)], E = v => [toPx(pc, P0[0] + v[0] * S, 0), toPx(pc, P0[1] + v[1] * S, 1)];
+  pg.setLineDash([5, 5]); pg.strokeStyle = '#7a9e7e'; pg.globalAlpha = 0.5; pg.beginPath(); pg.moveTo(...E(vn)); pg.lineTo(...E([vn[0] + 6 * d[0], vn[1] + 6 * d[1]])); pg.stroke(); pg.setLineDash([]); pg.globalAlpha = 1;
+  arrowTo(pg, ...O, ...E(vn), '#a89f97', 3); arrowTo(pg, ...O, ...E(vy), '#8b7bb5', 3); arrowTo(pg, ...E(vn), ...E(vy), '#7a9e7e', 2.5); arrowTo(pg, ...O, ...E(g), '#d4a853', 4);
+  pg.fillStyle = '#b5707e'; pg.beginPath(); pg.arc(...O, 6, 0, 2 * Math.PI); pg.fill();
+  pg.font = '13px JetBrains Mono, monospace'; const lab = (s, c, y) => { pg.fillStyle = 'rgba(28,24,22,.85)'; pg.fillRect(8, y - 14, pg.measureText(s).width + 10, 19); pg.fillStyle = c; pg.fillText(s, 13, y); };
+  lab(`grey: ${avoid == null ? 'no request' : 'avoid ' + (avoid + 1)}   plum: ask ${y + 1}`, '#a89f97', 22); lab(`amber: w = ${w.toFixed(2)}   (arrows ×${S})`, '#d4a853', 44); }
+pc.addEventListener('pointerdown', e => { const r = pc.getBoundingClientRect(); P0 = fromPx(pc, (e.clientX - r.left) / r.width * pc.width, (e.clientY - r.top) / r.height * pc.height); probed++; LabKit.sfx.pop(0.6); drawProbe(); });
+$('tt').oninput = () => { tSlid++; drawProbe(); LabKit.sfx.tick(+$('tt').value); };
+
+// ── two overlapping clouds
+const cc = $('clouds'), cg = cc.getContext('2d'), CR = 2.3, SEP = 0.55, SD = 0.6; let CZ = Array.from({ length: 700 }, () => [gauss(), gauss()]), cbusy = false;
+const dens = (x, y, w) => { const g = cx => Math.exp(-((x - cx) ** 2 + y * y) / (2 * SD * SD)), pa = g(-SEP), pb = g(SEP); return (pa + pb) / 2 * Math.pow(pa / (pa + pb + 1e-30), w); };
+function runClouds() { if (cbusy) return; cbusy = true; const w = +$('cw').value, K = 32; let x = CZ.map(p => p.slice()); const H = [x];
+  for (let k = 0; k < K; k++) { const v = guided(NETS.clouds, x, k / K, 0, w); x = x.map((p, i) => [p[0] + v[i][0] / K, p[1] + v[i][1] / K]); H.push(x); }
+  const t0 = performance.now(), anim = now => { const f = Math.max(0, Math.min(K, (now - t0) / 40)), i = Math.min(K - 1, Math.floor(f)), u = f - i; drawClouds(H[i].map((p, k) => [p[0] + (H[i + 1][k][0] - p[0]) * u, p[1] + (H[i + 1][k][1] - p[1]) * u]), w, f >= K);
+    if (f < K) requestAnimationFrame(anim); else { cbusy = false; const pA = x.filter(p => p[0] < 0).length / x.length, m = x.reduce((a, p) => a + p[0], 0) / x.length, s = Math.sqrt(x.reduce((a, p) => a + (p[0] - m) ** 2, 0) / x.length);
+      $('cA').textContent = `${Math.round(pA * 100)}%`; $('cS').textContent = s.toFixed(2); cloudWs.add(w); LabKit.sfx.chime(0.3 + w / 16, -0.3); } }; requestAnimationFrame(anim); }
+function drawClouds(pts, w, done) { cg.fillStyle = '#1c1816'; cg.fillRect(0, 0, cc.width, cc.height); const n = 64, D = []; let mx = 0;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const v = dens(-CR + 2 * CR * (c + 0.5) / n, CR - 2 * CR * (r + 0.5) / n, w); D.push(v); mx = Math.max(mx, v); }
+  cg.fillStyle = '#6889b1'; D.forEach((v, i) => { cg.globalAlpha = 0.45 * v / mx; cg.fillRect((i % n) * cc.width / n, Math.floor(i / n) * cc.height / n, cc.width / n + 1, cc.height / n + 1); }); cg.globalAlpha = 1;
+  [[-SEP, '#c4654a', 'A'], [SEP, '#6889b1', 'B']].forEach(([cx, col, nm]) => { cg.strokeStyle = col; cg.setLineDash([5, 5]); cg.lineWidth = 1.5; cg.beginPath(); cg.arc(toPx(cc, cx, 0, CR), toPx(cc, 0, 1, CR), 2 * SD / (2 * CR) * cc.width, 0, 2 * Math.PI); cg.stroke(); cg.setLineDash([]);
+    cg.fillStyle = col; cg.font = 'italic 24px Newsreader, serif'; cg.fillText(nm, toPx(cc, cx, 0, CR) - 6, toPx(cc, 0, 1, CR) - 2 * SD / (2 * CR) * cc.width - 8); });
+  cg.fillStyle = done ? '#c4654a' : '#b5707e'; pts.forEach(p => { cg.beginPath(); cg.arc(toPx(cc, p[0], 0, CR), toPx(cc, p[1], 1, CR), 2.2, 0, 2 * Math.PI); cg.fill(); }); }
+$('cw').oninput = () => { $('cwv').textContent = (+$('cw').value).toFixed(1); LabKit.sfx.tick(+$('cw').value / 8); runClouds(); };
+
+// ── digits on request
+const dg = $('dg'), dgc = dg.getContext('2d'); let DZ = [], dwant = 7, drun = false; const TC = [196, 101, 74];
+function paint(x, ox, oy, s) { const im = dgc.createImageData(28, 28); for (let i = 0; i < 784; i++) { const v = Math.max(0, Math.min(1, (x[i] + 1) / 2)); im.data[i * 4] = TC[0] * v + 28 * (1 - v); im.data[i * 4 + 1] = TC[1] * v + 24 * (1 - v); im.data[i * 4 + 2] = TC[2] * v + 22 * (1 - v); im.data[i * 4 + 3] = 255; }
+  const c = document.createElement('canvas'); c.width = c.height = 28; c.getContext('2d').putImageData(im, 0, 0); dgc.imageSmoothingEnabled = false; dgc.drawImage(c, ox, oy, s, s); }
+const dnoise = () => { DZ = Array.from({ length: 8 }, () => Float32Array.from({ length: 784 }, gauss)); };
+const drawAll = X => { dgc.fillStyle = '#1c1816'; dgc.fillRect(0, 0, 560, 280); X.forEach((x, k) => paint(x, (k % 4) * 140 + 4, Math.floor(k / 4) * 140 + 4, 132)); };
+function mwind(net, X, t, y) { const xs = X.map(x => { const v = new Float32Array(784 + 11); v.set(x); v[784 + (y == null ? 10 : y)] = 1; return v; }); return net.run(xs, t).map((F, i) => F.map((f, j) => (Math.tanh(f) - X[i][j]) / Math.max(1 - t, 1e-3))); }
+function drawDigits() { if (drun) return; drun = true; const K = 16, w = +$('dw').value, net = mnist(); let X = DZ.map(z => Float32Array.from(z)), k = 0; LabKit.sfx.whoosh(0.6);
+  const step = () => { const t = k / K, vn = mwind(net, X, t, null), vy = w === 0 ? vn : mwind(net, X, t, dwant); X = X.map((x, i) => x.map((v, j) => v + (vn[i][j] + w * (vy[i][j] - vn[i][j])) / K)); k++;
+    drawAll(X); $('dprog').innerHTML = `step <b>${k}</b> / ${K} · asking for <b>${dwant}</b> at w = ${w}`; LabKit.sfx.tick(k / K);
+    if (k < K) requestAnimationFrame(step); else { drun = false; digitAsks.add(dwant); if (w >= 3) digitHighW = true; LabKit.sfx.success(); } };
+  requestAnimationFrame(step); }
+row($('dask'), Array.from({ length: 10 }, (_, d) => [String(d), d]), v => { dwant = v; }, 7);
+$('dw').oninput = () => { $('dwv').textContent = (+$('dw').value).toFixed(1); LabKit.sfx.tick(+$('dw').value / 8); };
+$('dgo').onclick = drawDigits;
+$('dseed').onclick = () => { if (drun) return; dnoise(); drawAll(DZ); LabKit.sfx.patter(10, 0.3); };
+
+$('gwv').textContent = (+$('gw').value).toFixed(2); $('cwv').textContent = (+$('cw').value).toFixed(1); $('dwv').textContent = (+$('dw').value).toFixed(1); $('ttv').textContent = (+$('tt').value).toFixed(2);
+formula(); drawArena(); drawProbe(); drawClouds(CZ, +$('cw').value, false); dnoise(); drawAll(DZ);
+LabKit.init({ id: 'ep11',
+  steps: ['<strong>Ask</strong>: pick a blob and flow. The request y is just one more input to the network.', '<strong>Turn the dial</strong>: w = 0 ignores the request, w = 1 is plain p(x | y), bigger w insists.', '<strong>Look inside</strong>: the arrows at one point, two overlapping classes, and digits on request. The missions walk you through it.'],
+  legend: [['var(--rose)', 'noise'], ['var(--terracotta)', 'samples'], ['var(--plum)', 'the wind with the request'], ['var(--sage)', 'the request’s push'], ['var(--amber)', 'the dial w']],
+  missions: [
+    { id: 'ask', title: 'Ask for a blob and flow', hint: 'Pick a number next to <b>ask for</b> and press <b>flow ▶</b>.', check: () => asked >= 1 },
+    { id: 'dial', title: 'Flow the same request at w = 0, 1 and 4', hint: 'Drag <b>guidance w</b> between runs. Watch the spread of the landed points.', check: () => [0, 1, 4].every(v => dialed.has(v)) },
+    { id: 'probe', title: 'Click a point and slide time', hint: 'Click the arrows map and drag <b>time t</b>. The sage push is the classifier the network learned for free.', check: () => probed >= 1 && tSlid >= 5 },
+    { id: 'avoid', title: 'Avoid a neighbour', hint: 'Ask for 3, avoid 2, set w a little above 1 (say 1.25) and flow. Then try w = 2.', check: () => negTried },
+    { id: 'clouds', title: 'Squeeze the overlapping classes', hint: 'Slide the clouds’ <b>guidance w</b> to 0, 1 and 4 or more. Where do the samples go?', check: () => cloudWs.has(0) && cloudWs.has(1) && [...cloudWs].some(v => v >= 4) },
+    { id: 'digits', title: 'Ask for three different digits, one at w ≥ 3', hint: 'Pick a digit, press <b>draw 8 ▶</b>. Then crank w and watch the variety drain away.', check: () => digitAsks.size >= 3 && digitHighW },
+  ] });
+</script>
+</body>
+</html>

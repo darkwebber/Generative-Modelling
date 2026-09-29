@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guidance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
+  .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
+  button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  input[type=range] { flex:1; accent-color:var(--terracotta); min-width:0; }
+  .time { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--dust); min-width:104px; text-align:right; }
+  .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
+  .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
+  body.capture .ctl, body.capture .chapters { display:none; }
+  body.capture .wrap { padding:0; max-width:none; }
+  body.capture canvas { width:1920px; border-radius:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="1920" height="1080" aria-label="Guidance explainer animation"></canvas>
+  <div class="ctl">
+    <button id="play">▶ play</button>
+    <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button id="snd-btn" title="sound on / off (M)">♪ sound on</button>
+    <audio id="snd" src="ep11-audio.mp3" preload="auto"></audio>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+<script src="ep11-assets.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────
+//  Midnight Atelier engine — tokens, maths, drawing helpers.
+//  Shared by every episode (src/build.py inlines it into each page).
+//  Colour-coded maths:  M('[d|x] + [a_|θ] … [k^|2] … [pB|∫]')  d/p/a/n/m/s/k/w/c/t = colour, _ sub, ^ sup, B big
+// ─────────────────────────────────────────────────────────────
+const P = {
+  canvas:"#13100e", surface:"#1c1816", elevated:"#272220", border:"#3a3432", borderLight:"#4d4540",
+  chalk:"#ede6db", stone:"#a89f97", dust:"#6b6360",
+  terracotta:"#c4654a", sage:"#7a9e7e", ink:"#6889b1", amber:"#d4a853", clay:"#a0735c", rose:"#b5707e", plum:"#8b7bb5",
+};
+const F = { serif:"'Newsreader', Georgia, serif", sans:"'Karla', sans-serif", mono:"'JetBrains Mono', monospace" };
+const W = 1920, H = 1080;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+const prog = (t, a, d) => clamp((t - a) / d);
+const ease = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const eout = x => { x = clamp(x); return 1 - Math.pow(1 - x, 3); };
+const ein = x => { x = clamp(x); return x * x * x; };
+const pop = x => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const HX = {};
+function hx(h) { return HX[h] || (HX[h] = (n => [n >> 16, (n >> 8) & 255, n & 255])(parseInt(h.slice(1), 16))); }
+function rgba(h, a) { const c = hx(h); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function mixc(a, b, u) { const A = hx(a), B = hx(b); return `rgb(${Math.round(A[0] + (B[0] - A[0]) * u)},${Math.round(A[1] + (B[1] - A[1]) * u)},${Math.round(A[2] + (B[2] - A[2]) * u)})`; }
+
+let GA = 1;
+const setA = a => { ctx.globalAlpha = clamp(GA * a); };
+function text(s, x, y, o = {}) {
+  const { font = F.sans, size = 28, color = P.stone, align = 'left', a = 1, italic = false, weight = 400, ls = 0 } = o;
+  if (GA * a <= 0.002) return;  // skip invisible draws (some browsers ignore globalAlpha = 0)
+  ctx.font = `${italic ? 'italic ' : ''}${weight} ${size}px ${font}`;
+  ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.fillStyle = color; setA(a);
+  ctx.fillText(s, x, y); ctx.letterSpacing = '0px'; ctx.textAlign = 'left'; setA(1);
+}
+function wrap(str, maxW, font) {
+  ctx.font = font; const words = str.split(' '); const lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines;
+}
+function para(str, x, y, maxW, o = {}) {
+  const { size = 24, lh = 1.45, color = P.stone, a = 1, font = F.sans, italic = false } = o;
+  const lines = wrap(str, maxW, `${italic ? 'italic ' : ''}400 ${size}px ${font}`);
+  lines.forEach((l, i) => text(l, x, y + i * size * lh, { font, size, color, a, italic }));
+  return lines.length * size * lh;
+}
+const CM = { d:P.terracotta, p:P.ink, a:P.amber, n:P.rose, m:P.plum, s:P.sage, k:P.dust, w:P.chalk, c:P.clay, t:P.stone };
+const MCACHE = new Map();
+function parseM(str) {
+  if (MCACHE.has(str)) return MCACHE.get(str);
+  const out = []; const re = /\[([a-z])([_^B]?)\|([^\]]*)\]/g; let last = 0, m;
+  while ((m = re.exec(str))) {
+    if (m.index > last) out.push([str.slice(last, m.index), P.stone, '']);
+    out.push([m[3], CM[m[1]], m[2] === '_' ? 's' : m[2] === '^' ? 'S' : m[2] === 'B' ? 'b' : '']);
+    last = re.lastIndex;
+  }
+  if (last < str.length) out.push([str.slice(last), P.stone, '']);
+  MCACHE.set(str, out); return out;
+}
+function M(str, x, y, size = 34, o = {}) {
+  const { align = 'left', a = 1 } = o;
+  const parts = parseM(str).map(([s, col, mod]) => {
+    const sz = mod === 's' || mod === 'S' ? size * 0.66 : mod === 'b' ? size * 1.3 : size;
+    ctx.font = `400 ${sz}px ${F.mono}`;
+    return { s, col, sz, dy: mod === 's' ? size * 0.26 : mod === 'S' ? -size * 0.42 : mod === 'b' ? size * 0.1 : 0, w: ctx.measureText(s).width };
+  });
+  const total = parts.reduce((acc, p) => acc + p.w, 0);
+  if (GA * a <= 0.002) return total;
+  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+  setA(a); ctx.textAlign = 'left';
+  for (const p of parts) { ctx.font = `400 ${p.sz}px ${F.mono}`; ctx.fillStyle = p.col; ctx.fillText(p.s, cx, y + p.dy); cx += p.w; }
+  setA(1); return total;
+}
+function dot(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.fill(); setA(1); }
+function glow(x, y, r, col, a = 1) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = r * 3.5; dot(x, y, r, col, a); ctx.restore(); }
+function ring(x, y, r, col, a = 1, lw = 2) { if (GA * a <= 0.002) return; setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.stroke(); setA(1); }
+function line(x1, y1, x2, y2, col, lw = 2, a = 1, dash = null) { if (GA * a <= 0.002) return; setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); setA(1); }
+function arrow(x1, y1, x2, y2, col, lw = 2, a = 1) {
+  line(x1, y1, x2, y2, col, lw, a);
+  const ang = Math.atan2(y2 - y1, x2 - x1), L = 12;
+  setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - L * Math.cos(ang - 0.4), y2 - L * Math.sin(ang - 0.4));
+  ctx.lineTo(x2 - L * Math.cos(ang + 0.4), y2 - L * Math.sin(ang + 0.4)); ctx.fill(); setA(1);
+}
+function rbox(x, y, w, h, r, fill, stroke, a = 1, lw = 1.5) { setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, r); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } setA(1); }
+function card(x, y, w, h, accent, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 18); ctx.fillStyle = rgba(P.surface, 0.86); ctx.fill();
+  ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.clip(); ctx.fillStyle = rgba(accent, 0.6); ctx.fillRect(x, y, 4, h);
+  ctx.restore(); setA(1);
+}
+function label(s, x, y, a = 1, color = P.terracotta) { text(s.toUpperCase(), x, y, { font: F.mono, size: 16, color, a, ls: 2 }); }
+function tag(x, y, color, s, a = 1, size = 19) {
+  ctx.font = `400 ${size}px ${F.mono}`; const w = ctx.measureText(s).width + size * 2.1; const h = size * 1.75;
+  if (GA * a <= 0.002) return w;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = rgba(color, 0.08); ctx.fill();
+  ctx.strokeStyle = rgba(color, 0.3); ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x + size * 0.8, y + h / 2, size * 0.22, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillText(s, x + size * 1.35, y + h * 0.68);
+  ctx.restore(); setA(1); return w;
+}
+function pill(x, y, s, color, a = 1, o = {}) {
+  const { size = 20, align = 'left', font = F.mono } = o;
+  ctx.font = `400 ${size}px ${font}`; const w = ctx.measureText(s).width + size * 1.2, h = size * 1.7;
+  const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  if (GA * a <= 0.002) return w;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, h / 2);
+  ctx.fillStyle = rgba(P.canvas, 0.85); ctx.fill(); ctx.strokeStyle = rgba(color, 0.45); ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.fillStyle = color; ctx.fillText(s, x0 + size * 0.6, y + size * 0.35); ctx.restore(); setA(1);
+  return w;
+}
+function insight(x, y, w, s, a = 1, head = 'intuition') {
+  if (a <= 0) return 0;
+  const lines = wrap(s, w - 48, `400 25px ${F.sans}`); const h = 70 + lines.length * 35;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, 16);
+  ctx.fillStyle = rgba(P.sage, 0.07); ctx.fill(); ctx.strokeStyle = rgba(P.sage, 0.3); ctx.lineWidth = 1.3; ctx.stroke(); ctx.restore();
+  text(head, x + 24, y + 38, { font: F.serif, italic: true, size: 22, color: P.sage, a });
+  lines.forEach((l, i) => text(l, x + 24, y + 76 + i * 35, { size: 25, color: P.stone, a }));
+  return h;
+}
+function gaussFn(r) { return () => { const u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }; }
+function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
+const Phi = z => 0.5 * (1 + erf(z / Math.SQRT2));
+const npdf = (x, m = 0, s = 1) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(TAU));
+function tagsRow(list, x, y, t0, t) { let cx = x; list.forEach(([c, s], i) => { cx += tag(cx, y, c, s, eout(prog(t, t0 + i * 0.25, 0.6))) + 12; }); }
+// hooks that run once the fonts have loaded (e.g. glyphs rasterised from a font)
+const ON_READY = [];
+// ─────────────────────────────────────────────────────────────
+//  Scene kit — helpers several episodes share (src/build.py inlines it after core.js)
+// ─────────────────────────────────────────────────────────────
+// base64 → bytes (exported assets store images and trajectories this way)
+function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+// memoise expensive per-frame objects (image canvases, curves)
+const IMC = new Map();
+function cached(key, make) { let c = IMC.get(key); if (!c) { if (IMC.size > 4000) IMC.clear(); c = make(); IMC.set(key, c); } return c; }
+const MEMO = new Map(); const memo = (k, f) => { if (!MEMO.has(k)) MEMO.set(k, f()); return MEMO.get(k); };
+// a square 2-D plot of [−R, R]²: X(v), Y(v) map data → pixels; frame() draws it, clipTo() clips to it
+function plotSquare(x0, y0, S, R) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v => y0 + (R - v) / (2 * R) * S, s: S / (2 * R), x0, y0, S }; }
+function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
+function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+// a glass marble (particles, samples)
+function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
+// 28×28 images: uint8 base64 → [0, 1] floats → tinted canvases
+function u8imgs(s) { const u = b64bytes(s), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; }
+function imgCanvas(vals, col = P.terracotta) {
+  const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'); const d = g.createImageData(28, 28); const [r, gg, b] = hx(col);
+  for (let i = 0; i < 784; i++) { d.data[i * 4] = r; d.data[i * 4 + 1] = gg; d.data[i * 4 + 2] = b; d.data[i * 4 + 3] = Math.round(clamp(vals[i]) * 255); }
+  g.putImageData(d, 0, 0); return c;
+}
+function drawImg(c, x, y, s, a = 1, o = {}) {
+  const { bg = true, frame = false, col = P.border } = o; if (a <= 0) return;
+  if (bg) { setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x, y, s, s); }
+  setA(a); ctx.imageSmoothingEnabled = s < 100; ctx.drawImage(c, x, y, s, s); ctx.imageSmoothingEnabled = true;
+  if (frame) { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s); }
+  setA(1);
+}
+// a rubber stamp that lands (verdicts)
+function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); const sc = lerp(1.6, 1, eout(a)); ctx.scale(sc, sc);
+  ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(s).width + 36; setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(-w / 2, -30, w, 52); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(s, 0, 8); ctx.restore(); setA(1); }
+// standard normal sampler from a uniform rng
+function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
+// camera shake after an impact at t0
+function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+// ── the season, for the end-card strip: watched episodes lit, this one ringed, the next one pulsing
+const SEASON = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
+function seasonStrip(cur, t0, t, y = 830) {
+  const a = eout(prog(t, t0, 0.8)); if (GA * a <= 0.002) return;
+  const n = SEASON.length, x0 = 500, x1 = 1420, X = i => x0 + (x1 - x0) * i / (n - 1);
+  line(x0, y, x1, y, P.border, 1.5, a);
+  const fill = eout(prog(t, t0 + 0.2, 0.07 * cur + 0.3)); line(x0, y, lerp(x0, X(cur - 1), fill), y, P.terracotta, 2, a * 0.8);
+  SEASON.forEach((name, i) => {
+    const ep = i + 1, u = prog(t, t0 + 0.2 + i * 0.07, 0.35), s = pop(u), x = X(i);
+    let col = P.dust, r = 4;
+    if (ep <= cur) { col = P.terracotta; r = 6; }
+    if (ep === cur + 1) { const pl = 0.5 + 0.5 * Math.sin((t - t0) * 4.5); col = P.amber; r = 6; ring(x, y, 10 + 5 * pl, P.amber, a * u * (0.8 - 0.6 * pl), 1.5); }
+    dot(x, y, r * s, col, a * u);
+    if (ep === cur) ring(x, y, 11 * s, P.chalk, a * u, 1.8);
+    text(String(ep).padStart(2, '0'), x, y + 30, { font: F.mono, size: 12, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u });
+    text(name, x, y + 50, { size: 14, color: ep === cur + 1 ? P.amber : ep <= cur ? P.stone : P.dust, align: 'center', a: a * u * (ep <= cur + 1 ? 1 : 0.7) });
+  });
+}
+// ── "try it yourself": the episode's playground, named in the header area of the build-it scene
+function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
+const EPISODE = {"num": "11"};
+
+// ─────────────────────────────────────────────────────────────
+//  Real guidance models (exported by code/export/export_ep11_assets.py)
+//  Notation all season: z = noise (rose), x = data (terracotta), t runs from noise (0) to data (1) as in episode 10.
+//  Today: y = the request (ink), w = the guidance dial (amber), v∅ = the wind with no request (dust), v_y = with it (plum),
+//  v_y − v∅ = the request's push (sage).
+// ─────────────────────────────────────────────────────────────
+const A = window.EP11, BL = A.blobs, CLD = A.clouds, MN = A.mnist, J = MN.judges;
+const sq = (x0, y0, S, R) => plotSquare(x0, y0, S, R);
+const pct = v => (v * 100).toFixed(0) + '%';
+function stages(b, n) { const u = b64bytes(b), v = new Int16Array(u.buffer, u.byteOffset, u.length / 2); return { v, n, S: v.length / (2 * n) }; }
+function ptAt(st, k, f) { const S = st.S - 1, fi = clamp(f, 0, S), i = Math.min(S - 1, Math.floor(fi)), u = fi - i, a = (i * st.n + k) * 2, b = ((i + 1) * st.n + k) * 2;
+  return [lerp(st.v[a], st.v[b], u) / 4000, lerp(st.v[a + 1], st.v[b + 1], u) / 4000]; }
+const TL = A.title.paths.map(p => stages(p, A.title.n));                 // eight groups of noise, each asked for one letter
+const HARD = memo('hard', () => { const u = b64bytes(A.title.hard); return new Int16Array(u.buffer, u.byteOffset, u.length / 2); });   // the same noise at w = 2.5
+const FL = Object.fromEntries(Object.entries(BL.flows).map(([k, v]) => [k, stages(v, BL.z.length)]));
+const CP = Object.fromEntries(Object.entries(CLD.paths).map(([k, v]) => [k, stages(v, CLD.n)]));
+// digits: uint8 images (from [−1, 1]); the season's terracotta-on-dark
+const IMG = new Map();          // keyed by the base64 string itself: different digit sets can share long runs of blank pixels
+const imgs = (b, n) => { let v = IMG.get(b); if (!v) { const u = b64bytes(b); v = Array.from({ length: n }, (_, i) => u.subarray(i * 784, (i + 1) * 784)); IMG.set(b, v); } return v; };
+const COLD = hx(P.terracotta);
+function digitCanvas(px, key) { return memo('c' + key, () => { const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'), im = g.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) { const v = px[i] / 255; im.data[i * 4] = COLD[0] * v + 28 * (1 - v); im.data[i * 4 + 1] = COLD[1] * v + 24 * (1 - v); im.data[i * 4 + 2] = COLD[2] * v + 22 * (1 - v); im.data[i * 4 + 3] = 255; } g.putImageData(im, 0, 0); return c; }); }
+function drawDigit(px, key, x, y, s, a = 1) { if (GA * a <= 0.002) return; setA(a); ctx.imageSmoothingEnabled = false; ctx.drawImage(digitCanvas(px, key), x, y, s, s); ctx.imageSmoothingEnabled = true; setA(1); }
+function digitRow(b, key, n, x, y, cell, gap, a, from = 0) { const ims = imgs(b, 8); for (let q = 0; q < n; q++) drawDigit(ims[from + q], key + (from + q), x + q * (cell + gap), y, cell, a); }
+// the eight blobs (the season's ring, scaled ½): centres, colours and names 1 … 8
+const BLOB = k => [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)];
+const BLOBCOL = [P.terracotta, P.amber, P.sage, P.ink, P.plum, P.rose, P.clay, P.chalk];
+const nearestBlob = p => { let b = 0, d = 1e9; for (let k = 0; k < 8; k++) { const q = BLOB(k), e = Math.hypot(p[0] - q[0], p[1] - q[1]); if (e < d) { d = e; b = k; } } return d < 0.35 ? b : -1; };
+const DATA8 = memo('data8', () => { const r = rng(11), g = () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()); return Array.from({ length: 800 }, (_, i) => { const k = i % 8, c = BLOB(k); return [c[0] + 0.06 * g(), c[1] + 0.06 * g(), k]; }); });
+// exact p(y | x) for the blobs (8 equal Gaussians of spread 0.06, scaled up for the illustration)
+function blobPost(x, s = 0.32) { const l = BLOBCOL.map((_, k) => { const c = BLOB(k); return -((x[0] - c[0]) ** 2 + (x[1] - c[1]) ** 2) / (2 * s * s); }), m = Math.max(...l), e = l.map(v => Math.exp(v - m)), S = e.reduce((a, b) => a + b); return e.map(v => v / S); }
+function blobRings(m, a, want = -1, labels = true) { for (let k = 0; k < 8; k++) { const b = BLOB(k), on = want === k; ring(m.X(b[0]), m.Y(b[1]), 22, BLOBCOL[k], a * (want < 0 || on ? 0.9 : 0.3), on ? 3 : 1.5);
+  if (labels) text(String(k + 1), m.X(b[0] * 1.38), m.Y(b[1] * 1.38) + 6, { font: F.mono, size: 17, color: BLOBCOL[k], align: 'center', a: a * (want < 0 || on ? 1 : 0.4) }); } }
+function flowDots(m, st, f, a, r = 3, colFinal = true) { clipTo(m, () => { for (let k = 0; k < st.n; k++) { const p = ptAt(st, k, f), done = f >= st.S - 1.2, b = done && colFinal ? nearestBlob(p) : -1;
+  marble(m.X(p[0]), m.Y(p[1]), r, b >= 0 ? BLOBCOL[b] : mixc(P.rose, P.terracotta, f / (st.S - 1)), a); } }); }
+// arrow fields on the blobs' 15 × 15 grid (rows top → bottom)
+function fieldArrows(m, F, a, col, scale = 0.09, lw = 1.5, add = null, addW = 0, step = 2) { if (GA * a <= 0.002) return; const g = BL.grid, n = g.length;
+  clipTo(m, () => { for (let r = 0; r < n; r += step) for (let c = 0; c < n; c += step) { const i = r * n + c, x = g[c], y = g[n - 1 - r]; let v = F[i].slice(); if (add) { v[0] += addW * add[i][0]; v[1] += addW * add[i][1]; }
+    const L = Math.hypot(v[0], v[1]); if (L < 1e-4) continue; const s = scale * Math.min(1, 2.5 / L); arrow(m.X(x - v[0] * s * 0.3), m.Y(y - v[1] * s * 0.3), m.X(x + v[0] * s), m.Y(y + v[1] * s), col, lw, a * clamp(0.35 + L / 4, 0, 0.9)); } }); }
+function heatCanvas(key, n, vals, col) { return memo('h' + key, () => { const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), C = hx(col);
+  for (let i = 0; i < n * n; i++) { im.data[i * 4] = C[0]; im.data[i * 4 + 1] = C[1]; im.data[i * 4 + 2] = C[2]; im.data[i * 4 + 3] = Math.round(255 * clamp(vals[i], 0, 1)); } g.putImageData(im, 0, 0); return c; }); }
+function heatDraw(m, key, n, vals, lo, hi, a, col = P.ink) { if (GA * a <= 0.002) return; const c = heatCanvas(key, n, vals, col); clipTo(m, () => { setA(a * 0.55); ctx.imageSmoothingEnabled = true; ctx.drawImage(c, m.X(lo), m.Y(hi), m.X(hi) - m.X(lo), m.Y(lo) - m.Y(hi)); setA(1); }); }
+function heatP(m, p, a, col = P.ink) { const g = BL.hgrid, d = (g[g.length - 1] - g[0]) / (g.length - 1); return heatDraw(m, 'p' + FT, g.length, p, g[0] - d / 2, g[g.length - 1] + d / 2, a, col); }
+// a one-hot request: a row of slots with one lit
+function oneHot(x, y, k, n, a, lit = P.ink, s = 26, gap = 6, labels = null, nullSlot = true) { const N = n + (nullSlot ? 1 : 0);
+  for (let i = 0; i < N; i++) { const on = i === k, X = x + i * (s + gap), isNull = nullSlot && i === n;
+    rbox(X, y, s, s, 5, on ? rgba(lit, 0.85) : P.surface, on ? lit : P.border, a); text(isNull ? '∅' : on ? '1' : '0', X + s / 2, y + s * 0.68, { font: F.mono, size: s * 0.52, color: on ? P.bg : P.dust, align: 'center', a });
+    if (labels) text(isNull ? 'none' : labels[i], X + s / 2, y + s + 18, { font: F.mono, size: 12, color: on ? lit : P.dust, align: 'center', a }); } }
+const hopF = (t, t0, per) => ease(prog(t, t0, per));
+
+// ─────────────────────────────────────────────────────────────
+//  SCENES
+// ─────────────────────────────────────────────────────────────
+const SC = [];
+
+// 00 — cold open: one network spells the title, one request at a time
+const WORD = A.title.word, K0 = 6.0, KEY = 2.25, FLY = 1.7, BANG = K0 + 7 * KEY + FLY + 0.2;
+SC.push({ dur: 36, chapter: 'intro',
+  caps: [[1, 6, 'Last episode ended with a promise: ask, and it will draw. So let’s ask.'],
+         [6.2, 13.2, 'One network, one cloud of noise. We type a request, y, and some of the noise flies to that letter.'],
+         [13.4, 20.4, 'Same network every time, same kind of noise. The only thing that changes is what we ask for.'],
+         [20.6, 25.6, 'Eight requests, eight letters, one word.'],
+         [27, 35.6, 'Real models, trained by hand in numpy. Today: guidance, how to ask a generator for exactly what you want.']],
+  draw(t) {
+    const [sx, sy] = shake(t, BANG, 9); ctx.save(); ctx.translate(sx, sy);
+    const cx = 960, cy = 470, sc = 330, a0 = eout(prog(t, 0.2, 1.2)), hot = t >= BANG ? Math.exp(-(t - BANG) * 1.3) : 0, r = rng(Math.floor(t * 24) + 3);
+    for (let k = 0; k < 8; k++) { const st = TL[k], t0 = K0 + k * KEY + 0.35, f = (st.S - 1) * hopF(t, t0, FLY), moving = f > 0 && f < st.S - 1, done = f >= st.S - 1;
+      ctx.fillStyle = done ? P.chalk : moving ? mixc(P.rose, P.chalk, f / (st.S - 1)) : P.rose;
+      for (let i = 0; i < st.n; i++) { const p = ptAt(st, i, f), j = f === 0 ? 0.012 : 0, X = cx + (p[0] + j * (r() - 0.5)) * sc, Y = cy - (p[1] + j * (r() - 0.5)) * sc;
+        setA(a0 * (done ? 0.9 : moving ? 0.85 : 0.55)); ctx.fillRect(X - 1.3, Y - 1.3, 2.6, 2.6); } }
+    setA(1);
+    if (hot > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (const [rr, al] of [[8, 0.05], [4, 0.12], [2, 0.3]]) { ctx.fillStyle = rgba(P.terracotta, al * hot);
+      TL.forEach(st => { for (let i = 0; i < st.n; i += 2) { const p = ptAt(st, i, st.S - 1); ctx.fillRect(cx + p[0] * sc - rr, cy - p[1] * sc - rr, 2 * rr, 2 * rr); } }); } ctx.restore(); ring(cx, cy, 200 + (t - BANG) * 1400, P.chalk, hot * 0.3, 3); }
+    ctx.restore();
+    // the request line: "y = G", typed key by key
+    const ra = eout(prog(t, K0 - 0.8, 0.6)) * (1 - ease(prog(t, BANG + 1, 1)));
+    if (ra > 0) { const k = clamp(Math.floor((t - K0) / KEY), 0, 7), ch = WORD[k], kp = pop(prog(t, K0 + k * KEY, 0.25));
+      text('request', 960, 780, { font: F.mono, size: 16, color: P.dust, align: 'center', a: ra, ls: 3 });
+      M(`[p|y] = “${t >= K0 ? ch : ' '}”`, 900, 836, 40, { a: ra });
+      for (let i = 0; i < 8; i++) { const x = 960 + (i - 3.5) * 40, on = t >= K0 + i * KEY; text(WORD[i], x, 900, { font: F.serif, size: 28, color: on ? (i === k ? P.ink : P.stone) : P.border, align: 'center', a: ra * (i === k ? 0.6 + 0.4 * kp : 1) }); } }
+    const a = eout(prog(t, BANG + 0.6, 1.2));
+    text('EPISODE 11', 960, 300, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a, ls: 4 });
+    text('asking a generator for what you want', 960, 680, { size: 36, color: P.stone, align: 'center', a: eout(prog(t, BANG + 1.4, 1.2)) });
+    const tg = [[P.rose, 'z  noise'], [P.terracotta, 'x  data'], [P.ink, 'y  the request'], [P.plum, 'v  the wind'], [P.amber, 'w  the dial']];
+    ctx.font = `400 21px ${F.mono}`; const tw = tg.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 21 * 2.1 + 14, -14);
+    let tx = 960 - tw / 2; tg.forEach(([c, s], i) => { tx += tag(tx, 760, c, s, eout(prog(t, BANG + 2.2 + i * 0.3, 0.6)), 21) + 14; });
+  } });
+
+// 01 — what asking means: p(x) and p(x | y)
+SC.push({ dur: 46, chapter: 'asking', title: 'What asking means', sub: 'From p(x) to p(x | y): the same data, filtered by a label.',
+  caps: [[1, 8, 'Every model this season learned one thing, p(x): how likely each data point is. Sampling it gives whatever it gives.'],
+         [8, 15, 'Now give every point a label, y. Here the label just says which blob a point belongs to, one to eight.'],
+         [15, 23, 'Asking for blob 3 means sampling from p(x | y = 3). Read it as: the probability of x, given that y is 3.'],
+         [23, 30, 'Think of it as a filter. Keep only the points labelled 3, and rescale what’s left so it still adds up to one.'],
+         [30, 38, 'Bayes’ rule links the two: p(x | y) = p(y | x) · p(x) / p(y). It turns the question around.'],
+         [38, 45.6, 'p(y | x) looks at a point and says how likely each label is. A machine that does that is called a classifier.']],
+  draw(t) {
+    const m = sq(110, 250, 640, 1.7), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const lab = eout(prog(t, 8.5, 1.2)), filt = ease(prog(t, 23.5, 2)), want = t > 15.5 ? 2 : -1;
+    clipTo(m, () => DATA8.forEach(([x, y, k], i) => { const keep = k === 2 ? 1 : 1 - 0.88 * filt, col = mixc(P.terracotta, BLOBCOL[k], lab); dot(m.X(x), m.Y(y), k === 2 && filt > 0 ? 2.8 + filt : 2.6, col, a0 * 0.9 * keep); void i; }));
+    blobRings(m, a0 * lab, want);
+    text(filt > 0.5 ? 'p(x | y = 3): only blob 3, rescaled' : lab > 0.5 ? 'coloured by label y' : 'p(x): the eight blobs', m.x0, m.y0 + m.S + 30, { font: F.mono, size: 18, color: filt > 0.5 ? P.sage : P.stone, a: a0 });
+    // a probe point sliding between blobs 3 and 2, with the classifier's answer
+    const ca = eout(prog(t, 38.5, 0.8));
+    if (ca > 0) { const u = 0.5 + 0.5 * Math.sin((t - 38.5) * 0.9), c3 = BLOB(2), c2 = BLOB(1), p = [lerp(c3[0], c2[0], u) + 0.08, lerp(c3[1], c2[1], u) + 0.08], pr = blobPost(p);
+      ring(m.X(p[0]), m.Y(p[1]), 9, P.chalk, ca, 2); dot(m.X(p[0]), m.Y(p[1]), 4, P.chalk, ca);
+      const bx = 1180, by = 870; text('p(y | x) for this point', bx, by - 150, { font: F.mono, size: 16, color: P.stone, a: ca });
+      pr.forEach((v, k) => { const h = 110 * v; setA(ca); ctx.fillStyle = BLOBCOL[k]; ctx.fillRect(bx + k * 62, by - h, 44, h); setA(1); text(String(k + 1), bx + k * 62 + 22, by + 24, { font: F.mono, size: 15, color: BLOBCOL[k], align: 'center', a: ca }); }); }
+    const c1 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 130, P.ink, c1); label('the season so far', 864, 296, c1, P.ink);
+    M('[d|x]  ∼  p([d|x])', 864, 350, 30, { a: c1 }); text('whatever the dice decide', 1200, 350, { font: F.mono, size: 16, color: P.dust, a: c1 });
+    const c2 = eout(prog(t, 15.5, 0.8)); if (c2 > 0) { card(830, 400, 1000, 150, P.ink, c2 * (1 - ease(prog(t, 37.5, 0.8)))); label('a request', 864, 446, c2 * (1 - ease(prog(t, 37.5, 0.8))), P.ink);
+      M('[d|x]  ∼  p([d|x] | [p|y] = 3)', 864, 504, 32, { a: c2 * (1 - ease(prog(t, 37.5, 0.8))) }); text('“the probability of x, given y = 3”', 1300, 504, { font: F.mono, size: 16, color: P.dust, a: c2 * (1 - ease(prog(t, 37.5, 0.8))) }); }
+    const c3 = eout(prog(t, 30.5, 0.8)); if (c3 > 0) { card(830, 570, 1000, 130, P.sage, c3 * (1 - ease(prog(t, 37.5, 0.8)))); label('Bayes’ rule', 864, 616, c3 * (1 - ease(prog(t, 37.5, 0.8))), P.sage);
+      M('p([d|x] | [p|y]) = p([p|y] | [d|x]) · p([d|x]) / p([p|y])', 864, 670, 30, { a: c3 * (1 - ease(prog(t, 37.5, 0.8))) }); }
+    if (ca > 0) { card(830, 400, 1000, 190, P.plum, ca); label('a classifier', 864, 446, ca, P.plum); M('p([p|y] | [d|x])', 864, 504, 34, { a: ca });
+      para('Point in, one probability per label out. Here: the exact answer for our blobs, drawn a little blurred.', 864, 548, 930, { size: 22, a: ca }); }
+  } });
+
+// 02 — recipe 1: tell the network
+const LBL8 = ['1', '2', '3', '4', '5', '6', '7', '8'];
+SC.push({ dur: 48, chapter: 'tell it', title: 'Recipe 1: tell the network', sub: 'The request becomes one more input.',
+  caps: [[1, 8, 'The most direct idea: tell the network what we want. Give it the request y as one more input, next to x and t.'],
+         [8, 15, 'A network reads numbers, so y becomes a one-hot list: eight slots, all zero, with a single one in slot y.'],
+         [15, 23, 'Add a ninth slot, ∅, meaning no request. While training, we hide the label one time in ten and light ∅ instead.'],
+         [23, 31, 'Everything else is episode 10’s regression, unchanged: a random road from noise to data, a random time, match its velocity.'],
+         [31, 39, 'Averaging only roads that share a label gives one wind per request: v(x, t, y) = E[ x − z | xₜ = x, y ].'],
+         [39, 47.6, 'Same noise, three requests. Ask for ∅ and it goes everywhere. Ask for 3, or 7, and it goes only there.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8));
+    // the network, drawn as a box with its inputs
+    const bx = 330, by = 430, na = a0;
+    rbox(bx, by, 300, 170, 14, P.surface, P.plum, na); text('vθ', bx + 150, by + 100, { font: F.serif, italic: true, size: 56, color: P.plum, align: 'center', a: na });
+    [['x', P.terracotta, 'where the point is', 0], ['t', P.amber, 'how far along', 1]].forEach(([s, c, d, i]) => { const y = by + 45 + i * 60; arrow(150, y, bx - 8, y, P.border, 2, na); text(s, 120, y + 9, { font: F.serif, italic: true, size: 30, color: c, align: 'center', a: na }); text(d, 150, y - 14, { font: F.mono, size: 13, color: P.dust, a: na }); });
+    arrow(bx + 308, by + 85, bx + 440, by + 85, P.plum, 3, na); text('velocity', bx + 380, by + 70, { font: F.mono, size: 14, color: P.plum, align: 'center', a: na });
+    const ya = eout(prog(t, 2, 0.8)), lit = t < 15 ? 2 : t < 23 ? (Math.floor((t - 15) * 1.2) % 10 === 0 ? 8 : 2) : 2;
+    if (ya > 0) { arrow(bx + 150, 330, bx + 150, by - 8, P.ink, 2.5, ya); text('y', bx + 150, 300, { font: F.serif, italic: true, size: 32, color: P.ink, align: 'center', a: ya });
+      const oa = eout(prog(t, 8.5, 0.8)); if (oa > 0) { oneHot(120, 670, lit, 8, oa * (t < 15.5 ? 1 : 1), P.ink, 44, 8, LBL8, t > 15.5); text(t > 15.5 ? 'one-hot request, with the “none” slot ∅' : 'one-hot request: y = 3', 120, 790, { font: F.mono, size: 16, color: P.stone, a: oa }); } }
+    // the loss, recalled
+    const la = eout(prog(t, 23.5, 0.8)); if (la > 0) { card(110, 820, 720, 110, P.sage, la); M('‖ [m|v][m_|θ]([d|x][d_|t], t, [p|y]) − ([d|x] − [n|z]) ‖²', 140, 885, 28, { a: la }); }
+    // the flows: none, 3, 7
+    const m = sq(1190, 250, 640, 2.0), fa = eout(prog(t, 30.5, 0.8)); if (fa > 0) { frame(m, fa);
+      const key = t < 39 ? 'none' : t < 43.3 ? 'b3' : 'b7', t0 = t < 39 ? 31.5 : t < 43.3 ? 39.3 : 43.5, st = FL[key], f = (st.S - 1) * hopF(t, t0, 2.8), want = key === 'b3' ? 2 : key === 'b7' ? 6 : -1;
+      blobRings(m, fa, want); flowDots(m, st, f, fa);
+      M(want < 0 ? '[p|y] = ∅' : `[p|y] = ${want + 1}`, m.x0, m.y0 + m.S + 34, 26, { a: fa }); }
+    const ea = eout(prog(t, 31.5, 0.8)); if (ea > 0) { card(640, 640, 520, 160, P.plum, ea); label('one wind per request', 668, 684, ea, P.plum); M('[m|v]([d|x], t, [p|y]) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x], [p|y] ]', 668, 750, 20, { a: ea }); }
+  } });
+
+// 03 — digits on request
+const ACC1 = J['1'].acc;
+const MISS = MN.gridRead.map((row, d) => row.map(r => r !== d));
+SC.push({ dur: 46, chapter: 'digits', title: 'Digits on request', sub: 'Ten labels, one network: episode 10’s digit flow, now with a request.',
+  caps: [[1, 8, 'Same recipe on handwritten digits: ten label slots plus ∅, starting from episode 10’s network, trained twenty thousand more steps.'],
+         [8, 15, 'Each row asks for one digit. Each column starts from the very same noise.'],
+         [15, 23, 'Look down a column. The same noise keeps its slant and its thickness in every digit. The noise carries style, the label carries content.'],
+         [23, 31, `Did it listen? Episode 4 gave us a digit reader, a classifier trained on real digits. It agrees with the request ${pct(ACC1)} of the time.`],
+         [31, 38, 'Good, but not perfect. A few come out ambiguous, like a 4 that could pass for a 9.'],
+         [38, 45.6, 'The model hears the request, but softly. We want a way to make it listen harder, and for that, we need Bayes.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), cell = 62, gap = 5, x0 = 170, y0 = 250;
+    for (let d = 0; d < 10; d++) { const ra = a0 * eout(prog(t, 1.5 + d * 0.35, 0.5)), y = y0 + d * (cell + gap);
+      text(String(d), 130, y + cell * 0.66, { font: F.mono, size: 22, color: P.ink, align: 'center', a: ra });
+      digitRow(MN.grid[d], `g${d}_`, 8, x0, y, cell, gap, ra);
+      const hl = t > 15 && t < 23 ? 1 : 0; if (hl) { const col = Math.floor((t - 15) / 2.7) % 8; rbox(x0 + col * (cell + gap) - 3, y0 - 6, cell + 6, 10 * (cell + gap) + 6, 8, 'rgba(0,0,0,0)', P.sage, a0 * 0.8); }
+      const ma = eout(prog(t, 31, 0.8)); if (ma > 0) MISS[d].forEach((bad, c) => { if (bad) ring(x0 + c * (cell + gap) + cell / 2, y + cell / 2, cell * 0.58, P.rose, ma, 2.5); }); }
+    text('same noise down each column  →', x0, 945, { font: F.mono, size: 15, color: P.dust, a: a0 * eout(prog(t, 8, 0.8)) });
+    const c1 = eout(prog(t, 23.5, 0.8)); if (c1 > 0) { card(830, 250, 1000, 420, P.ink, c1); label('the digit reader agrees with the request', 864, 296, c1, P.ink);
+      const pc = J['1'].perClass; pc.forEach((v, d) => { const x = 880 + d * 92, h = 220 * v * eout(prog(t, 24 + d * 0.1, 0.6)); setA(c1); ctx.fillStyle = v > 0.9 ? P.sage : P.amber; ctx.fillRect(x, 610 - h, 56, h); setA(1);
+        text(String(d), x + 28, 640, { font: F.mono, size: 18, color: P.ink, align: 'center', a: c1 }); text(pct(v), x + 28, 600 - h, { font: F.mono, size: 14, color: P.stone, align: 'center', a: c1 }); });
+      M(`overall  [s|${pct(ACC1)}]      (w = 1: the plain conditional model)`, 864, 346, 22, { a: c1 }); }
+    const c2 = eout(prog(t, 31.5, 0.8)); if (c2 > 0) { card(830, 690, 1000, 160, P.rose, c2); label('rose rings: the reader disagrees', 864, 736, c2, P.rose);
+      para('The request went in. The network heard it, softly.', 864, 790, 930, { size: 26, a: c2 }); }
+  } });
+
+// 04 — Bayes' rule, as arrows
+const FT = '0.6', FF = BL.fields[FT];
+const SUM = FF.v0.map((v, i) => [v[0] + FF.cg[i][0], v[1] + FF.cg[i][1]]);
+const AGREE = (() => { let s = 0, n = 0; SUM.forEach((u, i) => { const v = FF.vy[i], a = Math.hypot(...u), b = Math.hypot(...v); if (a < 0.05 || b < 0.05) return; s += Math.acos(clamp((u[0] * v[0] + u[1] * v[1]) / (a * b), -1, 1)); n++; }); return Math.round(s / n * 180 / Math.PI); })();
+SC.push({ dur: 54, chapter: 'bayes', title: 'Bayes’ rule, as arrows', sub: 'Take the log, then the gradient: a product becomes a sum of arrows.',
+  caps: [[1, 8, 'To make it listen harder, go back to Bayes’ rule and do two things to it. First, take the logarithm of both sides.'],
+         [8, 16, 'Logarithms turn multiplying into adding, and dividing into subtracting. The rule becomes a plain sum.'],
+         [16, 24, 'Second, take the gradient, ∇: the arrow that points where a quantity grows fastest. Episode 8 called ∇ log p(x) the score.'],
+         [24, 32, 'p(y) is the same wherever x is, so its arrow is zero. What remains is two arrows, added.'],
+         [32, 40, 'The new one is the classifier’s arrow: from every point, the way to look more like a 3. Here it is from a real classifier we trained.'],
+         [40, 47, 'Add it to the wind with no request, and the wind bends toward blob 3.'],
+         [47, 53.6, `Our network trained with labels learned almost the same wind on its own: on average the two arrows differ by ${AGREE}°.`]],
+  draw(t) {
+    const m = sq(110, 250, 640, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    clipTo(m, () => DATA8.forEach(([x, y, k]) => dot(m.X(x), m.Y(y), 2.2, BLOBCOL[k], a0 * 0.35))); blobRings(m, a0 * 0.8, t > 32 ? 2 : -1);
+    const ha = eout(prog(t, 32, 1)); heatP(m, FF.p, ha);
+    const ga = ha * (1 - ease(prog(t, 40, 0.8))); fieldArrows(m, FF.cg, ga, P.sage, 0.1, 2.2);
+    const sa = eout(prog(t, 40, 0.8)) * (1 - ease(prog(t, 47, 0.8))); fieldArrows(m, FF.v0, sa * 0.5, P.dust, 0.1, 1.6); fieldArrows(m, SUM, sa, P.plum, 0.1, 2.4);
+    const va = eout(prog(t, 47, 0.8)); fieldArrows(m, FF.vy, va, P.plum, 0.1, 2.4);
+    const cap = t < 32 ? 'the eight blobs' : t < 40 ? 'ink: p(y = 3 | x) · sage: the classifier’s arrow' : t < 47 ? 'dust: no request · plum: plus the classifier' : 'plum: the labelled network’s own wind for y = 3';
+    text(cap, m.x0, m.y0 + m.S + 30, { font: F.mono, size: 16, color: P.stone, a: a0 }); text('all at t = 0.6, drawn as velocities (next scene: why)', m.x0, m.y0 + m.S + 54, { font: F.mono, size: 13, color: P.dust, a: a0 * eout(prog(t, 32, 1)) });
+    // the derivation, line by line
+    const L = [[1, 'p([d|x] | [p|y]) = p([p|y] | [d|x]) · p([d|x]) / p([p|y])', 'Bayes’ rule'],
+               [8.5, 'log p([d|x] | [p|y]) = log p([d|x]) + log p([p|y] | [d|x]) − log p([p|y])', 'take the log'],
+               [24.5, '∇ log p([d|x] | [p|y]) = ∇ log p([d|x]) + ∇ log p([p|y] | [d|x]) − [k|0]', 'take the gradient']];
+    card(830, 250, 1000, 470, P.sage, a0); label('two moves', 864, 296, a0, P.sage);
+    L.forEach(([t0, s, nm], i) => { const a = eout(prog(t, t0, 0.8)); text(nm, 864, 356 + i * 120, { font: F.serif, italic: true, size: 20, color: P.dust, a }); M(s, 864, 396 + i * 120, 26, { a }); });
+    const ua = eout(prog(t, 25.5, 0.8)); if (ua > 0) { const y = 660; text('the score (episode 8)', 1080, y, { font: F.mono, size: 14, color: P.terracotta, align: 'center', a: ua }); text('the classifier’s arrow', 1370, y, { font: F.mono, size: 14, color: P.sage, align: 'center', a: ua });
+      text('p(y) has no x in it', 1640, y, { font: F.mono, size: 14, color: P.dust, align: 'center', a: ua }); }
+    const na = eout(prog(t, 16.5, 0.8)); if (na > 0) { card(830, 740, 1000, 180, P.terracotta, na); label('∇, the gradient', 864, 786, na, P.terracotta);
+      para('At every point, the arrow toward where a quantity rises fastest. ∇ log p(x) points toward more likely data: episode 8’s score.', 864, 830, 930, { size: 23, a: na }); }
+  } });
+
+// 05 — recipe 2: classifier guidance
+const NZ = memo('nz', () => { const r = rng(5), g = () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()); return Float32Array.from({ length: 784 }, g); });
+const NOISY = memo('noisy', () => { const x = imgs(MN.grid[7], 8)[1]; return [0.2, 0.45, 0.7, 1].map(tt => Uint8Array.from(x, (v, i) => clamp(Math.round((((1 - tt) * NZ[i] + tt * (v / 127.5 - 1)) + 1) * 127.5), 0, 255))); });
+SC.push({ dur: 52, chapter: 'classifier', title: 'Recipe 2: classifier guidance', sub: 'Follow the wind, plus a classifier’s arrow, turned up by w.',
+  caps: [[1, 8, 'So here is a second recipe: follow the usual wind, and add the classifier’s arrow. It is called classifier guidance, published in 2021.'],
+         [8, 16, 'One catch. Halfway along a road, a point is still part noise, so the classifier must be trained on noisy points at every t, not only on clean ones.'],
+         [16, 26, 'Another: the flow is written in velocities, the classifier in scores. Episode 10’s formulas translate: a change in score, times (1 − t)/t, is a change in velocity.'],
+         [26, 33, 'Now the dial. Multiply the classifier’s arrow by w. At w = 0 we ignore the request, and the noise goes to every blob.'],
+         [33, 40, 'At w = 1 it is plain Bayes, exactly the conditional distribution. Everything lands on blob 3.'],
+         [40, 47, 'Above 1 we ask for p(x) times p(y | x) to the power w: only the points the classifier is most sure about.'],
+         [47, 51.6, 'It works, but it needs a second network, trained on noise, and its arrows can chase whatever fools the classifier.']],
+  draw(t) {
+    const m = sq(110, 250, 640, 2.0), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const phase = t < 33 ? 'cg0' : t < 40 ? 'cg1' : 'cg4', t0 = t < 33 ? 26.3 : t < 40 ? 33.3 : 40.3, st = FL[phase], f = t < 26 ? 0 : (st.S - 1) * hopF(t, t0, 3), w = { cg0: 0, cg1: 1, cg4: 4 }[phase];
+    blobRings(m, a0, t > 26 ? 2 : -1); flowDots(m, st, f, a0);
+    if (t > 26) M(`asking for [p|y] = 3 ·  [a|w] = ${w}`, m.x0, m.y0 + m.S + 34, 24, { a: a0 });
+    const c1 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 150, P.sage, c1); label('classifier guidance · Dhariwal & Nichol, 2021', 864, 296, c1, P.sage);
+    M('[m|v]  =  [m|v][m_|∅]  +  [a|w] · ∇ log p([p|y] | [d|x][d_|t])       (in scores, for now)', 864, 356, 26, { a: c1 });
+    const c2 = eout(prog(t, 8.5, 0.8)) * (1 - ease(prog(t, 16, 0.6))); if (c2 > 0) { card(830, 420, 1000, 300, P.ink, c2); label('it must read noisy points', 864, 466, c2, P.ink);
+      NOISY.forEach((px, i) => { drawDigit(px, 'nz' + i, 880 + i * 180, 500, 130, c2); text(`t = ${[0.2, 0.45, 0.7, 1][i]}`, 945 + i * 180, 660, { font: F.mono, size: 16, color: P.amber, align: 'center', a: c2 }); }); }
+    const c3 = eout(prog(t, 16.5, 0.8)) * (1 - ease(prog(t, 26, 0.6))); if (c3 > 0) { card(830, 420, 1000, 300, P.terracotta, c3); label('scores to velocities (episode 10)', 864, 466, c3, P.terracotta);
+      M('[d|x̂] = [d|x][d_|t] + (1 − t)·[m|v]      [n|ẑ] = [d|x][d_|t] − t·[m|v]      s = −[n|ẑ] / (1 − t)', 864, 530, 24, { a: c3 });
+      M('so   [m|v] = ( [d|x][d_|t] + (1 − t)·s ) / t', 864, 600, 28, { a: eout(prog(t, 19, 0.8)) });
+      M('and  Δ[m|v] = (1 − t)/t · Δs', 864, 660, 30, { a: eout(prog(t, 21.5, 0.8)) }); }
+    const c4 = eout(prog(t, 26.5, 0.8)); if (c4 > 0) { card(830, 420, 1000, 300, P.amber, c4); label('what w asks for', 864, 466, c4, P.amber);
+      M('[m|v] = [m|v][m_|∅] + [a|w] · (1 − t)/t · ∇ log p([p|y] | [d|x][d_|t])', 864, 530, 26, { a: c4 });
+      M('samples from roughly   p([d|x]) · p([p|y] | [d|x])^[a|w]', 864, 600, 26, { a: eout(prog(t, 40.5, 0.8)) });
+      text('w = 0: ignore the request · w = 1: Bayes · w > 1: only what the classifier is sure of', 864, 660, { font: F.mono, size: 16, color: P.dust, a: c4 }); }
+    const c5 = eout(prog(t, 47, 0.8)); if (c5 > 0) { card(830, 740, 1000, 180, P.rose, c5); label('on digits, asking for 7', 864, 786, c5, P.rose);
+      ['1', '4'].forEach((w, j) => { text(`w = ${w}`, 880 + j * 470, 836, { font: F.mono, size: 15, color: P.amber, a: c5 }); digitRow(MN.cg[w], `cg${w}_`, 6, 960 + j * 470, 806, 56, 3, c5); }); }
+  } });
+
+// 06 — recipe 3: classifier-free guidance
+const PR = BL.probe;
+SC.push({ dur: 52, chapter: 'CFG', title: 'Recipe 3: no classifier needed', sub: 'The classifier’s arrow is a difference of two winds we already have.',
+  caps: [[1, 9, 'Now the idea that put guidance everywhere. Rearrange Bayes’ rule once more, and solve for the classifier’s arrow.'],
+         [9, 17, 'It is just a difference: the wind with the request, minus the wind without it. And we already have both.'],
+         [17, 24, 'Remember the ∅ slot? Hiding the label one time in ten taught one network both winds: with the request, and without.'],
+         [24, 31, 'At one point: grey is the wind without the request, plum the wind with it. The sage arrow between them is the request’s push.'],
+         [31, 39, 'w = 1 follows that push once and lands on the plum arrow. w = 3 follows it three times. This is classifier-free guidance, from 2021.'],
+         [39, 46, 'The price is two network calls per step: one with the request, one with ∅.'],
+         [46, 51.6, 'Same formula as classifier guidance. The classifier is still there, hiding inside the difference.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), v0 = PR.v0, vy = PR.vy, d = [vy[0] - v0[0], vy[1] - v0[1]];
+    const tip = w => [v0[0] + w * d[0], v0[1] + w * d[1]], pts = [[0, 0], v0, vy, tip(3.2)];
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), bx = [Math.min(...xs), Math.max(...xs)], by = [Math.min(...ys), Math.max(...ys)];
+    const S = Math.min(540 / (bx[1] - bx[0] + 1e-6), 500 / (by[1] - by[0] + 1e-6)), O = [450 - (bx[0] + bx[1]) / 2 * S, 600 + (by[0] + by[1]) / 2 * S], V = v => [O[0] + v[0] * S, O[1] - v[1] * S];
+    const wv = t < 24 ? 0 : t < 31 ? ease(prog(t, 25.5, 2.5)) : 1 + 2 * ease(prog(t, 33, 3));
+    card(110, 250, 680, 670, P.plum, a0); label(`one point, at t = ${PR.t}`, 144, 296, a0, P.plum);
+    const da = eout(prog(t, 24, 0.8));
+    if (da > 0) { const b0 = V(v0), e = V(tip(3.2)); line(b0[0], b0[1], e[0], e[1], P.sage, 1.5, da * 0.5, [6, 7]);
+      [1, 2, 3].forEach(k => { const p = V(tip(k)); dot(p[0], p[1], 4, P.sage, da * 0.8); text(`w = ${k}`, p[0] + 12, p[1] + 5, { font: F.mono, size: 14, color: P.sage, a: da * 0.8 }); }); }
+    const a1 = eout(prog(t, 17.5, 0.8)), a2 = a1 * eout(prog(t, 19.5, 0.8)), e0 = V(v0), ey = V(vy);
+    arrow(O[0], O[1], e0[0], e0[1], P.stone, 4, a1); M('[k|v][k_|∅]', e0[0] - 64, e0[1] + 6, 24, { a: a1 });
+    arrow(O[0], O[1], ey[0], ey[1], P.plum, 4, a2); M('[m|v][m_|y]', ey[0] + 12, ey[1] + 22, 24, { a: a2 });
+    if (da > 0) arrow(e0[0], e0[1], ey[0], ey[1], P.sage, 3, da);
+    if (t > 24) { const eg = V(tip(wv)); arrow(O[0], O[1], eg[0], eg[1], P.amber, 5, eout(prog(t, 24.5, 0.6))); M(`[a|w] = ${wv.toFixed(1)}`, 144, 890, 26, { a: a0 }); }
+    marble(O[0], O[1], 8, P.rose, a0);
+    // the formulas
+    const c1 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 180, P.sage, c1); label('Bayes, solved for the classifier', 864, 296, c1, P.sage);
+    M('∇ log p([p|y] | [d|x]) = ∇ log p([d|x] | [p|y]) − ∇ log p([d|x])', 864, 352, 26, { a: c1 });
+    M('in velocities:   (1 − t)/t · ∇ log p([p|y] | [d|x][d_|t]) = [m|v][m_|y] − [k|v][k_|∅]', 864, 404, 22, { a: eout(prog(t, 9.5, 0.8)) });
+    const c2 = eout(prog(t, 17.5, 0.8)); if (c2 > 0) { card(830, 450, 1000, 200, P.ink, c2); label('one network, two winds', 864, 496, c2, P.ink);
+      oneHot(864, 520, 2, 8, c2, P.ink, 30, 6); M('→  [m|v][m_|y]', 1200, 544, 22, { a: c2 });
+      oneHot(864, 562, 8, 8, c2, P.dust, 30, 6); M('→  [k|v][k_|∅]', 1200, 586, 22, { a: c2 });
+      text(`the push here: network (${d.map(v => v.toFixed(2)).join(', ')}) · our trained classifier (${PR.cg.map(v => v.toFixed(2)).join(', ')})`, 864, 628, { font: F.mono, size: 14, color: P.dust, a: eout(prog(t, 20, 0.8)) }); }
+    const c3 = eout(prog(t, 31.5, 0.8)); if (c3 > 0) { card(830, 670, 1000, 150, P.amber, c3); label('classifier-free guidance · Ho & Salimans, 2021', 864, 716, c3, P.amber);
+      M('[m|v] = [k|v][k_|∅] + [a|w] · ( [m|v][m_|y] − [k|v][k_|∅] )', 864, 778, 34, { a: c3 }); }
+    const c4 = eout(prog(t, 39.5, 0.8)); if (c4 > 0) { card(830, 840, 1000, 80, P.dust, c4); text('cost: 2 network calls per step, instead of 1', 864, 890, { font: F.mono, size: 20, color: P.stone, a: c4 }); }
+  } });
+
+// 07 — the dial, on two overlapping classes
+const WS = CLD.ws, SEP = CLD.sep, SD = CLD.std;
+const dens = (x, y, w) => { const g = cx => Math.exp(-((x - cx) ** 2 + y * y) / (2 * SD * SD)), pa = g(-SEP), pb = g(SEP), px = (pa + pb) / 2, pA = pa / (pa + pb + 1e-30); return px * Math.pow(pA, w); };
+const DGRID = memo('dgrid', () => { const out = {}; for (const w of WS) { const n = 56, v = []; let mx = 0; for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const x = -2.3 + 4.6 * (c + 0.5) / n, y = 2.3 - 4.6 * (r + 0.5) / n, d = dens(x, y, w); v.push(d); mx = Math.max(mx, d); } out[w] = v.map(d => d / mx); } return out; });
+const MARG = memo('marg', () => { const out = {}; for (const w of WS) { const xs = Array.from({ length: 120 }, (_, i) => -2.3 + 4.6 * i / 119), v = xs.map(x => { let s = 0; for (let j = 0; j < 60; j++) { const y = -2.3 + 4.6 * j / 59; s += dens(x, y, w); } return s; }), S = v.reduce((a, b) => a + b) * (4.6 / 119); out[w] = v.map(u => u / S); } return out; });
+SC.push({ dur: 52, chapter: 'the dial', title: 'What the dial does', sub: 'Two overlapping classes, and what p(x) · p(y | x)^w asks for.',
+  caps: [[1, 9, 'What does w really do? Take two classes that overlap: A on the left, B on the right. Near the middle, a point could be either.'],
+         [9, 17, 'At w = 0 there is no request, so we get both clouds. At w = 1, class A, overlap and all: a fair sample of A.'],
+         [17, 24, 'Turn it up. The points in the overlap are the ones the classifier is unsure about, and the power w shrinks them fastest.'],
+         [24, 31, 'So the samples retreat from B, toward what is unmistakably A. The cloud narrows and drifts left.'],
+         [31, 40, 'The shading is what p(x) · p(A | x)^w asks for. Our samples overshoot it: a push at every step adds up to more than the target.'],
+         [40, 47, 'More w: more certain, less varied. Fidelity up, diversity down.'],
+         [47, 51.6, 'Now watch that trade happen on real digits.']],
+  draw(t) {
+    const m = sq(110, 250, 640, 2.3), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const wi = t < 13 ? 0 : t < 17 ? 1 : t < 21 ? 2 : t < 26 ? 3 : 4, w = WS[wi], tw = [9.2, 13, 17.2, 21.5, 26][wi], st = CP[String(w)], f = t < 1.5 ? 0 : (st.S - 1) * hopF(t, wi ? tw : 1.5, 2.2);
+    const ha = eout(prog(t, 31, 1)); if (ha > 0) heatDraw(m, 'd' + w, 56, DGRID[w], -2.3, 2.3, ha * 0.9);
+    [[-SEP, 'A', P.terracotta], [SEP, 'B', P.ink]].forEach(([cx, nm, c]) => { ring(m.X(cx), m.Y(0), SD * m.S / 4.6 * 2, c, a0 * 0.6, 1.5, [5, 6]); text(nm, m.X(cx), m.Y(0) - SD * m.S / 4.6 * 2 - 10, { font: F.serif, italic: true, size: 30, color: c, align: 'center', a: a0 }); });
+    const pre = t < 9 ? 1 : 0;
+    clipTo(m, () => { for (let k = 0; k < st.n; k++) { const p = ptAt(st, k, f); dot(m.X(p[0]), m.Y(p[1]), 2.6, pre ? P.rose : mixc(P.rose, P.terracotta, f / (st.S - 1)), a0 * 0.85); } });
+    // the dial
+    const da = eout(prog(t, 8.5, 0.8)), x0 = 900, x1 = 1780, y = 330, X = v => x0 + (x1 - x0) * Math.log2(1 + v) / Math.log2(9);
+    card(830, 250, 1000, 160, P.amber, da); line(x0, y + 30, x1, y + 30, P.border, 3, da);
+    WS.forEach(v => { text(String(v), X(v), y + 70, { font: F.mono, size: 18, color: v === w ? P.amber : P.dust, align: 'center', a: da }); line(X(v), y + 22, X(v), y + 38, P.border, 2, da); });
+    const kx = X(w); dot(kx, y + 30, 14 * (0.9 + 0.1 * pop(prog(t, tw, 0.3))), P.amber, da); text('guidance dial  w', x0, y - 20, { font: F.mono, size: 16, color: P.amber, a: da });
+    const S = CLD.stats[String(w)], sa = eout(prog(t, 17, 0.8)); if (sa > 0) { card(830, 430, 1000, 170, P.sage, sa); label(`samples at w = ${w}`, 864, 476, sa, P.sage);
+      M(`on A’s side  [s|${pct(S.pA)}]      spread  ${S.std[0].toFixed(2)}      centre  ${S.mean[0].toFixed(2)}`, 864, 540, 24, { a: sa }); }
+    const pa = eout(prog(t, 31, 0.8)); if (pa > 0) { card(830, 620, 1000, 300, P.ink, pa); label('across the panel: what p(x) · p(A | x)^w asks for, and what we got', 864, 666, pa, P.ink);
+      const gx0 = 880, gx1 = 1780, gy = 890, H = 170, xs = i => gx0 + (gx1 - gx0) * i / 119;
+      const C = MARG[w], bins0 = new Array(30).fill(0); for (let k = 0; k < st.n; k++) { const p = ptAt(st, k, st.S - 1), b = Math.floor((p[0] + 2.3) / 4.6 * 30); if (b >= 0 && b < 30) bins0[b]++; }
+      const mx = 1.08 * Math.max(...C, ...bins0.map(c => c / st.n / (4.6 / 30))); setA(pa); ctx.strokeStyle = P.ink; ctx.lineWidth = 2.5; ctx.beginPath(); C.forEach((v, i) => { const Y = gy - H * v / mx; i ? ctx.lineTo(xs(i), Y) : ctx.moveTo(xs(i), Y); }); ctx.stroke(); setA(1);
+      const bins = new Array(30).fill(0); for (let k = 0; k < st.n; k++) { const p = ptAt(st, k, st.S - 1), b = Math.floor((p[0] + 2.3) / 4.6 * 30); if (b >= 0 && b < 30) bins[b]++; }
+      bins.forEach((c, b) => { const v = c / st.n / (4.6 / 30), h = H * v / mx, xa = gx0 + (gx1 - gx0) * b / 30; setA(pa * 0.7); ctx.fillStyle = P.terracotta; ctx.fillRect(xa + 1, gy - h, (gx1 - gx0) / 30 - 2, h); setA(1); });
+      line(gx0, gy, gx1, gy, P.border, 1.5, pa); text('ink line: the target · bars: our samples', gx1, gy + 26, { font: F.mono, size: 13, color: P.dust, align: 'right', a: pa }); }
+  } });
+
+// 08 — the price: the dial on real digits, and episode 4's judges
+const JW = Object.keys(J).map(Number).sort((a, b) => a - b), JB = JW.reduce((b, w) => J[w].FID < J[b].FID ? w : b, JW[0]);
+const SWW = ['0', '1', '2', '4', '8'];
+SC.push({ dur: 54, chapter: 'the price', title: 'The price of listening', sub: 'Same noise, one request, the dial turned up; and episode 4’s judges.',
+  caps: [[1, 8, 'Same eight noise images, all asking for a 7, with the dial at 0, 1, 2, 4 and 8.'],
+         [8, 16, 'At 0, whatever digit the noise leads to. At 1, sevens. By 4, bolder, more obvious sevens. At 8, a caricature.'],
+         [16, 24, `Episode 4’s judges, on 2,000 digits per setting. The digit reader agrees with the request ${pct(J['0'].acc)} of the time at w = 0, pure chance; ${pct(J['1'].acc)} at 1, ${pct(J['4'].acc)} at 4.`],
+         [24, 32, `FID, the distance between our digits and real ones (lower is better): ${J['0'].FID.toFixed(1)} at w = 0, best at w = ${JB} with ${J[JB].FID.toFixed(1)}, then ${J['8'].FID.toFixed(1)} at 8.`],
+         [32, 40, `Recall, the share of real variety our digits cover, falls from ${pct(J['1'].recall)} at w = 1 to ${pct(J['8'].recall)} at 8. Every 7 drifts toward the typical 7.`],
+         [40, 47, 'Remember the title? That was w = 1. At w = 2.5, each letter keeps only the strokes no other letter could claim.'],
+         [47, 53.6, 'Small w: faithful but loose. Large w: obedient but samey. That trade-off is why every generator hands you this dial.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)) * (1 - ease(prog(t, 39.5, 0.8))), cell = 70, gap = 5, x0 = 220, y0 = 270;
+    SWW.forEach((w, j) => { const a = a0 * eout(prog(t, 1 + j * 1.2, 0.6)), y = y0 + j * 132; M(`[a|w] = ${w}`, 110, y + 44, 24, { a }); digitRow(MN.sweep[w], `s${w}_`, 8, x0, y, cell, gap, a); });
+    text('asking for 7 · each column: the same noise', x0, y0 + 5 * 132 + 10, { font: F.mono, size: 15, color: P.dust, a: a0 });
+    // the title again: w = 1 against w = 2.5
+    const ta = eout(prog(t, 40, 0.8)); if (ta > 0) { const sc = 150, cx = 450;
+      [[TL.map(st => [st, st.S - 1]), 1, 400, A.title.cover[0]], [null, 2.5, 700, A.title.cover[1]]].forEach(([_, w, cy, cov], j) => { const a = ta * eout(prog(t, 40.3 + j * 1.6, 0.8));
+        M(`[a|w] = ${w}`, 110, cy - 150, 24, { a }); text(`${pct(cov)} of each letter drawn`, 250, cy - 150, { font: F.mono, size: 15, color: j ? P.rose : P.sage, a });
+        ctx.fillStyle = P.chalk; setA(a * 0.9);
+        if (j === 0) TL.forEach(st => { for (let i = 0; i < st.n; i += 2) { const p = ptAt(st, i, st.S - 1); ctx.fillRect(cx + p[0] * sc - 1, cy - p[1] * sc - 1, 2, 2); } });
+        else { const v = HARD; for (let i = 0; i < v.length; i += 4) ctx.fillRect(cx + v[i] / 4000 * sc - 1, cy - v[i + 1] / 4000 * sc - 1, 2, 2); }
+        setA(1); }); }
+    // three judges against w
+    const charts = [[16, 'digit reader agrees with the request', 'acc', P.sage, 0, 1, v => pct(v)], [24, 'FID  (lower is better)', 'FID', P.rose, 0, Math.max(...JW.map(w => J[w].FID)) * 1.1, v => v.toFixed(1)],
+                    [32, 'recall  (variety covered)', 'recall', P.ink, 0, 1, v => pct(v)]];
+    charts.forEach(([t0, nm, key, col, lo, hi, fmt], i) => { const a = eout(prog(t, t0, 0.8)); if (a <= 0) return; const x0c = 900, x1c = 1780, yb = 405 + i * 225, H = 110, X = w => x0c + (x1c - x0c) * w / 8, Y = v => yb - H * (v - lo) / (hi - lo);
+      card(830, yb - H - 60, 1000, H + 95, col, a); label(nm, 864, yb - H - 26, a, col); line(x0c, yb, x1c, yb, P.border, 1.5, a);
+      [0, 1, 2, 4, 8].forEach(w => text(String(w), X(w), yb + 24, { font: F.mono, size: 13, color: P.dust, align: 'center', a }));
+      const g = eout(prog(t, t0 + 0.3, 2)); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); JW.forEach((w, k) => { const p = [X(w), Y(J[w][key])]; if (k / (JW.length - 1) > g + 1e-6) return; k ? ctx.lineTo(...p) : ctx.moveTo(...p); }); ctx.stroke(); setA(1);
+      JW.forEach((w, k) => { if (k / (JW.length - 1) > g + 1e-6) return; dot(X(w), Y(J[w][key]), 5, col, a); });
+      [0, 1, 4, 8].forEach(w => { if (J[w] && g > 0.95) text(fmt(J[w][key]), X(w), Y(J[w][key]) - 12, { font: F.mono, size: 13, color: P.stone, align: 'center', a }); });
+      if (key === 'FID' && g > 0.95) { ring(X(JB), Y(J[JB].FID), 11, P.amber, a, 2); text(`best: w = ${JB}`, X(JB) + 16, Y(J[JB].FID) + 28, { font: F.mono, size: 14, color: P.amber, a }); } });
+  } });
+
+// 09 — saying no: negative requests
+const FIN = k => { const st = FL[k]; return Array.from({ length: st.n }, (_, i) => ptAt(st, i, st.S - 1)); };
+const ON3 = k => FIN(k).filter(p => nearestBlob(p) === 2);
+const DIST2 = k => { const b2 = BLOB(1), pts = ON3(k); return pts.reduce((s, p) => s + Math.hypot(p[0] - b2[0], p[1] - b2[1]), 0) / Math.max(1, pts.length); };
+const NEGS = memo('negs', () => ({ n: DIST2('negn'), g: DIST2('neg'), on: ON3('neg').length / FL.neg.n, on2: ON3('neg2').length / FL.neg2.n }));
+SC.push({ dur: 40, chapter: 'saying no', title: 'Saying no', sub: 'Swap the no-request wind for a wind to avoid.',
+  caps: [[1, 8, 'One more trick hides in the formula. Replace the wind with no request by the wind for something we do not want.'],
+         [8, 16, 'Start from the wind toward what to avoid, then push from it toward the request. At w = 1 the avoided wind cancels out; above 1 it pushes away.'],
+         [16, 24, `Ask the blobs for 3 while avoiding 2, at w = 1.25. ${pct(NEGS.on)} still land on blob 3, but on its far side, away from 2.`],
+         [24, 31, `Turn it up to 2 and it overshoots: pushed so hard from blob 2 that ${NEGS.on2 < 0.05 ? 'every point flies' : 'most points fly'} right past blob 3.`],
+         [31, 39.6, 'Image generators call this the negative prompt: ask for a portrait, and push away from “blurry”. Used gently, it works.']],
+  draw(t) {
+    const m = sq(110, 250, 640, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const k = t < 16 ? 'negn' : t < 24 ? 'neg' : 'neg2', st = FL[k], f = (st.S - 1) * hopF(t, t < 16 ? 2 : t < 24 ? 16.3 : 24.3, 3);
+    blobRings(m, a0, 2); if (t > 16) { const b = BLOB(1); ring(m.X(b[0]), m.Y(b[1]), 34, P.rose, a0, 3, [6, 5]); text('avoid', m.X(b[0]) + 40, m.Y(b[1]) - 10, { font: F.mono, size: 16, color: P.rose, a: a0 }); }
+    flowDots(m, st, f, a0, 3);
+    M(t < 16 ? 'ask [p|3],  [a|w] = 1.25' : t < 24 ? 'ask [p|3],  avoid [n|2],  [a|w] = 1.25' : 'ask [p|3],  avoid [n|2],  [a|w] = 2', m.x0, m.y0 + m.S + 34, 24, { a: a0 });
+    if (t > 19 && t < 24) text(`average distance from blob 2: ${NEGS.n.toFixed(2)} → ${NEGS.g.toFixed(2)}`, m.x0, m.y0 + m.S + 62, { font: F.mono, size: 14, color: P.dust, a: eout(prog(t, 19, 0.8)) });
+    const c1 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 250, P.rose, c1); label('a negative request', 864, 296, c1, P.rose);
+    M('[m|v] = [m|v][m_|neg] + [a|w] · ( [m|v][m_|y] − [m|v][m_|neg] )', 864, 364, 32, { a: eout(prog(t, 8, 0.8)) });
+    M('[a|w] = 1:   [m|v] = [m|v][m_|y]      the negative cancels out', 864, 436, 22, { a: eout(prog(t, 11, 0.8)) });
+    const c2 = eout(prog(t, 31, 0.8)); if (c2 > 0) { card(830, 520, 1000, 200, P.ink, c2); label('in image generators', 864, 566, c2, P.ink);
+      M('prompt:  “a portrait”        negative prompt:  “blurry”', 864, 630, 24, { a: c2 }); text('same formula: the avoided wind comes from the words to avoid', 864, 680, { font: F.mono, size: 15, color: P.dust, a: c2 }); }
+  } });
+
+// 10 — in the wild
+SC.push({ dur: 40, chapter: 'wild', title: 'Guidance, everywhere', sub: 'The dial behind today’s image, video and audio generators.',
+  caps: [[1, 9, 'Classifier-free guidance became the default almost at once. OpenAI’s GLIDE, in 2021, found people preferred it to guiding with a separate model.'],
+         [9, 18, 'Google’s Imagen, in 2022, turned w up high, and added a fix called dynamic thresholding to stop pixels from saturating.'],
+         [18, 27, 'Stable Diffusion put the dial in front of everyone: the “guidance scale”, 7.5 by default, plus the negative prompt box.'],
+         [27, 34, 'And FLUX.1 [dev], in 2024, was distilled to take w as an input: one network call per step does the work of two.'],
+         [34, 39.6, 'One formula, from toy blobs to the models you use.']],
+  draw(t) {
+    const cards = [[1, 'glide · openai, 2021', P.terracotta, 'classifier-free guidance, for text', 'preferred by people over guiding with a separate model'],
+      [9, 'imagen · google, 2022', P.plum, 'large w + dynamic thresholding', 'turn the dial up without burning out pixels'],
+      [18, 'stable diffusion · 2022', P.sage, 'guidance scale 7.5 · negative prompts', 'the dial, in everyone’s hands'],
+      [27, 'flux.1 [dev] · 2024', P.amber, 'guidance distillation', 'w becomes an input: one call per step']];
+    cards.forEach(([t0, h, c, m1, s], i) => { const a = eout(prog(t, t0, 0.8)), x = 100 + (i % 2) * 880, y = 260 + Math.floor(i / 2) * 330;
+      card(x, y, 840, 300, c, a); label(h, x + 32, y + 46, a, c); text(m1, x + 32, y + 140, { font: F.mono, size: 26, color: P.chalk, a }); para(s, x + 32, y + 206, 780, { size: 24, a: a * eout(prog(t, t0 + 1, 0.8)) }); });
+  } });
+
+// 11 — build it
+const CODE = [
+  '[k|# training: episode 10’s loss, but sometimes hide the request]',
+  'y = [p|where]([a|rand](n) < [a|0.1], NULL, y)',
+  'xt = ([a|1] - t)*z + t*x',
+  'loss = [p|mean](([p|net](xt, t, y) - (x - z))**[a|2])',
+  '',
+  '[k|# sampling: two calls, one dial]',
+  '[m|for] k [m|in] [p|range](K):',
+  '    v_null = [p|net](x, k/K, NULL)',
+  '    v_y    = [p|net](x, k/K, y)',
+  '    x = x + ([a|1]/K) * (v_null + w * (v_y - v_null))',
+  '',
+  '[k|# a negative request: swap NULL for what to avoid]',
+  '    v_neg  = [p|net](x, k/K, avoid)',
+];
+SC.push({ dur: 34, chapter: 'build', title: 'Build it yourself', sub: 'One line in training, two calls in sampling.',
+  caps: [[1, 9, 'In training, one new line: hide the request one time in ten. In sampling, call the network twice and mix the answers.'],
+         [9, 18, 'In the playground, ask for a blob or a digit, drag w from 0 to 8, and try a negative request.'],
+         [18, 33.6, 'Recap: a request enters as an input. Bayes turns asking into adding arrows. The difference between two winds is a classifier for free, and w decides how hard to listen.']],
+  draw(t) {
+    playPill('ep11-guidance-lab.html', 9, t);
+    const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1100, 690, P.plum, a);
+    CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 44, 19, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
+    const ra = eout(prog(t, 18, 0.8)); card(1240, 240, 580, 690, P.sage, ra); label('the whole episode', 1276, 290, ra, P.sage);
+    [['asking', 'p([d|x] | [p|y])'], ['Bayes, as arrows', '∇log p(x|y) = ∇log p(x) + ∇log p(y|x)'], ['classifier guidance', '[m|v][m_|∅] + [a|w]·(1 − t)/t·∇log p(y|xₜ)'], ['classifier-free', '[m|v][m_|∅] + [a|w]·([m|v][m_|y] − [m|v][m_|∅])'], ['the price', 'certainty up, variety down']].forEach(([nm, mm], i) => {
+      const ai = eout(prog(t, 18.5 + i * 1.8, 0.8)); text(nm, 1276, 370 + i * 112, { font: F.serif, italic: true, size: 24, color: P.dust, a: ai }); M(mm, 1276, 412 + i * 112, 19, { a: ai }); });
+  } });
+
+// 12 — every request was a number
+const S2 = ['tokens', 'embeddings', 'memory', 'attention', 'position', 'the block', 'training', 'enc / dec', 'inside', 'beyond'];
+const PROMPT = 'a seven, drawn boldly, in red ink';
+SC.push({ dur: 31, chapter: 'prompts', title: 'Every request was a number', sub: 'Blob 3. The letter G. The digit 7. Real prompts are sentences.',
+  caps: [[1, 8, 'Look back at every request today: blob 3, the letter G, the digit 7. Each was one choice from a short, fixed list.'],
+         [8, 16, 'Real prompts are sentences. “A seven, drawn boldly, in red ink.” No list could give every possible sentence its own slot.'],
+         [16, 24, 'So y must become a list of numbers that carries what the sentence means, where similar meanings get similar numbers.'],
+         [24, 30.6, 'Turning words into meaning is reading. Our generators draw on request, but none of them can read a single word.']],
+  draw(t) {
+    {
+      // the three requests from today, each a one-hot
+      [['blob 3', 2, 8, P.sage], ['“G”', 0, 8, P.chalk], ['digit 7', 7, 10, P.terracotta]].forEach(([nm, k, n, c], i) => { const a = eout(prog(t, 1 + i * 1.2, 0.6)), y = 270 + i * 95;
+        text(nm, 110, y + 30, { font: F.mono, size: 22, color: c, a }); oneHot(330, y + 6, k, n, a, P.ink, 32, 6, null, false); });
+      // the prompt that doesn't fit
+      const pa = eout(prog(t, 8, 0.6)); if (pa > 0) { const n = Math.floor(clamp((t - 8.5) / 3.5, 0, 1) * PROMPT.length), s = PROMPT.slice(0, n);
+        rbox(110, 580, 1000, 80, 12, P.surface, P.ink, pa); text(s + (Math.floor(t * 2) % 2 && n < PROMPT.length ? '▌' : ''), 140, 632, { font: F.serif, italic: true, size: 34, color: P.chalk, a: pa });
+        const ea = eout(prog(t, 12.5, 0.8)); if (ea > 0) { const r = rng(4); for (let i = 0; i < 44; i++) { const x = 130 + i * 22, on = i === 21; rbox(x, 700 + Math.sin(t * 2 + i) * 2, 16, 16, 3, on ? P.rose : P.surface, P.border, ea * (0.35 + 0.65 * r())); }
+          text('a slot for every sentence?  there would be more slots than atoms', 130, 760, { font: F.mono, size: 16, color: P.rose, a: ea }); } }
+      // sentence → meaning → a vector y
+      const va = eout(prog(t, 16.5, 0.8)); if (va > 0) { card(1180, 250, 640, 520, P.ink, va); label('what y has to become', 1216, 296, va, P.ink);
+        text('“a seven, drawn boldly”', 1216, 360, { font: F.serif, italic: true, size: 26, color: P.chalk, a: va });
+        arrow(1500, 380, 1500, 440, P.ink, 2.5, va); rbox(1380, 450, 240, 70, 12, P.surface, P.plum, va); text('reading', 1500, 494, { font: F.serif, italic: true, size: 28, color: P.plum, align: 'center', a: va });
+        arrow(1500, 530, 1500, 580, P.ink, 2.5, va); const r = rng(9); for (let i = 0; i < 24; i++) { const h = 10 + 60 * r(); setA(va * eout(prog(t, 18 + i * 0.05, 0.4))); ctx.fillStyle = r() > 0.5 ? P.ink : P.sage; ctx.fillRect(1240 + i * 22, 680 - h, 16, h); setA(1); }
+        text('a vector of meaning: similar sentences, similar numbers', 1216, 740, { font: F.mono, size: 14, color: P.dust, a: va }); text('?', 1650, 494, { font: F.serif, italic: true, size: 44, color: P.amber, a: va * (0.6 + 0.4 * Math.sin(t * 3)) }); }
+    }
+  } });
+
+// 13 — the end of Season 1, and the hook into Season 2
+SC.push({ dur: 31, chapter: 'next',
+  caps: [[0.5, 8, 'That closes Season 1. We asked what it means to learn p(x), and found eleven ways to draw from it, and to ask.'],
+         [8, 16, 'Season 2: machines that read. How a network turns text into meaning, and learns to predict the next word.'],
+         [16, 23, 'It starts where every sentence starts: with tokens.'],
+         [23.5, 30.6, 'Before a machine can draw what we say, it must learn to read.']],
+  draw(t) {
+    t += 31;          // the timings below were laid out on the combined clock
+    // Season 1, complete
+    const sa = eout(prog(t, 31, 1)) * (1 - ease(prog(t, 46.5, 1)));
+    if (sa > 0) { text('SEASON 1', 960, 380, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: sa, ls: 6 }); text('Generative modelling', 960, 460, { font: F.serif, size: 64, color: P.chalk, align: 'center', a: sa });
+      text('how do you turn noise into data?', 960, 520, { font: F.serif, italic: true, size: 30, color: P.stone, align: 'center', a: sa * eout(prog(t, 32, 1)) }); GA = sa; seasonStrip(11, 33, t, 680); GA = 1;
+      text('complete', 960, 800, { font: F.mono, size: 18, color: P.sage, align: 'center', a: sa * eout(prog(t, 36.5, 0.8)), ls: 5 }); }
+    // Season 2, next
+    const na = eout(prog(t, 47, 1.2));
+    if (na > 0) { text('Before a machine can draw what we say,', 960, 330, { font: F.serif, size: 56, color: P.chalk, align: 'center', a: na * eout(prog(t, 54.5, 1)) });
+      text('it must learn to read.', 960, 410, { font: F.serif, size: 56, color: P.chalk, align: 'center', a: na * eout(prog(t, 55.3, 1)) });
+      text('NEXT  ·  SEASON 2', 960, 520, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: na, ls: 4 });
+      text('Machines that read', 960, 590, { font: F.serif, italic: true, size: 50, color: P.stone, align: 'center', a: na * eout(prog(t, 47.5, 1)) });
+      const x0 = 520, x1 = 1400, y = 740, X = i => x0 + (x1 - x0) * i / (S2.length - 1); line(x0, y, x1, y, P.border, 1.5, na);
+      S2.forEach((nm, i) => { const u = eout(prog(t, 48.5 + i * 0.12, 0.4)), first = i === 0, pl = 0.5 + 0.5 * Math.sin((t - 48) * 4.5);
+        if (first) ring(X(i), y, 10 + 5 * pl, P.amber, na * u * (0.8 - 0.6 * pl), 1.5); dot(X(i), y, first ? 6 : 4, first ? P.amber : P.dust, na * u);
+        text(String(i + 1).padStart(2, '0'), X(i), y + 30, { font: F.mono, size: 12, color: first ? P.amber : P.dust, align: 'center', a: na * u }); text(nm, X(i), y + 50, { size: 14, color: first ? P.amber : P.dust, align: 'center', a: na * u }); }); }
+  } });
+
+// ─────────────────────────────────────────────────────────────
+//  Timeline, chrome, grain, player  (shared; configured by EPISODE = { num, header, chapterLabel })
+// ─────────────────────────────────────────────────────────────
+let acc = 0; SC.forEach(s => { s.start = acc; acc += s.dur; });
+const DURATION = acc;
+const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); const img = g.createImageData(256, 256); const r = rng(1234);
+  for (let i = 0; i < 256 * 256; i++) { const v = Math.floor(r() * 255); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; } g.putImageData(img, 0, 0); return c; })();
+let GRAIN_PAT = null, VIGNETTE = null;
+function header(i, s, t) {
+  const a = eout(prog(t, 0.15, 0.8));
+  text(`${EPISODE.header ?? `EP ${EPISODE.num}  ·  `}SCENE ${String(i).padStart(2, '0')}`, 80, 82, { font: F.serif, italic: true, size: 21, color: P.terracotta, a, ls: 3 });
+  text(s.title, 80 + (1 - a) * -16, 142, { font: F.serif, size: 58, color: P.chalk, a, ls: -0.5 });
+  text(s.sub, 80, 188, { size: 26, color: P.stone, a: eout(prog(t, 0.5, 0.8)) });
+}
+function captions(s, t) {
+  for (const [a, b, str] of s.caps) {
+    if (t < a || t > b) continue;
+    const al = Math.min(clamp((t - a) / 0.35), clamp((b - t) / 0.35));
+    const lines = wrap(str, 1560, `400 34px ${F.sans}`); const ys = lines.length === 1 ? [992] : [972, 1014];
+    ctx.save(); ctx.shadowColor = 'rgba(10,8,7,0.95)'; ctx.shadowBlur = 14;
+    lines.slice(0, 2).forEach((l, k) => text(l, 960, ys[k], { size: 34, color: P.chalk, align: 'center', a: al * 0.95 }));
+    ctx.restore();
+  }
+}
+function progressBar(T, idx) {
+  const x0 = 80, x1 = 1840, y = 1040;
+  ctx.fillStyle = P.border; setA(1); ctx.fillRect(x0, y, x1 - x0, 2);
+  ctx.fillStyle = rgba(P.terracotta, 0.85); ctx.fillRect(x0, y, (x1 - x0) * T / DURATION, 2);
+  SC.forEach((s, j) => { const x = x0 + (x1 - x0) * s.start / DURATION; line(x, y - 4, x, y + 6, j === idx ? P.terracotta : P.borderLight, 1.5);
+    text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
+}
+function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
+function render(T) {
+  T = clamp(T, 0, DURATION - 1e-3);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
+  ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
+  const i = sceneAt(T), s = SC[i], t = T - s.start;
+  ctx.save(); s.draw(t); ctx.restore(); GA = 1;
+  if (s.title) header(i, s, t);
+  captions(s, t);
+  const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
+  if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
+  ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
+  progressBar(T, i);
+  if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
+  const fr = Math.floor(T * 24), r = rng(fr + 7);
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
+  ctx.fillStyle = GRAIN_PAT; ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore();
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+const capture = new URLSearchParams(location.search).has('capture');
+if (capture) document.body.classList.add('capture');
+let now = 0, playing = false, lastTs = null;
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
+function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; } if (force || Math.abs(snd.currentTime - now) > 0.25) snd.currentTime = now; if (snd.paused) snd.play().catch(() => {}); }
+sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
+function loop(ts) { if (!playing) return; if (soundOn && !snd.paused && snd.readyState >= 2 && !snd.seeking) now = snd.currentTime; else if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); syncAudio(); if (playing) requestAnimationFrame(loop); }
+function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+playBtn.onclick = toggle;
+scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+window.DURATION = DURATION;
+window.renderAt = T => render(T);
+(async () => {
+  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  ON_READY.forEach(f => f());
+  draw(); window.READY = true;
+})();
+</script>
+</body>
+</html>

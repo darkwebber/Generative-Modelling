@@ -32,6 +32,7 @@ EPISODES = {
     8: ('ep08-score.html', 'Score Matching & Langevin', ['ep08-assets.js'], {}),
     9: ('ep09-diffusion.html', 'Diffusion Models', ['ep09-assets.js'], {}),
     10: ('ep10-flow-matching.html', 'Flow Matching', ['ep10-assets.js'], {}),
+    11: ('ep11-guidance.html', 'Guidance', ['ep11-assets.js'], {}),
 }
 ARIA = {1: 'Generative modelling explainer animation', 2: 'Autoregressive generation explainer animation'}
 

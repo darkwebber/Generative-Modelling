@@ -17,6 +17,7 @@ data, and a finite-difference gradient checker. Episodes 02–04 keep Adam writt
 - **Episode 08 · score matching:** `score.py` (numpy; denoising score matching, noise-conditional net, annealed Langevin)
 - **Episode 09 · diffusion:** `diffusion.py` (numpy; DDPM training and sampling, DDIM, 2-D blobs and MNIST)
 - **Episode 10 · flow matching:** `flow_matching.py` (numpy; straight-road regression, Euler sampling, reflow, a label-conditioned net with guidance)
+- **Episode 11 · guidance:** `guidance.py` (numpy; conditional flows, a noise-aware classifier, classifier guidance, classifier-free guidance, negative requests)
 
 The asset exporters (`export/export_epNN_assets.py`) train the models shown in each episode and write their data next to
 the episode page (`../video/episodes/epNN-assets.js`); trained nets are cached in `data/` (not in git). `export/common.py`
@@ -348,5 +349,37 @@ sampling        x ← x + Δt·v_θ(x, t),  Δt = 1/K
 reflow          new pairs (x₀, flow(x₀)): they never cross, so the new roads are straight
 one arrow       x̂₁ = xₜ + (1 − t)·v,   x̂₀ = xₜ − t·v,   score = −x̂₀/(1 − t)
 guidance        v = v_∅ + w·(v_y − v_∅)                 (episode 11)
+```
+
+## Episode 11 — guidance (asking for what you want)
+
+| file | what it is |
+|------|------------|
+| `guidance.py` | a classifier that reads noisy points, p_φ(y | x_t, t) (episode 10's time-embedded MLP with a softmax head, trained with cross-entropy on points part-way along the roads), with its input gradient ∇ₓ log p(y | x_t) by hand; guided Euler sampling three ways: classifier guidance v = v_∅ + w·(1 − t)/t·∇ log p(y | x_t), classifier-free guidance v = v_∅ + w·(v_y − v_∅), and negative requests v = v_neg + w·(v_y − v_neg); two overlapping classes with their exact densities |
+| `export/export_ep11_assets.py` | trains the nets in the video (the title, letter by letter, as eight labels of one flow; a noisy classifier for the blobs; two overlapping clouds; a noisy digit classifier; conditional MNIST warm-started from episode 10) and scores MNIST with episode 4's judges across the dial w → `../video/episodes/ep11-assets.js`, plus the playground's nets → `../video/labs/ep11-model.js`. `python export/export_ep11_assets.py letters` (or `toys`, `mnist`) trains one piece |
+| `../video/labs/ep11-guidance-lab.html` | the real models in your browser: ask for a blob and turn the dial, avoid a neighbour, see the arrows at one point, squeeze two overlapping classes, draw digits on request |
+
+```bash
+python guidance.py --check      # gradients vs numerical, including ∇ₓ log p(y | x)
+python guidance.py              # 8 blobs: no request, conditional, CFG and classifier guidance
+```
+
+From the video (MNIST, 2,000 samples per setting, 32 Euler steps, classifier-free guidance; "agrees" = episode 4's digit reader reads the requested digit):
+
+```
+w          0      0.5    1      1.5    2      3      4      6      8
+agrees     10%    47%    86%    97%    99%    100%   100%   100%   100%
+FID        16.4   18.5   5.2    3.0    8.6    24.8   39.9   60.6   72.1
+recall     88%    87%    86%    78%    69%    49%    36%    21%    15%
+```
+
+```
+Bayes           p(x | y) = p(y | x)·p(x) / p(y)
+as arrows       ∇ log p(x | y) = ∇ log p(x) + ∇ log p(y | x)             (p(y) has no x in it)
+the dial        ∇ log p(x) + w·∇ log p(y | x)  =  the score of p(x)·p(y | x)^w
+velocities      Δv = (1 − t)/t · Δs                                   (episode 10: x̂ = x + (1 − t)v, s = −ẑ/(1 − t))
+classifier      v = v_∅ + w·(1 − t)/t·∇ log p(y | x_t)                  (Dhariwal & Nichol, 2021)
+classifier-free v = v_∅ + w·(v_y − v_∅)                                  (Ho & Salimans, 2021; label hidden 10% of the time)
+negative        v = v_neg + w·(v_y − v_neg)                              (at w = 1 the negative cancels)
 ```
 

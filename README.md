@@ -22,7 +22,7 @@ its playground and its code, and it remembers what you have watched.
 | 08 | Score matching & Langevin | can we learn just the arrows? | `ep08-score-lab` | `score.py` |
 | 09 | Diffusion models | destroy it slowly, learn to undo it | `ep09-diffusion-lab` | `diffusion.py` |
 | 10 | Flow matching | straight lines, fewer steps | `ep10-flow-lab` | `flow_matching.py` |
-| 11 | Guidance | how do we steer what gets generated? | — | — |
+| 11 | Guidance | how do we steer what gets generated? | `ep11-guidance-lab` | `guidance.py` |
 
 ## What's where
 

@@ -169,7 +169,7 @@ class TimeMLP:
             d = d * swish_grad(self.z[i])
             gW[i] = self.a[i].T @ d; gU[i] = self.e.T @ d; gb[i] = d.sum(0)
             d = d @ self.W[i].T
-        self.grads = gW + gU + gb + [gWo, gbo]
+        self.grads = gW + gU + gb + [gWo, gbo]; self.dx = d          # dx: the gradient w.r.t. the input (when ff = 0)
 
     def step(self, lr): self.opt.step(self.grads, lr)
     def use_ema(self): self.opt.use_ema()
