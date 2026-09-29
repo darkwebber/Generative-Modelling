@@ -8,7 +8,7 @@ noise/dice, plum = models, sage = insight).
 
 ## Episode 01 — What is generative modelling? (~7:10)
 
-`generative-modelling.html`
+`generative-modelling.html` · playground: `density-lab.html`
 
 | # | Scene | Math introduced |
 |---|-------|-----------------|
@@ -173,6 +173,18 @@ we must sample → ratios (Metropolis) → slopes (Langevin) → the slope never
 | 11 | In disguise | classifiers & JEM, Hopfield/Boltzmann (Nobel 2024), contrastive learning, next-token softmax | — |
 | 12 | Build it | Langevin + training loop in numpy + recap | — |
 | 13 | Hook → score | the sampler only used the slope; ∇ₓ log Z = 0; the arrows are the score | s(x) = ∇ₓ log p = −∇ₓE → *Episode 08: score matching & Langevin* |
+
+## Playgrounds
+
+Every episode has a hands-on lab: `density-lab.html` (01), `ar-playground.html` (02), `vae-playground.html` (03),
+`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07). They share `lab-kit.js`:
+
+- a three-step **how to play** guide and a colour legend at the top of each lab;
+- **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
+  that follows you down the page, and a small celebration when you finish;
+- **tactile sound**, synthesised live with WebAudio: slider detents pitched by value, button clicks, plus sounds for each
+  lab's own events (dice rattles, glass marbles, judges' stamps, chimes when a GAN finds a mode…); ♪ toggles it;
+- chunkier sliders and buttons that press in, tap ripples on every canvas, and layouts that work on a phone.
 
 ## Series roadmap
 

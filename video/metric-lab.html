@@ -46,7 +46,13 @@
   .status { font-family:var(--mono); font-size:12px; color:var(--dust); }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
   code, .mono { font-family:var(--mono); }
+  .m { transition: border-color .3s, background .3s; }
+  .m.fooled { border-color: color-mix(in srgb, var(--sage) 55%, transparent); }
+  .m.caught { border-color: color-mix(in srgb, var(--rose) 70%, transparent); background: color-mix(in srgb, var(--rose) 7%, transparent); }
+  .m .tag { float: right; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .m.fooled .tag { color: var(--sage); } .m.caught .tag { color: var(--rose); }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -72,13 +78,7 @@
       <p class="hint">Reference values are for genuinely new real digits (the perfect model).</p>
       <div class="metrics" id="metrics"></div>
       <div class="verdict" id="verdict"></div>
-      <div class="label" style="margin-top:20px">3 · challenges</div>
-      <ul class="hint" style="font-size:14px;color:var(--stone);padding-left:18px;line-height:1.8">
-        <li><b>half copied</b>: fool five of six judges with a model that is 50% theft.</li>
-        <li><b>99% static</b>: precision collapses, yet recall stays high. Why? (Each static sample's nearest-neighbour ball is enormous, so it swallows real points: k-NN recall is fooled by outliers.)</li>
-        <li><b>perfect model + blur</b>: slide blur up. Which judge complains first?</li>
-        <li>Mix <b>50% only-ones + 50% new</b>: which metrics even notice half the model is a one-trick pony?</li>
-      </ul>
+      <p class="hint" style="margin-top:14px">A <span style="color:var(--sage)">sage</span> judge is fooled (it scores this like a perfect model). A <span style="color:var(--rose)">rose</span> judge has caught it. Listen: a wood-block per fooled judge, a stamp per catch.</p>
     </section>
   </div>
   <footer>Python versions of every metric: <code>code/evals.py</code>. Assets: <code>code/export_ep04_lab.py</code>. NN-train here is measured against a 600-image slice of the training set.</footer>
@@ -154,11 +154,12 @@ function metrics(imgs) {
 // ── UI
 const ING = [['new', 'new real digits', 100], ['copies', 'training copies', 0], ['vae', 'VAE samples', 0], ['ones', 'only ones', 0], ['static', 'static', 0]];
 const mixEl = $('mix'); ING.forEach(([k, nm, v]) => mixEl.insertAdjacentHTML('beforeend', `<span>${nm}</span><input type="range" min="0" max="100" value="${v}" data-k="${k}"><span class="v" data-v="${k}">${v}</span>`));
+const TRIED = new Set(); let LM = null, SHARE = {};
 const PRESETS = { perfect: { new: 100 }, copier: { copies: 100 }, ones: { ones: 100 }, vae: { vae: 100 }, garbage: { static: 99, vae: 1 }, sneaky: { new: 50, copies: 50 } };
-document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const p = PRESETS[b.dataset.p]; mixEl.querySelectorAll('input').forEach(i => { i.value = p[i.dataset.k] || 0; }); $('blur').value = 0; schedule(); });
+document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const p = PRESETS[b.dataset.p]; TRIED.add(b.dataset.p); LabKit.sfx.whoosh(0.35); mixEl.querySelectorAll('input').forEach(i => { i.value = p[i.dataset.k] || 0; }); $('blur').value = 0; schedule(); });
 mixEl.addEventListener('input', schedule); $('blur').addEventListener('input', schedule);
 function build() { const w = {}; let tot = 0; mixEl.querySelectorAll('input').forEach(i => { w[i.dataset.k] = +i.value; tot += +i.value; document.querySelector(`[data-v="${i.dataset.k}"]`).textContent = i.value; });
-  if (!tot) { w.new = 1; tot = 1; } const out = []; let acc = 0; const keys = Object.keys(w);
+  if (!tot) { w.new = 1; tot = 1; } SHARE = Object.fromEntries(Object.entries(w).map(([k, v]) => [k, v / tot])); const out = []; let acc = 0; const keys = Object.keys(w);
   keys.forEach((k, ki) => { const c = ki === keys.length - 1 ? N - out.length : Math.round(N * w[k] / tot); for (let i = 0; i < c && out.length < N; i++) out.push(P[k][(i * 7 + ki * 13) % N]); acc += c; });
   const s = +$('blur').value; $('blurv').textContent = s; const imgs = out.map(x => blur(x, s));
   for (let i = imgs.length - 1; i > 0; i--) { const j = (i * 2654435761 >>> 0) % (i + 1); [imgs[i], imgs[j]] = [imgs[j], imgs[i]]; } return imgs; }
@@ -167,14 +168,28 @@ function drawSamples(imgs) { const g = $('samples').getContext('2d'), d = g.crea
   g.clearRect(0, 0, 224, 224); g.putImageData(d, 0, 0); }
 const SPEC = [['IS', 'Inception Score ↑', v => v.toFixed(2), v => v / 10], ['FID', 'FID ↓', v => v.toFixed(1), v => Math.log10(1 + v) / Math.log10(450)], ['precision', 'precision ↑ (fidelity)', v => Math.round(v * 100) + '%', v => v], ['recall', 'recall ↑ (diversity)', v => Math.round(v * 100) + '%', v => v], ['NN', 'NN-train (0 = copied)', v => v.toFixed(2), v => v / 15], ['C2ST', 'C2ST (50% = perfect)', v => Math.round(v * 100) + '%', v => v]];
 let REFV = null;
-function show(m) { $('metrics').innerHTML = SPEC.map(([k, nm, f, frac]) => `<div class="m"><div class="name"><span>${nm}</span></div><div class="val">${f(m[k])}</div><div class="bar"><i style="width:${Math.max(1, Math.min(100, frac(m[k]) * 100))}%"></i></div><div class="ref">perfect model: ${REFV ? f(REFV[k]) : '…'}</div></div>`).join('');
+const JKEY = { IS: 'IS', FID: 'FID', precision: 'precision', recall: 'recall', NN: 'NN-train', C2ST: 'C2ST' };
+function show(m) { $('metrics').innerHTML = SPEC.map(([k, nm, f, frac]) => `<div class="m" data-j="${JKEY[k]}"><div class="name"><span>${nm}</span><span class="tag"></span></div><div class="val">${f(m[k])}</div><div class="bar"><i style="width:${Math.max(1, Math.min(100, frac(m[k]) * 100))}%"></i></div><div class="ref">perfect model: ${REFV ? f(REFV[k]) : '…'}</div></div>`).join('');
   if (!REFV) return; const fooled = [], caught = [];
   const near = (k, tol) => Math.abs(m[k] - REFV[k]) <= tol;
   (near('IS', 0.4) ? fooled : caught).push('IS'); (m.FID < REFV.FID + 3 ? fooled : caught).push('FID'); (near('precision', 0.06) ? fooled : caught).push('precision'); (near('recall', 0.06) ? fooled : caught).push('recall');
   (m.NN > REFV.NN * 0.8 ? fooled : caught).push('NN-train'); (m.C2ST < 0.58 ? fooled : caught).push('C2ST');
-  $('verdict').innerHTML = `Judges that think this looks like a perfect model: <b>${fooled.join(', ') || 'none'}</b>.<br>Judges that notice something is off: <b>${caught.join(', ') || 'none'}</b>.`; }
+  $('verdict').innerHTML = `Judges that think this looks like a perfect model: <b>${fooled.join(', ') || 'none'}</b>.<br>Judges that notice something is off: <b>${caught.join(', ') || 'none'}</b>.`;
+  LM = { m, fooled, caught };
+  document.querySelectorAll('.m').forEach((el, i) => { const ok = fooled.includes(el.dataset.j); el.classList.add(ok ? 'fooled' : 'caught'); el.querySelector('.tag').textContent = ok ? 'fooled' : 'caught';
+    setTimeout(() => ok ? LabKit.sfx.tock(0.3 + i * 0.08, (i % 2) - 0.5) : LabKit.sfx.stamp((i % 2) - 0.5), 80 + i * 90); }); }
 let timer = null; function schedule() { clearTimeout(timer); $('status').textContent = 'computing…'; timer = setTimeout(run, 60); }
 function run() { const t0 = performance.now(), imgs = build(); drawSamples(imgs); const m = metrics(imgs); show(m); $('status').textContent = `600 samples · metrics in ${Math.round(performance.now() - t0)} ms`; }
+LabKit.init({ id: 'ep04',
+  steps: ['<strong>Build a fake model</strong> with the sliders (or a preset): a mix of real digits, copies, VAE blurs, only-ones and static.', '<strong>Watch the six judges</strong> re-score it live. Sage = fooled, rose = caught.', '<strong>Do the missions</strong>: each one exposes a blind spot of a real metric.'],
+  legend: [['var(--terracotta)', 'your model’s samples'], ['var(--plum)', 'metric scores'], ['var(--sage)', 'judge fooled'], ['var(--rose)', 'judge caught it'], ['var(--amber)', 'your mix']],
+  missions: [
+    { id: 'suspects', title: 'Meet the suspects: try 3 presets', hint: 'Click any three of the preset buttons: the photocopier, the one-trick pony, our VAE…', check: () => TRIED.size >= 3 },
+    { id: 'heist', title: 'The heist: fool 5 of 6 judges with a model that is at least half stolen', hint: 'Try the <b>half copied</b> preset. Only one judge compares samples against the training set.', check: () => LM && (SHARE.copies || 0) >= 0.5 && LM.fooled.length >= 5 },
+    { id: 'blur', title: 'Blur test: blur a perfect model until a judge complains', hint: 'Load <b>perfect model</b>, then drag <b>blur</b> up slowly. Which judge turns rose first?', check: () => LM && (SHARE.new || 0) >= 0.9 && +$('blur').value >= 0.75 && LM.caught.length >= 1 },
+    { id: 'static', title: 'Garbage paradox: 90% static, yet recall above 50%', hint: 'Load <b>99% static</b>. Precision collapses, but each static sample has a huge nearest-neighbour ball that swallows real digits, so k-NN recall is fooled by outliers.', check: () => LM && (SHARE.static || 0) >= 0.9 && LM.m.recall > 0.5 },
+    { id: 'pony', title: 'Catch the one-trick pony with the diversity judge', hint: 'Make a model that is at least half <b>only ones</b>. Recall (diversity) should turn rose.', check: () => LM && (SHARE.ones || 0) >= 0.5 && LM.caught.includes('recall') },
+  ] });
 setTimeout(() => { REF = P.ref.map(feat); REF_MC = meanCov(REF); REF_SQ = sqrtm(REF_MC.C); REF_R = kthRadius(REF); REFV = metrics(P.new); run(); }, 50);
 </script>
 </body>

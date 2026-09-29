@@ -66,6 +66,7 @@
   .stat { font-family:var(--mono); color:var(--chalk); font-size:22px; }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -130,8 +131,8 @@
 
     <section class="card wide" style="--accent:var(--amber)">
       <div class="label">6 · the bigram count table</div>
-      <p class="hint">Row = previous letter, column = next letter, brightness = count N(a, b). Hover a cell to read it. This table <i>is</i> the k = 1 model.</p>
-      <canvas id="heat" width="540" height="540"></canvas>
+      <p class="hint">Row = previous letter (down the left), column = next letter (along the top), brightness = count N(a, b). “.” is the start/end of a name. Hover or tap a cell to read it. This table <i>is</i> the k = 1 model.</p>
+      <canvas id="heat" width="570" height="570"></canvas>
       <div class="readout" id="heatinfo">&nbsp;</div>
     </section>
   </div>
@@ -182,7 +183,7 @@ $('tau').oninput = e => { TAUV = +e.target.value; $('tv').textContent = TAUV.toF
 // ── UI: generation loop
 const bars = $('bars'), blabels = $('blabels'), strip = $('strip'), pointer = $('pointer');
 for (let j = 0; j < 27; j++) {
-  const b = document.createElement('div'); b.className = 'bar'; b.title = VOC[j]; b.onclick = () => append(j, null); bars.appendChild(b);
+  const b = document.createElement('div'); b.className = 'bar'; b.title = VOC[j]; b.onclick = () => { if (auto) return; if (finished) resetSeq(); append(j, null); }; bars.appendChild(b);
   const l = document.createElement('div'); l.textContent = VOC[j] === '.' ? 'end' : VOC[j]; if (j === 0) l.style.fontSize = '9px'; blabels.appendChild(l);
 }
 function renderTiles(done) {
@@ -202,15 +203,16 @@ function showDist(hi = -1) {
 function append(j, u) {
   if (finished) return;
   const p = cur.p[j]; lpSum += Math.log(p);
+  LabKit.sfx.pop(j / 26, (j - 13) / 20); if (u == null) LabKit.flag('forced');
   $('stepinfo').innerHTML = (u == null ? `you forced <span class="terra">“${VOC[j] === '.' ? 'end' : VOC[j]}”</span>` : `dice <span class="rose">u = ${u.toFixed(3)}</span> landed on <span class="terra">“${VOC[j] === '.' ? 'end' : VOC[j]}”</span>`) + ` · p = <span class="ink">${p.toFixed(4)}</span> · surprise −log p = <span class="plum">${(-Math.log(p)).toFixed(2)}</span>`;
-  if (j === 0 || seq.length >= 20) { finished = true; renderTiles(true); $('lp').innerHTML = `log p(“${seq}”) = <b>${lpSum.toFixed(2)}</b> → p = ${Math.exp(lpSum).toExponential(2)} ${WSET.has(seq) ? '<span class="dust">· this name is in the training data</span>' : '<span class="sage">· a brand-new name ✓</span>'}`; return; }
+  if (j === 0 || seq.length >= 20) { finished = true; renderTiles(true); LabKit.flag('finished'); if (seq && !WSET.has(seq)) { LabKit.sfx.chime(0.75); LabKit.flag('newname'); } else LabKit.sfx.thunk(); $('lp').innerHTML = `log p(“${seq}”) = <b>${lpSum.toFixed(2)}</b> → p = ${Math.exp(lpSum).toExponential(2)} ${WSET.has(seq) ? '<span class="dust">· this name is in the training data</span>' : '<span class="sage">· a brand-new name ✓</span>'}`; return; }
   seq += VOC[j]; renderTiles(false); showDist();
   $('lp').innerHTML = `running log p = <b>${lpSum.toFixed(2)}</b> <span class="dust">(sum of the log-probabilities so far)</span>`;
 }
 function step(then) {
   if (finished) { resetSeq(); }
   const u = Math.random(), j = pick(cur.p, u);
-  pointer.style.left = `calc(${(u * 100).toFixed(2)}% - 1px)`;
+  pointer.style.left = `calc(${(u * 100).toFixed(2)}% - 1px)`; LabKit.sfx.rattle(0.85);
   showDist(j);
   setTimeout(() => { append(j, u); if (then) then(); }, 950);
 }
@@ -225,6 +227,9 @@ $('many').onclick = () => {
   const list = Array.from({ length: 20 }, sample).filter(Boolean); const box = $('names'); box.innerHTML = '';
   list.forEach(n => { const d = document.createElement('span'); d.className = 'name' + (WSET.has(n) ? ' copy' : ''); d.textContent = n; box.appendChild(d); });
   const novel = list.filter(n => !WSET.has(n)).length; $('novel').textContent = `${novel}/${list.length} are new`;
+  [...box.children].forEach((d, i) => { d.style.animation = `enter .35s ease-out ${i * 0.04}s both`; setTimeout(() => d.classList.contains('copy') ? LabKit.sfx.tock(0.2) : LabKit.sfx.pop(0.4 + 0.5 * Math.random(), Math.random() - 0.5), i * 40); });
+  if (list.length - novel >= 8 && K === 5) LabKit.flag('copies8');
+  if (TAUV <= 0.3) LabKit.flag('cold');
 };
 
 // ── UI: surprise probe
@@ -234,25 +239,45 @@ function probe() {
   for (const ch of w + '.') { const p = dist(s, K, 1).p[ix(ch)]; rows.push([s.slice(-K) || '.', ch, p]); tot -= Math.log(p); if (ch !== '.') s += ch; }
   rows.forEach(([c, ch, p]) => { const sp = -Math.log(p);
     box.insertAdjacentHTML('beforeend', `<span class="terra">${c.slice(-3)}→${ch === '.' ? 'end' : ch}</span><div><div class="sb" style="width:${Math.min(100, sp / 8 * 100)}%"></div></div><span>${sp.toFixed(2)}</span>`); });
+  if (tot > 30) LabKit.flag('surprise');
   $('probeout').innerHTML = `−log p(“${w}”) = <b>${tot.toFixed(2)}</b> · p = ${Math.exp(-tot).toExponential(2)} <span class="dust">(τ = 1)</span>`;
 }
 $('probe').oninput = probe;
 
 // ── UI: heat map
-function drawHeat() {
-  const c = $('heat'), g = c.getContext('2d'), cs = 20; g.clearRect(0, 0, 540, 540);
-  const m = NG[1]; let mx = 1; m.forEach(a => a.forEach(v => { if (v > mx) mx = v; }));
-  for (let a = 0; a < 27; a++) { const row = m.get(VOC[a]); for (let b = 0; b < 27; b++) { const v = row ? row[b] : 0; g.fillStyle = v ? `rgba(212,168,83,${0.12 + 0.88 * Math.sqrt(v / mx)})` : '#1c1816'; g.fillRect(b * cs + 1, a * cs + 1, cs - 2, cs - 2); } }
+const HO = 30, HCS = 20;   // label margin, cell size
+let HMAX = [0, 0];
+function drawHeat(hl) {
+  const c = $('heat'), g = c.getContext('2d'), cs = HCS; g.clearRect(0, 0, 570, 570);
+  const m = NG[1]; let mx = 1; m.forEach((a, k) => a.forEach((v, j) => { if (v > mx) { mx = v; HMAX = [ix(k), j]; } }));
+  g.font = "12px 'JetBrains Mono', monospace"; g.textAlign = 'center'; g.fillStyle = '#6b6360';
+  for (let i = 0; i < 27; i++) { g.fillStyle = hl && (hl[0] === i) ? '#c4654a' : '#6b6360'; g.fillText(VOC[i], HO / 2, HO + i * cs + 14); g.fillStyle = hl && (hl[1] === i) ? '#c4654a' : '#6b6360'; g.fillText(VOC[i], HO + i * cs + cs / 2, HO - 10); }
+  for (let a = 0; a < 27; a++) { const row = m.get(VOC[a]); for (let b = 0; b < 27; b++) { const v = row ? row[b] : 0; g.fillStyle = v ? `rgba(212,168,83,${0.12 + 0.88 * Math.sqrt(v / mx)})` : '#1c1816'; g.fillRect(HO + b * cs + 1, HO + a * cs + 1, cs - 2, cs - 2); } }
+  if (hl) { g.strokeStyle = '#ede6db'; g.lineWidth = 2; g.strokeRect(HO + hl[1] * cs, HO + hl[0] * cs, cs, cs); }
 }
-$('heat').onmousemove = e => { const r = e.target.getBoundingClientRect(); const b = Math.floor((e.clientX - r.left) / r.width * 27), a = Math.floor((e.clientY - r.top) / r.height * 27); if (a < 0 || b < 0 || a > 26 || b > 26) return;
+let lastCell = '';
+$('heat').onpointermove = $('heat').onpointerdown = e => { const r = e.target.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * 570, py = (e.clientY - r.top) / r.height * 570; const b = Math.floor((px - HO) / HCS), a = Math.floor((py - HO) / HCS); if (a < 0 || b < 0 || a > 26 || b > 26) return;
+  if (lastCell !== a + ',' + b) { lastCell = a + ',' + b; drawHeat([a, b]); const rw = NG[1].get(VOC[a]), nn = rw ? rw[b] : 0; LabKit.sfx.tick(Math.min(1, Math.sqrt(nn / 200)), (b - 13) / 20); if (a === HMAX[0] && b === HMAX[1]) LabKit.flag('maxpair'); }
   const row = NG[1].get(VOC[a]); const n = row ? row[b] : 0, tot = row ? row.reduce((x, y) => x + y, 0) : 0; const name = c => c === '.' ? '.' : c;
   $('heatinfo').innerHTML = `N(<span class="terra">${name(VOC[a])}</span>, <span class="terra">${name(VOC[b])}</span>) = <b>${n}</b> · p(${name(VOC[b])} | ${name(VOC[a])}) = N / ${tot} = <span class="ink">${tot ? (n / tot).toFixed(3) : '—'}</span>`; };
 
 // ── data box
 $('data').value = window.NAMES.join('\n');
-$('train').onclick = () => { const w = parseWords($('data').value); if (w.length < 5) { $('dstat').textContent = 'need at least 5 words'; return; } train(w); };
+$('train').onclick = () => { const w = parseWords($('data').value); if (w.length < 5) { $('dstat').textContent = 'need at least 5 words'; LabKit.sfx.thunk(); return; } train(w); LabKit.sfx.whoosh(0.5); if (w.filter(x => !window.NAMES.includes(x)).length >= 5) LabKit.flag('own'); };
 $('restore').onclick = () => { $('data').value = window.NAMES.join('\n'); train(window.NAMES.slice()); };
-updateFormula(); train(window.NAMES.slice());
+updateFormula(); train(window.NAMES.slice()); $('many').onclick(); drawHeat();
+LabKit.init({ id: 'ep02',
+  steps: ['<strong>Step</strong> the generation loop: the model shows p(next letter | context), then a dice pointer picks one.', '<strong>Turn the knobs</strong>: more context k = more memory; temperature τ = boldness.', '<strong>Do the missions</strong> below. Each one is a real idea from the episode.'],
+  legend: [['var(--terracotta)', 'letters / data'], ['var(--ink)', 'p(next letter)'], ['var(--rose)', 'the dice (u)'], ['var(--amber)', 'counts & knobs'], ['var(--plum)', 'surprise −log p']],
+  missions: [
+    { id: 'gen', title: 'Generate a name, one dice roll at a time', hint: 'Press <b>step ▸</b> in panel 3 until the model picks “end”.', check: () => LabKit.flags.finished },
+    { id: 'force', title: 'Overrule the dice: force a letter', hint: 'Click any bar in panel 3. The context changes, so the next distribution changes too.', check: () => LabKit.flags.forced },
+    { id: 'copy', title: 'Catch the model copying its training data', hint: 'Set context k to 5, then <b>generate 20</b>. Grey names are memorised copies.', check: () => LabKit.flags.copies8 },
+    { id: 'cold', title: 'Freeze it: make the model boring', hint: 'Drag τ down to 0.3 or less and <b>generate 20</b>. Low temperature always picks the likeliest letter.', check: () => LabKit.flags.cold },
+    { id: 'surp', title: 'Shock the model: surprise above 30', hint: 'Type something un-name-like in panel 5, like “xqzzyv”. Each odd letter adds surprise.', check: () => LabKit.flags.surprise },
+    { id: 'own', title: 'Teach it a new language', hint: 'Paste your own words into panel 2 (cities, Pokémon, anything) and press <b>train on this</b>.', check: () => LabKit.flags.own },
+    { id: 'pair', title: 'Find the most common letter pair', hint: 'Hover the brightest cell in the count table (panel 6).', check: () => LabKit.flags.maxpair },
+  ] });
 </script>
 </body>
 </html>

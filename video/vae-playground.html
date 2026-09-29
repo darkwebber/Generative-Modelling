@@ -45,7 +45,9 @@
   .pair { display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
   .cap { font-family:var(--mono); font-size:12px; color:var(--dust); text-align:center; margin-top:6px; }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
+  @keyframes enter { from { opacity:0; transform:scale(.85) translateY(-6px);} to { opacity:1; transform:none; } }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -133,7 +135,10 @@ function drawMap() { const m = M(); mg.clearRect(0, 0, S, S); mg.drawImage(baseL
   if (enc) { mg.globalAlpha = 1; mg.strokeStyle = COL.chalk; mg.lineWidth = 2; mg.beginPath(); mg.arc(m.X(enc.mu[0]), m.Y(enc.mu[1]), 12, 0, 7); mg.stroke();
     if (enc.sig) { mg.setLineDash([5, 5]); mg.beginPath(); mg.ellipse(m.X(enc.mu[0]), m.Y(enc.mu[1]), 2 * enc.sig[0] * m.s, 2 * enc.sig[1] * m.s, 0, 0, 7); mg.stroke(); mg.setLineDash([]); } }
   mg.fillStyle = COL.chalk; mg.shadowColor = COL.rose; mg.shadowBlur = 14; mg.beginPath(); mg.arc(m.X(z[0]), m.Y(z[1]), 7, 0, 7); mg.fill(); mg.shadowBlur = 0; }
-function setZ(nz) { z = nz; paint($('out'), decode(model, z)); $('z1').textContent = z[0].toFixed(2); $('z2').textContent = z[1].toFixed(2); drawMap(); }
+const VISITED = new Set(); let lastLab = -1, walkT = 0;
+const zTick = LabKit.throttle((u, pan) => LabKit.sfx.tick(u, pan), 45), labChime = LabKit.throttle(d => LabKit.sfx.chime(0.3 + d / 13, 0), 110);
+function nearestLabel(p) { let b = 1e9, l = -1; Zs[model].forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < b) { b = d; l = A.labels[i]; } }); return l; }
+function setZ(nz) { z = nz; const lab = nearestLabel(z); if (lab !== lastLab) { lastLab = lab; VISITED.add(lab); labChime(lab); } else { const b = B[model]; zTick((z[1] - b[2]) / (b[3] - b[2]), ((z[0] - b[0]) / (b[1] - b[0])) * 2 - 1); } paint($('out'), decode(model, z)); $('z1').textContent = z[0].toFixed(2); $('z2').textContent = z[1].toFixed(2); drawMap(); }
 function pick(e) { const r = map.getBoundingClientRect(); setZ(M().inv((e.clientX - r.left) / r.width * S, (e.clientY - r.top) / r.height * S)); }
 let dragging = false;
 map.addEventListener('pointerdown', e => { dragging = true; map.setPointerCapture(e.pointerId); pick(e); });
@@ -143,36 +148,51 @@ function setModel(m) { model = m; $('mVAE').classList.toggle('on', m === 'vae');
   $('mnote').textContent = m === 'vae' ? 'codes packed into N(0, I): sample anywhere' : 'codes sprawl at arbitrary scale: gaps everywhere';
   $('sampleNote').textContent = m === 'vae' ? 'For the VAE, N(0, I) is exactly the shape we trained the codes to fill.' : 'The autoencoder never asked for N(0, I): its codes live elsewhere, so these samples often miss the data.';
   encodePad(); setZ(m === 'vae' ? [0, 0] : [(B.ae[0] + B.ae[1]) / 2, (B.ae[2] + B.ae[3]) / 2]); interp(); }
-$('mVAE').onclick = () => setModel('vae'); $('mAE').onclick = () => setModel('ae');
+$('mVAE').onclick = () => { setModel('vae'); LabKit.sfx.whoosh(0.4); }; $('mAE').onclick = () => { setModel('ae'); LabKit.sfx.whoosh(0.4, false); };
 const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
-$('sample').onclick = () => setZ([gauss(), gauss()]);
+$('sample').onclick = () => { setZ([gauss(), gauss()]); LabKit.sfx.pop(0.6); if (model === 'ae') LabKit.flag('aeSample'); };
 let walking = null;
 $('walk').onclick = () => { if (walking) { cancelAnimationFrame(walking); walking = null; $('walk').textContent = 'walk ▸'; return; }
   $('walk').textContent = 'stop ■'; const t0 = performance.now(), b = B[model], cx = (b[0] + b[1]) / 2, cy = (b[2] + b[3]) / 2, rx = (b[1] - b[0]) * .32, ry = (b[3] - b[2]) * .32;
-  const step = now => { const t = (now - t0) / 1000; setZ([cx + rx * Math.sin(.5 * t), cy + ry * Math.sin(.71 * t + 1)]); walking = requestAnimationFrame(step); }; walking = requestAnimationFrame(step); };
+  const step = now => { const t = (now - t0) / 1000; walkT += 1 / 60; setZ([cx + rx * Math.sin(.5 * t), cy + ry * Math.sin(.71 * t + 1)]); walking = requestAnimationFrame(step); }; walking = requestAnimationFrame(step); };
 
 // ── draw pad
 const pad = $('pad'), pg = pad.getContext('2d'); let px = new Float32Array(784), drawing = false;
-function brush(e) { const r = pad.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width * 28, cy = (e.clientY - r.top) / r.height * 28;
+const scratch = LabKit.throttle(() => LabKit.sfx.scratch(), 40); let userDrew = false; const encodedWith = new Set();
+function brush(e) { scratch(); userDrew = true; const r = pad.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width * 28, cy = (e.clientY - r.top) / r.height * 28;
   for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + .5 - cx, y + .5 - cy); if (d < 2) px[y * 28 + x] = Math.min(1, px[y * 28 + x] + (d < 1 ? 1 : .35)); }
   const d = pg.createImageData(28, 28); for (let i = 0; i < 784; i++) { const v = Math.round(px[i] * 255); d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v; d.data[i * 4 + 3] = 255; } pg.putImageData(d, 0, 0); }
 function encodePad() { if (!px.some(v => v > 0)) { enc = null; $('encinfo').textContent = 'draw something…'; paint($('recon'), new Float32Array(784)); drawMap(); return; }
-  enc = encode(model, px); paint($('recon'), decode(model, enc.mu));
+  enc = encode(model, px); paint($('recon'), decode(model, enc.mu)); if (userDrew) { encodedWith.add(model); LabKit.flag('drew'); }
   $('encinfo').innerHTML = `encoded to z = (${enc.mu[0].toFixed(2)}, ${enc.mu[1].toFixed(2)})` + (enc.sig ? `  ·  σ = (${enc.sig[0].toFixed(2)}, ${enc.sig[1].toFixed(2)})` : ''); drawMap(); }
 pad.addEventListener('pointerdown', e => { drawing = true; pad.setPointerCapture(e.pointerId); brush(e); });
 pad.addEventListener('pointermove', e => { if (drawing) brush(e); });
-pad.addEventListener('pointerup', () => { drawing = false; encodePad(); });
+pad.addEventListener('pointerup', () => { drawing = false; encodePad(); LabKit.sfx.whoosh(0.35); setTimeout(() => LabKit.sfx.pop(0.7), 250); });
 $('clear').onclick = () => { px = new Float32Array(784); pg.fillStyle = '#000'; pg.fillRect(0, 0, 28, 28); encodePad(); };
 
 // ── interpolation
 const strip = $('strip'); const cells = Array.from({ length: 10 }, () => { const c = document.createElement('canvas'); c.width = c.height = 28; strip.appendChild(c); return c; });
 let pair = [3, 18];
 function interp() { const a = encode(model, TEST[pair[0]]).mu, b = encode(model, TEST[pair[1]]).mu;
-  cells.forEach((c, k) => { const s = k / 9; paint(c, decode(model, [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s])); });
+  cells.forEach((c, k) => { const s = k / 9; paint(c, decode(model, [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s])); c.style.animation = 'none'; void c.offsetWidth; c.style.animation = `enter .3s ease-out ${k * 0.05}s both`; setTimeout(() => LabKit.sfx.pop(0.3 + k / 14, k / 4.5 - 1), k * 50); });
   $('interpinfo').textContent = `from a ${A.testLabels[pair[0]]} to a ${A.testLabels[pair[1]]}`; }
-$('interp').onclick = () => { let i, j; do { i = Math.floor(Math.random() * TEST.length); j = Math.floor(Math.random() * TEST.length); } while (A.testLabels[i] === A.testLabels[j]); pair = [i, j]; interp(); };
+$('interp').onclick = () => { LabKit.count('interp'); let i, j; do { i = Math.floor(Math.random() * TEST.length); j = Math.floor(Math.random() * TEST.length); } while (A.testLabels[i] === A.testLabels[j]); pair = [i, j]; interp(); };
 
 $('clear').onclick(); setModel('vae');
+// start with a real 7 in the pad, so the encoder has something to show
+(() => { const i = A.testLabels.findIndex(l => l === 7); if (i < 0) return; px = Float32Array.from(TEST[i]); const d = pg.createImageData(28, 28); for (let k = 0; k < 784; k++) { const v = Math.round(px[k] * 255); d.data[k * 4] = d.data[k * 4 + 1] = d.data[k * 4 + 2] = v; d.data[k * 4 + 3] = 255; } pg.putImageData(d, 0, 0); encodePad(); $('encinfo').innerHTML = 'a real test 7 to start — <b>clear</b> and draw your own · ' + $('encinfo').innerHTML; })();
+VISITED.clear();
+LabKit.init({ id: 'ep03',
+  steps: ['<strong>Drag on the latent map</strong>: every point is 2 numbers, and the decoder turns them into a picture.', '<strong>Draw a digit</strong> in panel 3: the encoder squeezes it into 2 numbers and rebuilds it.', '<strong>Switch VAE ↔ autoencoder</strong> and do the missions to see why the VAE can generate and the plain autoencoder can’t.'],
+  legend: [['var(--rose)', 'latent codes z'], ['var(--terracotta)', 'pixels / images'], ['var(--ink)', 'N(0, I): where the VAE packs its codes'], ['var(--chalk)', 'your chosen point']],
+  missions: [
+    { id: 'visit', title: 'Visit 6 different digits on the map', hint: 'Drag slowly across the latent map. A chime marks each new digit region you enter.', check: () => VISITED.size >= 6 },
+    { id: 'draw', title: 'Draw your own digit and watch it get encoded', hint: 'Press <b>clear</b> in panel 3, then draw with your mouse or finger.', check: () => LabKit.flags.drew },
+    { id: 'both', title: 'Encode the same drawing with both models', hint: 'Draw something, then switch between <b>VAE</b> and <b>autoencoder</b> at the top. Its point moves: each model has its own map.', check: () => encodedWith.size >= 2 },
+    { id: 'hole', title: 'Fall into a hole: sample from the autoencoder', hint: 'Switch to <b>autoencoder</b> and press <b>sample z ~ N(0, I)</b> a few times. Its codes don’t live there, so you get smudges.', check: () => LabKit.flags.aeSample },
+    { id: 'walk', title: 'Take a 10-second walk through latent space', hint: 'Press <b>walk ▸</b> and watch the digits morph as the point travels.', check: () => walkT >= 10 },
+    { id: 'morph', title: 'Morph between 3 different pairs of digits', hint: 'Press <b>new pair</b> in panel 4 three times. Try it with both models.', check: () => (LabKit.counts.interp || 0) >= 3 },
+  ] });
 </script>
 </body>
 </html>

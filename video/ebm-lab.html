@@ -42,6 +42,7 @@
   ul { padding-left:18px; } li { margin:4px 0; }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -77,13 +78,7 @@
       <div class="label" style="margin-top:14px">probe: click the picture</div>
       <div id="probe">Click to read the energy there, and to drop marbles that follow
 x ← x − η∇E(x) + √(2η)·ε</div>
-      <div class="label" style="margin-top:18px">try this</div>
-      <ul class="hint" style="color:var(--stone);font-size:14px">
-        <li>Set <b>jiggle to 0</b>, then drop marbles: plain gradient descent collapses every marble into a single point at the bottom.</li>
-        <li><b>1 Langevin step</b> per update: fantasies barely move and training goes wobbly.</li>
-        <li><b>α at its minimum</b>: nothing stops the energies drifting off. Watch the chart.</li>
-        <li>Drop marbles on one blob and wait. How often do they climb over a ridge into the next valley?</li>
-      </ul>
+
     </section>
   </div>
   <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/ebm.py</span>. E is a 2→48→48→1 network (swish activations). Fantasies live in a 2,048-point replay buffer; 5% restart from noise each update. Loss = mean E(data) − mean E(fantasy) + α·(E(data)² + E(fantasy)²). Adam, batch 128. The −log p shown is exact up to a grid: Z is summed over 64 × 64 points.</footer>
@@ -183,12 +178,28 @@ $('showData').onclick = () => { showD = !showD; $('showData').classList.toggle('
 document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); probe = null; reset(); draw(); });
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; document.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
 cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); probe = [((e.clientX - r.left) / r.width) * 2 * R - R, R - ((e.clientY - r.top) / r.height) * 2 * R];
-  drops = new Float32Array(2 * 120); for (let k = 0; k < 120; k++) { drops[2 * k] = probe[0] + 0.05 * gauss(); drops[2 * k + 1] = probe[1] + 0.05 * gauss(); } showProbe(); draw(); });
+  drops = new Float32Array(2 * 120); for (let k = 0; k < 120; k++) { drops[2 * k] = probe[0] + 0.05 * gauss(); drops[2 * k + 1] = probe[1] + 0.05 * gauss(); } dropFrames = 0; dropJig = +$('jig').value; showProbe(); draw();
+  LabKit.sfx.patter(14, 0.35, probe[0] / R); LabKit.flag('dropped'); });
+let dropFrames = 0, dropJig = 1, prevDrops = null;
+function dropSpread() { if (!drops) return 0; const n = drops.length / 2; let mx = 0, my = 0; for (let k = 0; k < n; k++) { mx += drops[2 * k] / n; my += drops[2 * k + 1] / n; } let v = 0; for (let k = 0; k < n; k++) v += ((drops[2 * k] - mx) ** 2 + (drops[2 * k + 1] - my) ** 2) / n; return Math.sqrt(v); }
 function loop() { if (running) { const n = +$('spd').value; for (let i = 0; i < n; i++) trainStep(); if (step % 10 < n) refresh(); }
-  if (drops) langevin(drops, drops.length / 2, 2, Math.pow(10, +$('eta').value), +$('jig').value);
+  if (drops) { prevDrops = Float32Array.from(drops); langevin(drops, drops.length / 2, 2, Math.pow(10, +$('eta').value), +$('jig').value); dropFrames++; if (+$('jig').value !== dropJig) dropJig = -1;
+    let sp = 0; for (let k = 0; k < drops.length; k++) sp += Math.abs(drops[k] - prevDrops[k]); LabKit.sfx.roll(Math.min(1, sp / drops.length * 40)); } else LabKit.sfx.roll(0);
   if (running || drops) { draw(); if (probe && step % 5 === 0) showProbe(); }
   requestAnimationFrame(loop); }
 labels(); reset(); draw(); loop();
+document.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => LabKit.sfx.whoosh(0.4)));
+LabKit.init({ id: 'ep07',
+  steps: ['<strong>Watch the landscape get sculpted</strong>: energy is pushed down under the data and up under the model’s fantasies (pink marbles).', '<strong>Click anywhere</strong> to drop a handful of amber marbles. They roll downhill and jiggle, exactly like the sampler.', '<strong>Turn the knobs</strong> and do the missions: switch off the jiggle, test the ridges, sculpt a spiral.'],
+  legend: [['var(--plum)', 'high energy (ridges)'], ['var(--ink)', 'low energy / density'], ['var(--rose)', 'fantasies (the model’s samples)'], ['var(--amber)', 'your marbles'], ['var(--terracotta)', 'data']],
+  missions: [
+    { id: 'drop', title: 'Drop a handful of marbles', hint: 'Click or tap anywhere on the landscape.', check: () => LabKit.flags.dropped },
+    { id: 'collapse', title: 'Collapse them: roll downhill with no jiggle', hint: 'Drag <b>jiggle</b> to 0, then drop marbles. Plain gradient descent squeezes them all into one point at the bottom of a valley.', check: () => drops && dropJig === 0 && dropFrames > 120 && dropSpread() < 0.04 },
+    { id: 'sample', title: 'Sample properly: jiggle on, marbles fill a valley', hint: 'Set <b>jiggle</b> back to 1 and drop marbles again. They spread out to the shape of e^−E.', check: () => drops && dropJig >= 0.95 && dropFrames > 90 && dropSpread() > 0.06 && dropSpread() < 1.2 },
+    { id: 'score', title: 'Sculpt the 8 blobs below 1.75 nats', hint: 'On <b>8 blobs</b>, let it train for a minute or two (raise speed). The −log p under the picture is exact: Z is summed over a grid.', check: () => dataKind === 'ring' && step > 300 && nllVal !== null && nllVal < 1.75 },
+    { id: 'stuck', title: 'Test the ridges: drop marbles on one blob and watch for 10 s', hint: 'On <b>8 blobs</b>, with the jiggle on, drop marbles right on one blob. Where the ridges are low they spill into the neighbouring valleys; where they are high they stay trapped. Try it early in training and again later. Marbles that can’t cross ridges are why the episode’s sampler misjudged the valleys: the mixing problem.', check: () => dataKind === 'ring' && step > 600 && drops && dropJig >= 0.95 && dropFrames > 600 },
+    { id: 'spiral', title: 'See the spiral’s density', hint: 'Pick <b>spiral</b>, train a while, then choose <b>density e^−E / Z</b>.', check: () => dataKind === 'spiral' && view === 'dens' && step > 1200 },
+  ] });
 </script>
 </body>
 </html>

@@ -41,12 +41,13 @@
   ul { padding-left:18px; } li { margin:4px 0; }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
   <div class="kicker">Episode 05 · playground</div>
   <h1>GAN Arena: a forger and a detective, live</h1>
-  <p class="sub">A real GAN trains in your browser: two tiny neural networks, hand-written backprop, no libraries. Terracotta dots are the generator's fakes. The blue glow is the judge's opinion, where it thinks "real". White rings are the true data. Change the rules and watch what happens.</p>
+  <p class="sub">A real GAN trains in your browser: two tiny neural networks, hand-written backprop, no libraries. Terracotta dots are the generator's fakes. The blue glow is the judge's opinion, where it thinks "real". White rings are the true data. Change the rules and watch what happens — or <b>click the arena to plant a new blob</b> of real data and watch the forger hunt it down.</p>
   <div class="grid">
     <section class="card" style="--accent:var(--ink)">
       <canvas id="arena" width="720" height="720"></canvas>
@@ -68,14 +69,8 @@
       <label class="stat"><input type="checkbox" id="sat"> original “saturating” loss  log(1 − D(G(z)))</label><br>
       <label class="stat"><input type="checkbox" id="arrows" checked> show the judge's gradient on the fakes</label>
       <canvas id="chart" width="480" height="140"></canvas>
-      <div class="legend"><span style="color:var(--ink)">— D(real)</span><span style="color:var(--terracotta)">— D(fake)</span><span style="color:var(--dust)">- - ½</span></div>
-      <div class="label" style="margin-top:18px">try this</div>
-      <ul class="hint" style="color:var(--stone);font-size:14px">
-        <li><b>Fast forger, slow judge</b> (G lr high, D lr low): watch the fakes pile onto one blob, then hop. That's mode collapse.</li>
-        <li><b>25 blobs</b>: how many does it ever find?</li>
-        <li><b>Saturating loss</b> + reset: early learning stalls. The judge wins too easily and the gradient vanishes.</li>
-        <li>Train until both curves approach ½: the judge can no longer tell.</li>
-      </ul>
+      <div class="legend"><span style="color:var(--ink)">— D(real): judge’s score on real data</span><span style="color:var(--terracotta)">— D(fake): on fakes</span><span style="color:var(--dust)">- - ½ = can’t tell</span></div>
+
     </section>
   </div>
   <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/gan.py</span>. Networks: G 2→64→64→2, D 2→64→64→1, LeakyReLU, Adam (β₁ = 0.5).</footer>
@@ -114,7 +109,9 @@ function realBatch(n) { const out = [];
 const noise = n => Array.from({ length: n }, () => Float32Array.of(gauss(), gauss()));
 // ── the game
 let G, D, step, hist, zShow;
-function reset() { seed = 1; G = new MLP([2, 64, 64, 2]); D = new MLP([2, 64, 64, 1]); step = 0; hist = []; zShow = noise(400); }
+const BASE = { ring: CENTERS.ring.slice(), grid: CENTERS.grid.slice() };
+let MODES = { found: 0, total: 0, cnt: [] }, lastFound = 0, planted = -1, plantedAt = 0;
+function reset() { seed = 1; if (BASE[dataKind]) CENTERS[dataKind] = BASE[dataKind].slice(); planted = -1; lastFound = 0; G = new MLP([2, 64, 64, 2]); D = new MLP([2, 64, 64, 1]); step = 0; hist = []; zShow = noise(400); }
 function gameStep(lrG, lrD, sat) {
   const B = 64, xr = realBatch(B), xf = G.forward(noise(B));
   D.zero(); const lr = D.forward(xr); D.backward(lr.map(l => Float32Array.of((sig(l[0]) - 1) / B)));
@@ -139,11 +136,15 @@ function draw() {
   if ($('arrows').checked) { const sub = xs.slice(0, 50), l = D.forward(sub); D.zero(); const dx = D.backward(l.map(v => Float32Array.of(sig(v[0]) - 1))); D.zero();
     g.strokeStyle = '#7a9e7e'; g.lineWidth = 1.6; sub.forEach((p, k) => { const vx = -dx[k][0], vy = -dx[k][1], L = Math.hypot(vx, vy) + 1e-9, s = Math.min(0.45, L * 2) / L; g.beginPath(); g.moveTo(X(p[0]), Y(p[1])); g.lineTo(X(p[0] + vx * s), Y(p[1] + vy * s)); g.stroke(); }); }
   // modes
-  let modes = '—'; if (CENTERS[dataKind]) { const C = CENTERS[dataKind], cnt = new Array(C.length).fill(0); xs.forEach(p => { let b = -1, bd = dataKind === 'ring' ? 0.35 : 0.25; C.forEach((c, k) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]); if (d < bd) { bd = d; b = k; } }); if (b >= 0) cnt[b]++; }); modes = `${cnt.filter(c => c > 0.02 * xs.length).length}/${C.length}`; }
+  let modes = '—'; if (CENTERS[dataKind]) { const C = CENTERS[dataKind], cnt = new Array(C.length).fill(0); xs.forEach(p => { let b = -1, bd = dataKind === 'ring' ? 0.35 : 0.25; C.forEach((c, k) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]); if (d < bd) { bd = d; b = k; } }); if (b >= 0) cnt[b]++; }); const found = cnt.filter(c => c > 0.02 * xs.length).length; modes = `${found}/${C.length}`; MODES = { found, total: C.length, cnt };
+    if (found > lastFound) { LabKit.sfx.chime(0.35 + 0.6 * found / C.length); } else if (found < lastFound) LabKit.sfx.thunk(); lastFound = found; }
   $('step').textContent = step; $('modes').textContent = modes;
   // chart
-  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H); cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(0, H / 2); cg.lineTo(W, H / 2); cg.stroke(); cg.setLineDash([]);
-  [[0, '#6889b1'], [1, '#c4654a']].forEach(([k, c]) => { cg.strokeStyle = c; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 399 * W, y = H - h[k] * H; i ? cg.lineTo(x, y) : cg.moveTo(x, y); }); cg.stroke(); });
+  const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height, L0 = 64, top = 8, bot = H - 8, yy = v => bot - v * (bot - top); cg.clearRect(0, 0, W, H);
+  cg.font = "11px 'JetBrains Mono', monospace"; cg.fillStyle = '#6b6360'; cg.textAlign = 'right'; [[1, '1 real'], [0.5, '½'], [0, '0 fake']].forEach(([v, t]) => cg.fillText(t, L0 - 8, yy(v) + 4));
+  cg.strokeStyle = '#3a3432'; cg.beginPath(); cg.moveTo(L0, top); cg.lineTo(L0, bot); cg.lineTo(W, bot); cg.stroke();
+  cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(L0, yy(0.5)); cg.lineTo(W, yy(0.5)); cg.stroke(); cg.setLineDash([]);
+  [[0, '#6889b1'], [1, '#c4654a']].forEach(([k, c]) => { cg.strokeStyle = c; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = L0 + i / 399 * (W - L0), y = yy(h[k]); i ? cg.lineTo(x, y) : cg.moveTo(x, y); }); cg.stroke(); });
 }
 // ── controls
 let running = true;
@@ -153,8 +154,24 @@ function labels() { $('lrgv').textContent = lrOf('lrg').toExponential(0); $('lrd
 $('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause' : '▶ play'; };
 $('reset').onclick = () => { reset(); draw(); };
 document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); reset(); draw(); });
+cv.addEventListener('pointerdown', e => { if (!BASE[dataKind]) { LabKit.toast('Planting works on <b>8 blobs</b> and <b>25 blobs</b>.', 'tip'); return; }
+  const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * 2 * R - R, y = R - ((e.clientY - r.top) / r.height) * 2 * R;
+  CENTERS[dataKind].push([x, y]); planted = CENTERS[dataKind].length - 1; plantedAt = step; LabKit.sfx.pop(0.8); LabKit.flag('planted'); draw(); });
+cv.style.cursor = 'crosshair';
+const avgLast = (k, n) => { const h = hist.slice(-n); return h.length < n ? null : h.reduce((a, v) => a + v[k], 0) / n; };
 function loop() { if (running) { const n = +$('spd').value, sat = $('sat').checked; for (let i = 0; i < n; i++) gameStep(lrOf('lrg'), lrOf('lrd'), sat); draw(); } requestAnimationFrame(loop); }
 labels(); reset(); draw(); loop();
+LabKit.init({ id: 'ep05',
+  steps: ['<strong>Watch the duel</strong>: the forger (dots) moves its fakes wherever the judge (blue glow) says “real”. Green lines are the judge’s push.', '<strong>Change the rules</strong>: learning rates, the loss, the data. <strong>Click the arena</strong> to plant a new blob.', '<strong>Do the missions</strong>: find every mode, then break the game on purpose.'],
+  legend: [['var(--terracotta)', 'fakes G(z)'], ['var(--chalk)', 'real data'], ['var(--ink)', 'judge says “real”'], ['var(--sage)', 'the judge’s gradient on each fake']],
+  missions: [
+    { id: 'all8', title: 'Let the forger find all 8 blobs', hint: 'Default settings on <b>8 blobs</b>. Give it a few thousand steps (raise speed).', check: () => dataKind === 'ring' && MODES.total >= 8 && MODES.found === MODES.total },
+    { id: 'collapse', title: 'Cause mode collapse', hint: 'Forger lr high (≥ 3e-3), judge lr low (≤ 3e-4), then <b>reset</b>. The fakes pile onto one or two blobs and hop between them.', check: () => dataKind === 'ring' && lrOf('lrg') >= 2.9e-3 && lrOf('lrd') <= 3.1e-4 && step > 600 && MODES.found <= 2 },
+    { id: 'stall', title: 'Stall the forger: original loss + a fast judge', hint: 'Tick the <b>saturating</b> loss, drag <b>judge lr</b> near the top, then <b>reset</b>. The judge wins early, D(fake) sinks toward 0, and with this loss the forger’s gradient fades: progress crawls.', check: () => $('sat').checked && lrOf('lrd') >= 3 * lrOf('lrg') && step > 400 && avgLast(1, 10) !== null && avgLast(1, 10) < 0.2 },
+    { id: 'plant', title: 'Plant a new blob: does the forger ever find it?', hint: 'Click an empty spot in the arena on <b>8 blobs</b> and keep training for a while. Often the forger never goes there: silently dropping a whole mode is a classic GAN failure. A blob near the others is found more easily than one far away.', check: () => planted >= 0 && step - plantedAt > 1500 },
+    { id: 'eq', title: 'Reach the stalemate: both curves at ½', hint: 'Let a healthy run train for a while. When the judge can’t tell, D(real) ≈ D(fake) ≈ ½.', check: () => step > 1000 && Math.abs(avgLast(0, 10) - 0.5) < 0.08 && Math.abs(avgLast(1, 10) - 0.5) < 0.08 },
+    { id: 'grid', title: 'Hard mode: find 20 of the 25 blobs', hint: 'Switch to <b>25 blobs</b> and be patient. Try a slightly faster judge.', check: () => dataKind === 'grid' && MODES.found >= 20 },
+  ] });
 </script>
 </body>
 </html>

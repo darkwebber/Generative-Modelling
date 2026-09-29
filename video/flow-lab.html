@@ -42,6 +42,7 @@
   ul { padding-left:18px; } li { margin:4px 0; }
   footer { margin-top:30px; font-size:13px; color:var(--dust); }
 </style>
+<script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -77,13 +78,7 @@
       <div class="label" style="margin-top:14px">probe: click the picture</div>
       <div id="probe">Click any point to see its exact log-likelihood:
 log p(x) = log N(z) + Σ s</div>
-      <div class="label" style="margin-top:18px">try this</div>
-      <ul class="hint" style="color:var(--stone);font-size:14px">
-        <li><b>1 layer</b>: a single coupling only bends one coordinate. Compare it with 2 and with 8.</li>
-        <li><b>8 blobs</b> + <i>samples</i>: look for the thin bridges. Rubber can't tear.</li>
-        <li><b>Layer by layer</b>: scrub from data to noise and watch the data become a round bell curve.</li>
-        <li>Click on the data, then out in the void, and compare log p. The gap is the whole model.</li>
-      </ul>
+
     </section>
   </div>
   <footer>The same algorithm in Python: <span style="font-family:var(--mono)">code/flow.py</span>. Each layer is b′ = b·e^s(a) + t(a) with s, t from a 1→32→32→2 net (LeakyReLU); s is soft-clamped, s = 2·tanh(raw/2). Adam (β₁ = 0.9), batch 128.</footer>
@@ -180,26 +175,42 @@ function draw() {
   $('step').textContent = step; $('nll').textContent = ema === null ? '—' : ema.toFixed(2);
   const ch = $('chart'), cg = ch.getContext('2d'), W = ch.width, H = ch.height; cg.clearRect(0, 0, W, H);
   if (hist.length > 1) { const lo = Math.min(...hist, gBase) - 0.1, hi = Math.max(gBase + 1, Math.min(Math.max(...hist), gBase + 3)), yy = v => H - (Math.min(v, hi) - lo) / (hi - lo) * (H - 8) - 4;
-    cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(0, yy(gBase)); cg.lineTo(W, yy(gBase)); cg.stroke(); cg.setLineDash([]);
-    cg.strokeStyle = '#8b7bb5'; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = i / 399 * W; i ? cg.lineTo(x, yy(h)) : cg.moveTo(x, yy(h)); }); cg.stroke(); }
+    const L0 = 44; cg.font = "11px 'JetBrains Mono', monospace"; cg.fillStyle = '#6b6360'; cg.textAlign = 'right'; [lo + 0.1, (lo + hi) / 2, hi].forEach(v => cg.fillText(v.toFixed(1), L0 - 6, yy(v) + 4));
+    cg.strokeStyle = '#3a3432'; cg.beginPath(); cg.moveTo(L0, 4); cg.lineTo(L0, H - 4); cg.stroke();
+    cg.strokeStyle = '#6b6360'; cg.setLineDash([4, 5]); cg.beginPath(); cg.moveTo(L0, yy(gBase)); cg.lineTo(W, yy(gBase)); cg.stroke(); cg.setLineDash([]); cg.textAlign = 'left'; cg.fillText('one bell curve', L0 + 6, yy(gBase) - 5);
+    cg.strokeStyle = '#8b7bb5'; cg.lineWidth = 2; cg.beginPath(); hist.forEach((h, i) => { const x = L0 + i / 399 * (W - L0); i ? cg.lineTo(x, yy(h)) : cg.moveTo(x, yy(h)); }); cg.stroke(); }
 }
-function showProbe() { const [z, ld] = flow.forward([Float32Array.from(probe)]), lN = -0.5 * (z[0][0] ** 2 + z[0][1] ** 2) - LOG2PI, lp = lN + ld[0];
+let probeHi = false, probeLo = false, beatAt = null, scrubMin = 1e9, scrubMax = -1e9;
+function showProbe() { const [z, ld] = flow.forward([Float32Array.from(probe)]), lN = -0.5 * (z[0][0] ** 2 + z[0][1] ** 2) - LOG2PI, lp = lN + ld[0]; if (lp > -1.5) probeHi = true; if (lp < -10) probeLo = true;
   $('probe').innerHTML = `x = (<b>${probe[0].toFixed(2)}, ${probe[1].toFixed(2)}</b>)  →  z = (<b>${z[0][0].toFixed(2)}, ${z[0][1].toFixed(2)}</b>)\nlog N(z)      = <b>${lN.toFixed(2)}</b>\nΣ s (stretch) = <b>${(ld[0] >= 0 ? '+' : '') + ld[0].toFixed(2)}</b>\nlog p(x)      = <b style="color:var(--amber)">${lp.toFixed(2)}</b>   (p = ${Math.exp(lp).toExponential(2)})`; }
 // ── controls
 let running = true;
 function labels() { $('nlv').textContent = $('nl').value; $('lrv').textContent = Math.pow(10, +$('lr').value).toExponential(0); $('spdv').textContent = $('spd').value; }
 ['lr', 'spd'].forEach(id => $(id).oninput = labels);
 $('nl').oninput = () => { labels(); reset(); draw(); };
-$('scrub').oninput = () => draw();
+$('scrub').oninput = () => { const v = +$('scrub').value / flow.nets.length; scrubMin = Math.min(scrubMin, v); scrubMax = Math.max(scrubMax, v); draw(); };
 $('go').onclick = () => { running = !running; $('go').textContent = running ? '❚❚ pause' : '▶ play'; draw(); };
 $('reset').onclick = () => { reset(); draw(); };
 document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { dataKind = b.dataset.d; document.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); probe = null; reset(); draw(); });
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; document.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); $('scrubRow').style.display = view === 'layers' ? '' : 'none'; densAge = 1e9; draw(); });
-cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); probe = [((e.clientX - r.left) / r.width) * 2 * R - R, R - ((e.clientY - r.top) / r.height) * 2 * R]; draw(); });
-function loop() { if (running) { const n = +$('spd').value, lr = Math.pow(10, +$('lr').value);
+cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); probe = [((e.clientX - r.left) / r.width) * 2 * R - R, R - ((e.clientY - r.top) / r.height) * 2 * R]; draw();
+  const lp = flow.logProb([Float32Array.from(probe)])[0]; LabKit.sfx.pop(Math.max(0, Math.min(1, (lp + 12) / 12)), (probe[0] / R)); if (lp < -10) setTimeout(() => LabKit.sfx.thunk(), 60); });
+function loop() { if (running && ema !== null && step > 50) { const beat = ema < gBase - 0.3; if (beat && beatAt === null) { beatAt = step; LabKit.sfx.chime(0.8); LabKit.toast('The flow now beats the best single bell curve.', 'milestone'); } if (!beat) beatAt = null; }
+  if (running) { const n = +$('spd').value, lr = Math.pow(10, +$('lr').value);
     for (let i = 0; i < n; i++) { const l = flow.trainStep(batch(128), lr); ema = ema === null ? l : 0.97 * ema + 0.03 * l; step++; if (step % 10 === 0) { hist.push(ema); if (hist.length > 400) hist.shift(); } }
     draw(); } requestAnimationFrame(loop); }
 labels(); reset(); draw(); loop();
+LabKit.init({ id: 'ep06',
+  steps: ['<strong>Watch it train</strong>: the blue glow is the flow’s exact density p(x), sharpening onto the data.', '<strong>Switch views</strong> under the picture: samples, the warped grid, or the layers one by one. <strong>Click anywhere</strong> for an exact log p(x).', '<strong>Do the missions</strong>: each one shows what a flow can, and can’t, do.'],
+  legend: [['var(--ink)', 'density p(x)'], ['var(--terracotta)', 'samples / data'], ['var(--rose)', 'noise z'], ['var(--plum)', 'training −log p'], ['var(--amber)', 'your probe']],
+  missions: [
+    { id: 'beat', title: 'Train until the flow beats the best bell curve', hint: 'Just wait on <b>two moons</b>. The purple curve drops below the dashed line.', check: () => ema !== null && ema < gBase - 0.3 },
+    { id: 'probe', title: 'Probe two worlds: log p above −1.5, and below −10', hint: 'Click right on the data, then far out in the empty corners. Same model, astronomically different likelihoods.', check: () => probeHi && probeLo },
+    { id: 'layers', title: 'Scrub the data all the way into noise', hint: 'Choose <b>layer by layer</b>, then drag the slider from one end to the other.', check: () => view === 'layers' && scrubMin <= 0.05 && scrubMax >= 0.95 },
+    { id: 'bridges', title: 'Find the bridges between the 8 blobs', hint: 'Pick <b>8 blobs</b>, train a while, then switch to <b>samples</b>. Rubber stretches but can’t tear, so some samples sit on thin bridges.', check: () => dataKind === 'ring' && view === 'samp' && step > 1500 },
+    { id: 'shallow', title: 'Too shallow: train a 1-layer flow', hint: 'Drag <b>coupling layers</b> to 1. One coupling can only bend one coordinate: watch it fail.', check: () => flow.nets.length === 1 && step > 600 },
+    { id: 'spiral', title: 'Warp the grid around a spiral', hint: 'Pick <b>spiral</b>, train for a while, then choose <b>warped grid</b>.', check: () => dataKind === 'spiral' && view === 'grid' && step > 1500 },
+  ] });
 </script>
 </body>
 </html>

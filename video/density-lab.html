@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Density Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; text-wrap:balance; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.45fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  canvas { display:block; width:100%; border-radius:10px; border:1px solid var(--border); background:var(--surface); }
+  canvas#plot { aspect-ratio: 720 / 440; cursor:crosshair; }
+  canvas#dream { aspect-ratio: 720 / 190; margin-top:12px; }
+  .score { font-family:var(--mono); font-size:44px; color:var(--chalk); line-height:1.1; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
+  .meter { position:relative; height:12px; border-radius:6px; background:var(--border); margin:10px 0 6px; overflow:visible; }
+  .meter i { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:linear-gradient(90deg, var(--rose), var(--amber), var(--sage)); transition:width .15s; }
+  .meter .mk { position:absolute; top:-5px; width:2px; height:22px; background:var(--chalk); }
+  .meter .mk span { position:absolute; top:24px; left:50%; transform:translateX(-50%); font-family:var(--mono); font-size:10.5px; color:var(--dust); white-space:nowrap; }
+  .stat { font-family:var(--mono); font-size:13px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  .math { font-family:var(--mono); font-size:13.5px; background:color-mix(in srgb, var(--canvas) 70%, transparent); border:1px solid var(--border); border-left:2px solid color-mix(in srgb, var(--ink) 60%, transparent); border-radius:10px; padding:10px 14px; margin-top:12px; overflow-x:auto; white-space:nowrap; line-height:1.9; }
+  .ink { color:var(--ink); } .amber { color:var(--amber); } .terra { color:var(--terracotta); } .sage { color:var(--sage); } .rose { color:var(--rose); } .dust { color:var(--dust); }
+  .cap { font-family:var(--mono); font-size:12px; color:var(--dust); margin-top:8px; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+<script src="lab-kit.js"></script>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 01 · playground</div>
+  <h1>Density Lab: fit the data, then dream</h1>
+  <p class="sub">A generative model is a density p(x): a curve that says how likely every x is. Drag its bumps to fit the dots, and the <span data-tip="The average of log p(xᵢ) over every data point. Higher means the model finds the real data more likely. Maximising it is maximum likelihood.">log-likelihood score</span> reacts instantly. Then let the machine fit it for you, and dream brand-new points from your curve.</p>
+
+  <div class="grid">
+    <section class="card" style="--accent:var(--ink)">
+      <canvas id="plot" width="720" height="440" aria-label="data points and the model density; drag the amber handles"></canvas>
+      <div class="cap">drag an <span class="amber">amber handle</span>: left/right moves a bump, up/down makes it narrow and tall or wide and flat · click empty space to add a data point · shift-click (or long-press) a dot to remove it</div>
+      <canvas id="dream" width="720" height="190" aria-label="dreamed samples"></canvas>
+      <div class="cap" id="dreamcap">dreams land here: <span class="rose">x = μ + σ·z</span>, with z ~ N(0, 1) and a bump picked at random by its weight</div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the data</div>
+      <div class="row" style="margin:10px 0" id="data">
+        <button data-d="two" class="on">two clusters</button><button data-d="one">one bump</button><button data-d="lop">lopsided</button><button data-d="none">blank: add your own</button>
+      </div>
+      <div class="label" style="margin-top:14px">the model</div>
+      <div class="row" style="margin:10px 0" id="kk">
+        <span class="stat">bumps</span><button data-k="1" class="on">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button class="primary" id="fit">fit for me (max likelihood)</button>
+      </div>
+      <div class="label" style="margin-top:14px">score: average log-likelihood</div>
+      <div class="score" id="score">—</div>
+      <div class="meter"><i id="bar"></i><div class="mk" id="mkBest" style="display:none"><span>machine’s best</span></div></div>
+      <div class="stat" style="margin-top:22px">your best so far <b id="best">—</b> · machine’s best <b id="mbest">—</b></div>
+      <div class="math">
+        <span class="ink">p</span>(x) = Σ<sub>k</sub> <span class="amber">w<sub>k</sub></span> · N(x; <span class="amber">μ<sub>k</sub></span>, <span class="amber">σ<sub>k</sub></span>²)   <span class="dust">area under p = <span id="area">1.000</span></span><br>
+        score = (1/<span class="terra">N</span>) Σ<sub>i</sub> log <span class="ink">p</span>(<span class="terra">x<sub>i</sub></span>)   <span class="dust">N = <span id="nn">0</span> points</span>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="primary" id="dreamBtn">dream 300 points</button><button id="hist">histogram: off</button><button id="clear">clear data</button>
+      </div>
+    </section>
+  </div>
+  <footer>This is the whole of episode 1 in one picture: data are points; a model is a density that integrates to 1; learning is maximum likelihood; sampling is bending noise z into x. The bigger models of later episodes do exactly this in hundreds of dimensions.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2, LO = -4, HI = 4;
+let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(TAU * rnd());
+const N = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(TAU));
+// ── state
+let data = [], bumps = [], K = 1, showHist = false, fitted = false, best = -Infinity, mbest = null, startScore = null, added = 0, dreams = [], dreamT = 0, dragged = false;
+const PRESETS = {
+  two: () => [...Array.from({ length: 24 }, () => -1.5 + 0.5 * gauss()), ...Array.from({ length: 16 }, () => 1.6 + 0.4 * gauss())],
+  one: () => Array.from({ length: 30 }, () => 0.3 + 0.8 * gauss()),
+  lop: () => Array.from({ length: 34 }, () => -2.2 + (-Math.log(1 - rnd()) - Math.log(1 - rnd())) * 0.8),
+  none: () => [],
+};
+const clampX = x => Math.max(LO + 0.05, Math.min(HI - 0.05, x));
+function defaultBumps(k) { return Array.from({ length: k }, (_, i) => ({ m: k === 1 ? 0 : -2 + 4 * i / (k - 1), s: 1, w: 1 / k })); }
+const p = x => bumps.reduce((a, b) => a + b.w * N(x, b.m, b.s), 0);
+const score = () => data.length ? data.reduce((a, x) => a + Math.log(Math.max(p(x), 1e-300)), 0) / data.length : null;
+// maximum likelihood by EM (on a copy, so we can also compute the machine's best silently)
+function em(bs, iters) { bs = bs.map(b => ({ ...b })); if (!data.length) return bs;
+  for (let it = 0; it < iters; it++) { const R = data.map(x => { const r = bs.map(b => b.w * N(x, b.m, b.s)), t = r.reduce((a, v) => a + v, 0) || 1e-300; return r.map(v => v / t); });
+    bs.forEach((b, k) => { const nk = R.reduce((a, r) => a + r[k], 0) + 1e-9; b.w = nk / data.length; b.m = R.reduce((a, r, i) => a + r[k] * data[i], 0) / nk; b.s = Math.max(0.08, Math.sqrt(R.reduce((a, r, i) => a + r[k] * (data[i] - b.m) ** 2, 0) / nk)); }); }
+  return bs; }
+function machineBest() { if (data.length < 2) { mbest = null; return; } let bestv = -Infinity; for (let tries = 0; tries < 6; tries++) { const init = defaultBumps(K).map((b, i) => ({ ...b, m: tries ? data[Math.floor(rnd() * data.length)] : b.m })); const bs = em(init, 80), saved = bumps; bumps = bs; const sc = score(); bumps = saved; if (sc > bestv) bestv = sc; } mbest = bestv; }
+// ── drawing
+const cv = $('plot'), g = cv.getContext('2d'), W = 720, H = 440, BASE = 380, X = x => 30 + (x - LO) / (HI - LO) * (W - 60), IX = px => LO + (px - 30) / (W - 60) * (HI - LO);
+let YS = 150; const Y = v => BASE - v * YS;
+function draw() {
+  g.clearRect(0, 0, W, H);
+  // axis
+  g.strokeStyle = '#4d4540'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(20, BASE); g.lineTo(W - 20, BASE); g.stroke();
+  g.font = "11px 'JetBrains Mono', monospace"; g.fillStyle = '#6b6360'; g.textAlign = 'center'; for (let x = -4; x <= 4; x++) { g.fillText(x, X(x), BASE + 44); g.beginPath(); g.moveTo(X(x), BASE); g.lineTo(X(x), BASE + 5); g.stroke(); }
+  const pm = Math.max(0.35, ...Array.from({ length: 161 }, (_, i) => p(LO + 8 * i / 160))); YS = Math.min(700, 300 / pm);
+  // histogram of the data
+  if (showHist && data.length) { const nb = 32, bw = 8 / nb, cnt = new Array(nb).fill(0); data.forEach(x => cnt[Math.min(nb - 1, Math.max(0, Math.floor((x - LO) / bw)))]++);
+    g.fillStyle = 'rgba(196,101,74,0.22)'; cnt.forEach((c, i) => { if (c) g.fillRect(X(LO + i * bw) + 1, Y(c / data.length / bw), X(LO + bw) - X(LO) - 2, BASE - Y(c / data.length / bw)); }); }
+  // likelihood sticks: each data point's p(x_i)
+  data.forEach(x => { g.strokeStyle = 'rgba(104,137,177,0.35)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(X(x), BASE); g.lineTo(X(x), Y(p(x))); g.stroke(); });
+  // the components (dashed) and the mixture (filled)
+  bumps.forEach(b => { g.setLineDash([4, 5]); g.strokeStyle = 'rgba(212,168,83,0.5)'; g.lineWidth = 1.2; g.beginPath(); for (let i = 0; i <= 200; i++) { const x = LO + 8 * i / 200; const y = Y(b.w * N(x, b.m, b.s)); i ? g.lineTo(X(x), y) : g.moveTo(X(x), y); } g.stroke(); g.setLineDash([]); });
+  g.beginPath(); g.moveTo(X(LO), BASE); for (let i = 0; i <= 320; i++) { const x = LO + 8 * i / 320; g.lineTo(X(x), Y(p(x))); } g.lineTo(X(HI), BASE); g.closePath();
+  g.fillStyle = 'rgba(104,137,177,0.16)'; g.fill(); g.strokeStyle = '#6889b1'; g.lineWidth = 3; g.beginPath(); for (let i = 0; i <= 320; i++) { const x = LO + 8 * i / 320; i ? g.lineTo(X(x), Y(p(x))) : g.moveTo(X(x), Y(p(x))); } g.stroke();
+  // data dots
+  const stack = {}; data.forEach(x => { const k = Math.round(X(x) / 7); stack[k] = (stack[k] || 0) + 1; g.fillStyle = '#c4654a'; g.beginPath(); g.arc(X(x), BASE + 10 + (stack[k] - 1) * 6 % 24, 4, 0, TAU); g.fill(); });
+  // handles
+  bumps.forEach((b, k) => { const hx = X(b.m), hy = Y(b.w * N(b.m, b.m, b.s)); g.fillStyle = '#d4a853'; g.shadowColor = '#d4a853'; g.shadowBlur = drag && drag.k === k ? 18 : 8; g.beginPath(); g.arc(hx, hy, drag && drag.k === k ? 11 : 9, 0, TAU); g.fill(); g.shadowBlur = 0;
+    g.fillStyle = '#13100e'; g.font = "bold 11px 'JetBrains Mono', monospace"; g.fillText(k + 1, hx, hy + 4); g.fillStyle = '#a89f97'; g.font = "11px 'JetBrains Mono', monospace"; g.fillText(`μ ${b.m.toFixed(2)}  σ ${b.s.toFixed(2)}`, hx, hy - 18); });
+  if (!data.length) { g.fillStyle = '#a89f97'; g.font = "15px 'Karla', sans-serif"; g.fillText('click anywhere to add data points', W / 2, 150); }
+  // readouts
+  const sc = score(); $('score').textContent = sc === null ? '—' : sc.toFixed(3); $('nn').textContent = data.length;
+  let area = 0; for (let x = -12; x < 12; x += 0.01) area += p(x) * 0.01; $('area').textContent = area.toFixed(3);
+  const fr = v => Math.max(0, Math.min(1, (v + 4) / 4.6)); $('bar').style.width = sc === null ? '0' : (fr(sc) * 100) + '%';
+  if (mbest !== null) { $('mkBest').style.display = ''; $('mkBest').style.left = (fr(mbest) * 100) + '%'; } else $('mkBest').style.display = 'none';
+  $('best').textContent = best > -Infinity ? best.toFixed(3) : '—'; $('mbest').textContent = mbest === null ? '—' : mbest.toFixed(3);
+}
+// ── dreams
+const dc = $('dream'), dg = dc.getContext('2d'), DB = 170;
+function drawDreams(now) {
+  dg.clearRect(0, 0, W, 190); dg.strokeStyle = '#4d4540'; dg.beginPath(); dg.moveTo(20, DB); dg.lineTo(W - 20, DB); dg.stroke();
+  const t = (now - dreamT) / 1000, landed = [];
+  dreams.forEach(d => { const u = Math.max(0, Math.min(1, (t - d.delay) / 0.55)); if (u >= 1) { landed.push(d.x); if (!d.sounded) { d.sounded = true; if (Math.random() < 0.18) LabKit.sfx.clack(Math.random(), (d.x / 4)); } return; } if (u <= 0) return;
+    dg.fillStyle = '#b5707e'; dg.globalAlpha = 0.85; dg.beginPath(); dg.arc(X(d.x), 10 + u * u * (DB - 14), 2.4, 0, TAU); dg.fill(); dg.globalAlpha = 1; });
+  if (landed.length) { const nb = 40, bw = 8 / nb, cnt = new Array(nb).fill(0); landed.forEach(x => cnt[Math.min(nb - 1, Math.max(0, Math.floor((x - LO) / bw)))]++);
+    const sc = 120 / Math.max(0.3, ...Array.from({ length: 161 }, (_, i) => p(LO + 8 * i / 160)));
+    dg.fillStyle = 'rgba(181,112,126,0.55)'; cnt.forEach((c, i) => { const h = c / dreams.length / bw * sc; if (c) dg.fillRect(X(LO + i * bw) + 1, DB - h, X(LO + bw) - X(LO) - 2, h); });
+    dg.strokeStyle = '#6889b1'; dg.lineWidth = 2; dg.beginPath(); for (let i = 0; i <= 200; i++) { const x = LO + 8 * i / 200; const y = DB - p(x) * sc; i ? dg.lineTo(X(x), y) : dg.moveTo(X(x), y); } dg.stroke(); }
+  if (!dreams.length) { dg.fillStyle = '#6b6360'; dg.font = "14px 'Karla', sans-serif"; dg.textAlign = 'center'; dg.fillText('press “dream 300 points”: new x values fall from your curve and pile up here', W / 2, 90); dg.textAlign = 'left'; }
+  if (dreams.length && t < 3) requestAnimationFrame(drawDreams);
+}
+function dream() { dreams = Array.from({ length: 300 }, (_, i) => { let u = rnd(), k = 0; while (k < bumps.length - 1 && u > bumps[k].w) { u -= bumps[k].w; k++; } return { x: bumps[k].m + bumps[k].s * gauss(), delay: i / 300 * 1.2 }; });
+  dreamT = performance.now(); LabKit.sfx.whoosh(0.5, false); LabKit.flag('dreamed'); requestAnimationFrame(drawDreams); }
+// ── interaction
+let drag = null, pressT = null;
+function pos(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
+const dragTick = LabKit.throttle(() => { const sc = score(); if (sc !== null) LabKit.sfx.tick(Math.max(0, Math.min(1, (sc + 4) / 4.6))); }, 55);
+function newBest() { const sc = score(); if (sc !== null && sc > best + 1e-6) { const was = best; best = sc; if (was > -Infinity && sc - was > 0.02) bestChime(); } }
+const bestChime = LabKit.throttle(() => LabKit.sfx.chime(0.85), 500);
+cv.addEventListener('pointerdown', e => { const [px, py] = pos(e);
+  const k = bumps.findIndex(b => Math.hypot(X(b.m) - px, Y(b.w * N(b.m, b.m, b.s)) - py) < 22);
+  if (k >= 0) { drag = { k }; cv.setPointerCapture(e.pointerId); LabKit.sfx.pop(0.6); draw(); return; }
+  const near = data.findIndex(x => Math.abs(X(x) - px) < 7 && py > BASE - 4);
+  if (e.shiftKey && near >= 0) { data.splice(near, 1); LabKit.sfx.thunk(); afterData(); return; }
+  if (near >= 0) { pressT = setTimeout(() => { data.splice(near, 1); LabKit.sfx.thunk(); afterData(); pressT = null; }, 550); return; }
+  if (px > 25 && px < W - 25) { data.push(clampX(IX(px))); added++; LabKit.sfx.pop(0.3 + 0.6 * (px / W), px / W * 2 - 1); afterData(); } });
+cv.addEventListener('pointermove', e => { if (!drag) return; const [px, py] = pos(e), b = bumps[drag.k];
+  b.m = clampX(IX(px)); const h = Math.max(0.02, (BASE - py) / YS); b.s = Math.max(0.04, Math.min(3, b.w / (h * Math.sqrt(TAU))));
+  dragged = true; fitted = false; newBest(); dragTick(); draw(); });
+const endDrag = () => { if (pressT) { clearTimeout(pressT); pressT = null; } if (drag) { drag = null; draw(); } };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+function afterData() { fitted = false; best = -Infinity; machineBest(); startScore = score(); newBest(); draw(); }
+function setK(k) { K = k; bumps = defaultBumps(k); document.querySelectorAll('[data-k]').forEach(b => b.classList.toggle('on', +b.dataset.k === k)); afterData(); }
+function setData(kind) { seed = { two: 3, one: 5, lop: 9, none: 1 }[kind]; data = PRESETS[kind]().map(clampX); document.querySelectorAll('[data-d]').forEach(b => b.classList.toggle('on', b.dataset.d === kind)); dreams = []; drawDreams(performance.now()); bumps = defaultBumps(K); afterData(); }
+document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { setData(b.dataset.d); LabKit.sfx.whoosh(0.35); });
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => setK(+b.dataset.k));
+$('fit').onclick = () => { if (data.length < 2) { LabKit.toast('Add a few data points first.', 'tip'); return; } let it = 0; if (data.length <= K) bumps = bumps.map((bb, i) => ({ ...bb, m: data[i % data.length] + 0.3 * (i >= data.length ? 1 : 0), s: 0.5 }));
+  const step = () => { bumps = em(bumps, 1); it++; if (it % 3 === 0) LabKit.sfx.tick(Math.min(1, it / 40)); newBest(); draw(); if (it < 40) setTimeout(step, 35); else { fitted = true; LabKit.flag('fit'); LabKit.sfx.chime(0.9); machineBest(); if (score() > mbest) mbest = score(); draw(); } };
+  LabKit.sfx.whoosh(0.9); step(); };
+$('dreamBtn').onclick = () => { if (!bumps.length) return; dream(); };
+$('hist').onclick = () => { showHist = !showHist; $('hist').textContent = 'histogram: ' + (showHist ? 'on' : 'off'); $('hist').classList.toggle('on', showHist); draw(); };
+$('clear').onclick = () => { data = []; afterData(); };
+setData('two'); drawDreams(performance.now());
+LabKit.init({ id: 'ep01',
+  steps: ['<strong>Look</strong>: terracotta dots are data. The blue curve is the model p(x). Each blue stick is how likely the model finds one data point.', '<strong>Drag the amber handles</strong> to fit the dots. The score (average log p) goes up when the sticks get taller.', '<strong>Fit, dream, and do the missions</strong>: maximum likelihood, overfitting and sampling, all in one picture.'],
+  legend: [['var(--terracotta)', 'data x'], ['var(--ink)', 'model density p(x)'], ['var(--amber)', 'knobs μ, σ, w'], ['var(--rose)', 'dreams (samples)'], ['var(--sage)', 'good score']],
+  missions: [
+    { id: 'hand', title: 'Fit it by hand: raise the score by 0.5', hint: 'Drag the amber handle onto the biggest cluster, then up or down until the sticks are tallest.', check: () => dragged && startScore !== null && score() - startScore >= 0.5 },
+    { id: 'two', title: 'Two bumps for two clusters', hint: 'On <b>two clusters</b>, choose <b>2</b> bumps and drag one onto each cluster. Get within 0.1 of the machine’s best.', check: () => K === 2 && dragged && !fitted && mbest !== null && score() >= mbest - 0.1 },
+    { id: 'fit', title: 'Let the machine do maximum likelihood', hint: 'Press <b>fit for me</b>. It climbs the score step by step (the EM algorithm).', check: () => LabKit.flags.fit },
+    { id: 'memo', title: 'Memorise: a perfect score from a useless model', hint: 'Press <b>clear data</b>, click just 3 points, choose <b>3</b> bumps and press <b>fit</b>. Each bump becomes a needle on one point: the score soars above 0, and every dream is a near-copy of a training point. High likelihood on the training data is not the same as a good model.', check: () => data.length <= 4 && data.length >= 2 && K === 3 && fitted && score() > 0 },
+    { id: 'add', title: 'Add 10 data points of your own', hint: 'Click empty space above the axis. Try <b>blank</b> and draw a shape of your own with dots.', check: () => added >= 10 },
+    { id: 'dream', title: 'Dream 300 new points', hint: 'Press <b>dream 300 points</b>. Each dream picks a bump by its weight, then bends noise: x = μ + σ·z.', check: () => LabKit.flags.dreamed },
+  ] });
+</script>
+</body>
+</html>
