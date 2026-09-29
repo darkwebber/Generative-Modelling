@@ -3,14 +3,12 @@ driven by the flow's own layer-by-layer motion (8 pulses per pass).
 
     python src/ep06_audio.py      # → ep06-audio.mp3
 """
-import re
 
 import numpy as np
 
-from audio_lib import HERE, Score, ease, prog
-import os
+from audio_lib import Score, ease, prog, scene_durations
 
-durs = [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", open(os.path.join(HERE, 'ep06-scenes.js')).read())]
+durs = scene_durations(6)
 S = Score('ep06-audio', durs, seed=6)
 K = 8  # coupling layers in the trained flow
 

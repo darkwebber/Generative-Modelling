@@ -40,7 +40,9 @@
 <script src="ep06-assets.js"></script>
 <script>
 // ─────────────────────────────────────────────────────────────
-//  Midnight Atelier tokens + engine (shared across episodes)
+//  Midnight Atelier engine — tokens, maths, drawing helpers.
+//  Shared by every episode (src/build.py inlines it into each page).
+//  Colour-coded maths:  M('[d|x] + [a_|θ] … [k^|2] … [pB|∫]')  d/p/a/n/m/s/k/w/c/t = colour, _ sub, ^ sup, B big
 // ─────────────────────────────────────────────────────────────
 const P = {
   canvas:"#13100e", surface:"#1c1816", elevated:"#272220", border:"#3a3432", borderLight:"#4d4540",
@@ -164,40 +166,58 @@ function insight(x, y, w, s, a = 1, head = 'intuition') {
   lines.forEach((l, i) => text(l, x + 24, y + 76 + i * 35, { size: 25, color: P.stone, a }));
   return h;
 }
-// a letter tile (data)
-function tile(ch, x, y, s = 64, a = 1, o = {}) {
-  const { col = P.terracotta, glowOn = false, fs = s * 0.58 } = o;
-  if (a <= 0) return;
-  ctx.save(); setA(a);
-  if (glowOn) { ctx.shadowColor = col; ctx.shadowBlur = 18; }
-  ctx.beginPath(); ctx.roundRect(x - s / 2, y - s / 2, s, s, s * 0.18); ctx.fillStyle = rgba(col, 0.12); ctx.fill();
-  ctx.strokeStyle = rgba(col, 0.7); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-  text(ch, x, y + fs * 0.36, { font: F.mono, size: fs, color: ch === '.' ? P.dust : P.chalk, align: 'center', a });
+function gaussFn(r) { return () => { const u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }; }
+function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
+const Phi = z => 0.5 * (1 + erf(z / Math.SQRT2));
+const npdf = (x, m = 0, s = 1) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(TAU));
+function tagsRow(list, x, y, t0, t) { let cx = x; list.forEach(([c, s], i) => { cx += tag(cx, y, c, s, eout(prog(t, t0 + i * 0.25, 0.6))) + 12; }); }
+// hooks that run once the fonts have loaded (e.g. glyphs rasterised from a font)
+const ON_READY = [];
+// ─────────────────────────────────────────────────────────────
+//  Scene kit — helpers several episodes share (src/build.py inlines it after core.js)
+// ─────────────────────────────────────────────────────────────
+// base64 → bytes (exported assets store images and trajectories this way)
+function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+// memoise expensive per-frame objects (image canvases, curves)
+const IMC = new Map();
+function cached(key, make) { let c = IMC.get(key); if (!c) { if (IMC.size > 4000) IMC.clear(); c = make(); IMC.set(key, c); } return c; }
+const MEMO = new Map(); const memo = (k, f) => { if (!MEMO.has(k)) MEMO.set(k, f()); return MEMO.get(k); };
+// a square 2-D plot of [−R, R]²: X(v), Y(v) map data → pixels; frame() draws it, clipTo() clips to it
+function plotSquare(x0, y0, S, R) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v => y0 + (R - v) / (2 * R) * S, s: S / (2 * R), x0, y0, S }; }
+function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
+function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+// a glass marble (particles, samples)
+function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
+// 28×28 images: uint8 base64 → [0, 1] floats → tinted canvases
+function u8imgs(s) { const u = b64bytes(s), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; }
+function imgCanvas(vals, col = P.terracotta) {
+  const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'); const d = g.createImageData(28, 28); const [r, gg, b] = hx(col);
+  for (let i = 0; i < 784; i++) { d.data[i * 4] = r; d.data[i * 4 + 1] = gg; d.data[i * 4 + 2] = b; d.data[i * 4 + 3] = Math.round(clamp(vals[i]) * 255); }
+  g.putImageData(d, 0, 0); return c;
 }
-// bar chart over the 27 symbols
-function bars27(p, x, y, w, h, o = {}) {
-  const { a = 1, col = P.ink, hi = -1, hiCol = P.terracotta, labels = true, maxP = null, lab = 16 } = o;
-  const mx = maxP || Math.max(...p); const bw = w / 27;
-  for (let j = 0; j < 27; j++) {
-    const bh = p[j] / mx * h; const isHi = j === hi;
-    setA(a * (isHi ? 0.95 : 0.75)); ctx.fillStyle = isHi ? hiCol : col; ctx.fillRect(x + j * bw + 2, y - bh, bw - 4, bh);
-    if (labels) text(VOC[j], x + j * bw + bw / 2, y + lab + 8, { font: F.mono, size: lab, color: isHi ? hiCol : P.dust, align: 'center', a });
-  }
-  setA(a); line(x, y, x + w, y, P.borderLight, 1.5, a);
+function drawImg(c, x, y, s, a = 1, o = {}) {
+  const { bg = true, frame = false, col = P.border } = o; if (a <= 0) return;
+  if (bg) { setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x, y, s, s); }
+  setA(a); ctx.imageSmoothingEnabled = s < 100; ctx.drawImage(c, x, y, s, s); ctx.imageSmoothingEnabled = true;
+  if (frame) { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s); }
+  setA(1);
 }
+// a rubber stamp that lands (verdicts)
+function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); const sc = lerp(1.6, 1, eout(a)); ctx.scale(sc, sc);
+  ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(s).width + 36; setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(-w / 2, -30, w, 52); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(s, 0, 8); ctx.restore(); setA(1); }
+// standard normal sampler from a uniform rng
+function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
+// camera shake after an impact at t0
+function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+const EPISODE = {"num": "06"};
 
 // ─────────────────────────────────────────────────────────────
 //  Real trained flows (exported by code/export_ep06_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP6, K = A.layers, RR = A.R;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-const IMC = new Map();
-function cached(key, make) { let c = IMC.get(key); if (!c) { c = make(); IMC.set(key, c); } return c; }
 function densCanvas(d, col) { return cached('d' + d.max + ':' + d.u8.length + col, () => { const u = b64bytes(d.u8), n = d.n, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), rgb = hx(col);
   for (let k = 0; k < n * n; k++) { im.data[k * 4] = rgb[0]; im.data[k * 4 + 1] = rgb[1]; im.data[k * 4 + 2] = rgb[2]; im.data[k * 4 + 3] = Math.round(u[k] * 0.92); } g.putImageData(im, 0, 0); return c; }); }
-function square(x0, y0, S) { return { X: v => x0 + (v + RR) / (2 * RR) * S, Y: v => y0 + (RR - v) / (2 * RR) * S, s: S / (2 * RR), x0, y0, S }; }
-function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
-function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+function square(x0, y0, S) { return plotSquare(x0, y0, S, RR); }
 function stageAt(stages, f) { const n = stages.length, fi = clamp(f, 0, n - 1), i = Math.floor(fi), j = Math.min(n - 1, i + 1), u = ease(fi - i); return [stages[i], stages[j], u]; }
 function drawPts(m, stages, f, col, a, r = 2.6, colFn = null) { const [S0, S1, u] = stageAt(stages, f); for (let k = 0; k < S0.length; k++) { const x = lerp(S0[k][0], S1[k][0], u), y = lerp(S0[k][1], S1[k][1], u); if (Math.abs(x) < RR && Math.abs(y) < RR) dot(m.X(x), m.Y(y), r, colFn ? colFn(f) : col, a); } }
 function drawGrid(m, f, a, col = P.borderLight) { const G = A.grid, [S0, S1, u] = stageAt(G.stages, f); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 1.2;
@@ -663,7 +683,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
   } });
 
 // ─────────────────────────────────────────────────────────────
-//  Timeline, chrome, grain, player
+//  Timeline, chrome, grain, player  (shared; configured by EPISODE = { num, header, chapterLabel })
 // ─────────────────────────────────────────────────────────────
 let acc = 0; SC.forEach(s => { s.start = acc; acc += s.dur; });
 const DURATION = acc;
@@ -672,7 +692,7 @@ const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.h
 let GRAIN_PAT = null, VIGNETTE = null;
 function header(i, s, t) {
   const a = eout(prog(t, 0.15, 0.8));
-  text(`EP 06  ·  SCENE ${String(i).padStart(2, '0')}`, 80, 82, { font: F.serif, italic: true, size: 21, color: P.terracotta, a, ls: 3 });
+  text(`${EPISODE.header ?? `EP ${EPISODE.num}  ·  `}SCENE ${String(i).padStart(2, '0')}`, 80, 82, { font: F.serif, italic: true, size: 21, color: P.terracotta, a, ls: 3 });
   text(s.title, 80 + (1 - a) * -16, 142, { font: F.serif, size: 58, color: P.chalk, a, ls: -0.5 });
   text(s.sub, 80, 188, { size: 26, color: P.stone, a: eout(prog(t, 0.5, 0.8)) });
 }
@@ -691,7 +711,7 @@ function progressBar(T, idx) {
   ctx.fillStyle = P.border; setA(1); ctx.fillRect(x0, y, x1 - x0, 2);
   ctx.fillStyle = rgba(P.terracotta, 0.85); ctx.fillRect(x0, y, (x1 - x0) * T / DURATION, 2);
   SC.forEach((s, j) => { const x = x0 + (x1 - x0) * s.start / DURATION; line(x, y - 4, x, y + 6, j === idx ? P.terracotta : P.borderLight, 1.5);
-    text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: 11, color: j === idx ? P.terracotta : P.dust, ls: 0.5 }); });
+    text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
 function render(T) {
@@ -733,7 +753,7 @@ window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
   try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
-  void 0;
+  ON_READY.forEach(f => f());
   draw(); window.READY = true;
 })();
 </script>

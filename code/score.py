@@ -27,6 +27,8 @@ import math
 
 import numpy as np
 
+from nn import SwishMLP, grad_check as check_grads, report
+
 R = 4.0
 SIGMAS = np.geomspace(3.0, 0.05, 10)           # σ₁ … σ_L
 
@@ -57,44 +59,22 @@ def true_score(name, x, sigma=0.0):
 
 
 # ── the network: [x, y, log σ] → 128 → 128 → 128 → 2, swish ──
-def _sig(u): return 1 / (1 + np.exp(-np.clip(u, -60, 60)))
+class Net(SwishMLP):
+    """[x, y, log σ] → 128 → 128 → 128 → 2 (nn.SwishMLP). Its output ≈ −ε; the score is output / σ."""
 
-
-class Net:
     def __init__(self, hidden=128, seed=0, sizes=None):
-        rng = np.random.default_rng(seed); sizes = sizes or [3, hidden, hidden, hidden, 2]
-        self.W = [(rng.standard_normal((a, b)) * np.sqrt(1 / a)).astype(np.float32) for a, b in zip(sizes, sizes[1:])]
-        self.b = [np.zeros(b, np.float32) for b in sizes[1:]]
-        self.m = [np.zeros_like(p) for p in self.W + self.b]; self.v = [np.zeros_like(p) for p in self.W + self.b]; self.t = 0
+        super().__init__(sizes or [3, hidden, hidden, hidden, 2], seed, b1=0.9)
 
     def __call__(self, x, sigma):
         """net(x̃, σ) ≈ −ε. The score is this divided by σ."""
         inp = np.concatenate([x, np.log(np.broadcast_to(np.asarray(sigma, np.float32), (len(x),)))[:, None]], 1).astype(np.float32)
-        self.h, self.u = [inp], []
-        for i, (W, b) in enumerate(zip(self.W, self.b)):
-            u = self.h[-1] @ W + b
-            if i < len(self.W) - 1:
-                self.u.append(u); self.h.append(u * _sig(u))
-            else:
-                return u
+        return self.forward(inp)
 
     def score(self, x, sigma):
         return self(x, sigma) / np.asarray(sigma, np.float32).reshape(-1, 1) if np.ndim(sigma) else self(x, sigma) / sigma
 
     def backward(self, d):
-        gW, gb = [], []
-        for i in reversed(range(len(self.W))):
-            gW.insert(0, self.h[i].T @ d); gb.insert(0, d.sum(0))
-            d = d @ self.W[i].T
-            if i > 0:
-                s = _sig(self.u[i - 1]); d = d * (s * (1 + self.u[i - 1] * (1 - s)))
-        self.gW, self.gb = gW, gb
-
-    def step(self, lr, b1=0.9, b2=0.999):
-        self.t += 1
-        for k, (p, g) in enumerate(zip(self.W + self.b, self.gW + self.gb)):
-            self.m[k] = b1 * self.m[k] + (1 - b1) * g; self.v[k] = b2 * self.v[k] + (1 - b2) * g * g
-            p -= lr * (self.m[k] / (1 - b1 ** self.t)) / (np.sqrt(self.v[k] / (1 - b2 ** self.t)) + 1e-8)
+        super().backward(d)
 
 
 def dsm_loss(net, x, sigma, eps):
@@ -146,12 +126,8 @@ def grad_check():
     rng = np.random.default_rng(0); net = Net(hidden=8, seed=1)
     net.W = [w.astype(np.float64) for w in net.W]; net.b = [b.astype(np.float64) for b in net.b]
     x = rng.standard_normal((6, 2)); sig = np.array([0.1, 0.5, 1, 2, 0.3, 0.7]); eps = rng.standard_normal((6, 2))
-    _, d = dsm_loss(net, x, sig, eps); net.backward(d); G = net.gW + net.gb; worst = 0
-    for P, Gp in zip(net.W + net.b, G):
-        idx = tuple(rng.integers(0, s) for s in P.shape); old = P[idx]
-        P[idx] = old + 1e-6; lp = dsm_loss(net, x, sig, eps)[0]; P[idx] = old - 1e-6; lm = dsm_loss(net, x, sig, eps)[0]; P[idx] = old
-        num = (lp - lm) / 2e-6; worst = max(worst, abs(num - Gp[idx]) / max(1e-9, abs(num) + abs(Gp[idx])))
-    print(f'worst relative gradient error {worst:.1e} ({"OK" if worst < 1e-4 else "CHECK"})')
+    _, d = dsm_loss(net, x, sig, eps); net.backward(d)
+    report(check_grads(net.W + net.b, net.gW + net.gb, lambda: dsm_loss(net, x, sig, eps)[0], rng))
 
 
 def main():

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
+  .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
+  button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  input[type=range] { flex:1; accent-color:var(--terracotta); min-width:0; }
+  .time { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--dust); min-width:104px; text-align:right; }
+  .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
+  .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
+  body.capture .ctl, body.capture .chapters { display:none; }
+  body.capture .wrap { padding:0; max-width:none; }
+  body.capture canvas { width:1920px; border-radius:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="1920" height="1080" aria-label="{{ARIA}}"></canvas>
+  <div class="ctl">
+    <button id="play">▶ play</button>
+    <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button id="snd-btn" title="sound on / off (M)">♪ sound on</button>
+    <audio id="snd" src="{{AUDIO}}" preload="auto"></audio>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+{{SCRIPTS}}
+<script>
+{{BODY}}
+</script>
+</body>
+</html>

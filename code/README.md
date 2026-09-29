@@ -2,6 +2,11 @@
 
 Everything from the videos, runnable, with backprop written out by hand so nothing is hidden.
 
+Each model's forward pass, loss and backprop live in its own file: those are the lesson. The plumbing they
+share (also hand-written) is in `nn.py`: Adam (+ an EMA of the weights), a layer-list MLP (GAN, flow couplings),
+a swish MLP (energy, score), a time-conditioned MLP (diffusion, and the next episodes), the 2-D ring and moons
+data, and a finite-difference gradient checker. Episodes 02–04 keep Adam written inline, where it is first explained.
+
 - **Episode 02 · autoregressive:** `ar_counting.py` (pure Python), `ar_neural.py` (numpy)
 - **Episode 03 · autoencoders & VAEs:** `vae.py` (numpy; downloads MNIST on first run)
 - **Episode 04 · evaluation:** `evals.py` (numpy; every metric from scratch)

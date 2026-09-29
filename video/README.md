@@ -51,7 +51,7 @@ the "emma" surprise bars) is computed live from the bundled `names.js` dataset.
 
 `ep03-autoencoders-vae.html` · playground: `vae-playground.html` · code: `../code/vae.py`
 
-Built from `src/ep03-scenes.js` + the shared engine: `python src/build_ep03.py`. Every image,
+Built from `src/ep03-scenes.js` + the shared engine: `python src/build.py 3`. Every image,
 latent map, sample and interpolation is decoded live in the browser from the **real trained
 networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
 
@@ -74,7 +74,7 @@ networks** (`ep03-assets.js`, exported by `code/export_ep03_assets.py`).
 
 `ep04-evaluation.html` · playground: `metric-lab.html` · code: `../code/evals.py`
 
-Built from `src/ep04-scenes.js` (`python src/build_ep04.py`). Every score on screen comes from
+Built from `src/ep04-scenes.js` (`python src/build.py 4`). Every score on screen comes from
 `ep04-assets.js`, computed by `code/export_ep04_assets.py` on real samples.
 
 | # | Scene | Idea | Math |
@@ -97,7 +97,7 @@ Built from `src/ep04-scenes.js` (`python src/build_ep04.py`). Every score on scr
 
 `ep05-gans.html` · playground: `gan-arena.html` · code: `../code/gan.py`
 
-Built from `src/ep05-scenes.js` (`python src/build_ep05.py`). The 2-D scenes replay real
+Built from `src/ep05-scenes.js` (`python src/build.py 5`). The 2-D scenes replay real
 training runs frame by frame (samples, the judge's field and its gradients), and the digit
 scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
 
@@ -120,7 +120,7 @@ scenes use a real MNIST GAN — all trained by `code/export_ep05_assets.py`.
 
 `ep06-flows.html` · playground: `flow-lab.html` · code: `../code/flow.py`
 
-Built from `src/ep06-scenes.js` (`python src/build_ep06.py`). Every flow on screen is a real
+Built from `src/ep06-scenes.js` (`python src/build.py 6`). Every flow on screen is a real
 RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
 the layer-by-layer positions, warped grids and density maps are its actual outputs.
 
@@ -147,7 +147,7 @@ triangular → coupling**. Each step answers the question the previous one raise
 
 `ep07-energy.html` · playground: `ebm-lab.html` · code: `../code/ebm.py`
 
-Built from `src/ep07-scenes.js` (`python src/build_ep07.py`). Every landscape, marble and number on
+Built from `src/ep07-scenes.js` (`python src/build.py 7`). Every landscape, marble and number on
 screen comes from a real energy-based model trained by contrastive divergence in
 `code/export_ep07_assets.py`: its energy map at seven points in training, the Langevin and
 gradient-descent marble paths, a 30,000-step mixing chain, each valley's share of probability,
@@ -178,7 +178,7 @@ we must sample → ratios (Metropolis) → slopes (Langevin) → the slope never
 
 `ep08-score.html` · playground: `score-lab.html` · code: `../code/score.py`
 
-Built from `src/ep08-scenes.js` (`python src/build_ep08.py`). The 2-D scenes use real noise-conditional
+Built from `src/ep08-scenes.js` (`python src/build.py 8`). The 2-D scenes use real noise-conditional
 score networks trained by denoising score matching in `code/export_ep08_assets.py`. The data are mixtures of
 Gaussians, so every learned arrow is checked against the exact score of the noisy data.
 
@@ -206,7 +206,7 @@ weights → many noise levels + annealed Langevin → run noise backwards: diffu
 
 `ep09-diffusion.html` · playground: `diffusion-lab.html` · code: `../code/diffusion.py`
 
-Built from `src/ep09-scenes.js` (`python src/build_ep09.py`). Everything generated on screen comes from real diffusion
+Built from `src/ep09-scenes.js` (`python src/build.py 9`). Everything generated on screen comes from real diffusion
 models trained in `code/export_ep09_assets.py`, the title included: a 2-D model trained on the pixels of the word
 "Diffusion" writes it out of 5,000 points of static in the cold open.
 
@@ -229,10 +229,43 @@ are curved: flow matching.**
 | 09 | Build it | forward, training and sampling in 15 lines + recap | — |
 | 10 | Hook → flow matching | the curved roads DDIM took vs straight lines from noise to data | → *Episode 10: flow matching* |
 
+## How it's built
+
+```
+video/
+  src/engine/shell.html   the page: canvas, play/scrub/chapters, ♪ button, <audio>
+  src/engine/core.js      Midnight Atelier tokens (P colours, F fonts), maths & easing, drawing helpers,
+                          M('[d|x] + [a_|θ]') colour-coded maths, cards, labels, tags, pills, insights
+  src/engine/kit.js       helpers several episodes share: plotSquare/frame/clipTo, marbles, 28×28 images
+                          (u8imgs/imgCanvas/drawImg), rubber stamps, gaussian, memo, camera shake
+  src/engine/player.js    timeline, scene header, captions, progress bar, grain & vignette, player,
+                          audio sync, window.renderAt / DURATION / READY for the renderer
+  src/epNN-scenes.js      one episode: its data + SC.push({ dur, chapter, title, sub, caps, draw(t) })
+  src/build.py            the episode list; inlines the above into one self-contained epNN-….html
+  src/epNN_audio.py       its soundtrack, on top of src/audio_lib.py → epNN-audio.mp3
+  src/make.py             build → audio → render → add sound → 720p preview, in one command
+  src/new_episode.py      scaffolds the next episode (scenes, soundtrack, build entry)
+  lab-kit.js / .css       shared by every playground: guide, missions, tactile sound, base styles
+  render.mjs              renders any page to MP4, frame by frame (deterministic)
+```
+
+Scenes draw in a fixed 1920×1080 frame: the header sits above y ≈ 200, content in y 240–930, captions at
+y ≈ 972–1014. Captions are plain text (write ₀ ₜ θ, not `_`); on-screen maths goes through `M()`.
+Everything is seeded and time-driven, so any frame can be re-rendered exactly.
+
+### Adding an episode
+
+```bash
+python src/new_episode.py 10 ep10-flow-matching.html "Flow Matching"   # scenes + soundtrack skeletons, registered
+# … write src/ep10-scenes.js; export real-model data to ep10-assets.js (window.EP10) and list it in build.py
+python src/make.py 10                      # page + soundtrack
+python src/make.py 10 --render --preview   # + ep10-…-sound.mp4 and a ~25 MB 720p preview
+```
+
 ## Playgrounds
 
 Every episode has a hands-on lab: `density-lab.html` (01), `ar-playground.html` (02), `vae-playground.html` (03),
-`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08), `diffusion-lab.html` (09). They share `lab-kit.js`:
+`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08), `diffusion-lab.html` (09). They share `lab-kit.js` and `lab-kit.css`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -272,8 +305,8 @@ player and the MP4 carry identical audio.
   brightness/pitch follows progress. Data-driven moments read their values from the page itself
   (`src/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
   lands, each mode a GAN finds, each mode-collapse hop.
-- **Player** — `src/audio_player.py` adds the ♪ button and keeps the audio locked to the animation
-  clock through play / pause / scrub / chapter jumps (**M** mutes).
+- **Player** — the shared page (`src/engine/player.js`) has the ♪ button and keeps the audio locked to the
+  animation clock through play / pause / scrub / chapter jumps (**M** mutes).
 
 | Episode | Key & colour | Signature sounds |
 |---|---|---|
@@ -288,8 +321,7 @@ player and the MP4 carry identical audio.
 | 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands |
 
 ```bash
-python src/ep01_audio.py   # … ep09_audio.py  → epNN-audio.mp3 next to the episode HTML
-python src/audio_player.py generative-modelling.html ep01-audio.mp3   # (ep01/ep02 pages; builds do this themselves)
+python src/ep01_audio.py   # … ep09_audio.py  → epNN-audio.mp3 next to the episode HTML (or: python src/make.py N)
 ```
 
 ## Watch / scrub
@@ -303,18 +335,11 @@ Needs Node, `playwright` (Chromium) and `ffmpeg`.
 
 ```bash
 cd video
-./fetch-fonts.sh                               # cache the Google Fonts locally (once)
-WORKERS=4 node render.mjs generative-modelling.html 30 generative-modelling.mp4
-WORKERS=4 node render.mjs ep02-autoregressive.html 30 ep02-autoregressive.mp4
-WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp4
-WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
-WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
-WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
-WORKERS=4 node render.mjs ep07-energy.html 30 ep07-energy.mp4
-WORKERS=4 node render.mjs ep08-score.html 30 ep08-score.mp4
+./fetch-fonts.sh                                  # cache the Google Fonts locally (once)
+WORKERS=4 python src/make.py 9 --render --preview # build, soundtrack, render, add sound, 720p preview
+# or by hand, for any page:
 WORKERS=4 node render.mjs ep09-diffusion.html 30 ep09-diffusion.mp4
-# add the soundtrack (same for every episode)
-ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
+ffmpeg -i ep09-diffusion.mp4 -i ep09-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep09-diffusion-sound.mp4
 ```
 
 `node render.mjs <episode.html> <fps> <out.mp4> <start-s> <end-s>` renders one section

@@ -2,7 +2,6 @@
 //  The trained networks (weights exported by code/export_ep03_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP3;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 function f16(o) {
   const u = b64bytes(o.f16), dv = new DataView(u.buffer), n = u.length / 2, out = new Float32Array(n);
   for (let i = 0; i < n; i++) { const h = dv.getUint16(i * 2, true), s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, f = h & 1023;
@@ -21,27 +20,12 @@ function dense(x, W, b, act) {
 let AE = null, VAE = null;
 const decodeZ = (net, z1, z2) => dense(dense([z1, z2], net.W3, net.b3, 'relu'), net.W4, net.b4, 'sig');
 function encodeX(net, x) { const h = dense(x, net.W1, net.b1, 'relu'); if (net.Wz) return [dense(h, net.Wz, net.bz), null]; return [dense(h, net.Wmu, net.bmu), dense(h, net.Wlv, net.blv)]; }
-function u8imgs(s) { const u = b64bytes(s), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; }
 const TEST = u8imgs(A.test), RECON_AE = u8imgs(A.reconAE), RECON_VAE = u8imgs(A.reconVAE), TRAIN = u8imgs(A.train), ONES = u8imgs(A.ones);
 const LAB = A.labels, ZAE = A.zAE, ZVAE = A.zVAE, TL = A.testLabels;
 
 // image rendering: 28×28 → offscreen canvas, cached
-const IMC = new Map();
-function imgCanvas(vals, col = P.terracotta) {
-  const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'); const d = g.createImageData(28, 28); const [r, gg, b] = hx(col);
-  for (let i = 0; i < 784; i++) { d.data[i * 4] = r; d.data[i * 4 + 1] = gg; d.data[i * 4 + 2] = b; d.data[i * 4 + 3] = Math.round(clamp(vals[i]) * 255); }
-  g.putImageData(d, 0, 0); return c;
-}
-function cached(key, make) { let c = IMC.get(key); if (!c) { if (IMC.size > 4000) IMC.clear(); c = make(); IMC.set(key, c); } return c; }
 const decImg = (which, z1, z2) => cached(`${which}:${z1.toFixed(3)},${z2.toFixed(3)}`, () => imgCanvas(decodeZ(which === 'ae' ? AE : VAE, z1, z2)));
 const rawImg = (set, i, arr) => cached(`${set}:${i}`, () => imgCanvas(arr[i]));
-function drawImg(c, x, y, s, a = 1, o = {}) {
-  const { bg = true, frame = false, col = P.border } = o; if (a <= 0) return;
-  if (bg) { setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x, y, s, s); }
-  setA(a); ctx.imageSmoothingEnabled = s < 100; ctx.drawImage(c, x, y, s, s); ctx.imageSmoothingEnabled = true;
-  if (frame) { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s); }
-  setA(1);
-}
 
 // latent-space scatter plots: numerals at each code, pre-rendered once
 function bounds(Z) { const xs = Z.map(p => p[0]).sort((a, b) => a - b), ys = Z.map(p => p[1]).sort((a, b) => a - b); const q = (arr, f) => arr[Math.floor(f * (arr.length - 1))];
@@ -67,7 +51,6 @@ const erfinv = p => { // Φ⁻¹ via rational approximation (Acklam)
   if (p > 1 - 0.02425) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
   const q = p - 0.5, r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
 };
-function gaussFn(r) { return () => { const u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }; }
 const LAST_VAE = A.histVAE[A.histVAE.length - 1], LAST_AE = A.histAE[A.histAE.length - 1];
 function hourglass(x0, y, w, h, a = 1) { // encoder (left) + decoder (right) funnels around a bottleneck
   const mid = x0 + w / 2, neck = 34;
@@ -77,8 +60,6 @@ function hourglass(x0, y, w, h, a = 1) { // encoder (left) + decoder (right) fun
   ctx.beginPath(); ctx.moveTo(x0, y - h / 2); ctx.lineTo(mid - 60, y - neck); ctx.lineTo(mid - 60, y + neck); ctx.lineTo(x0, y + h / 2); ctx.closePath(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x0 + w, y - h / 2); ctx.lineTo(mid + 60, y - neck); ctx.lineTo(mid + 60, y + neck); ctx.lineTo(x0 + w, y + h / 2); ctx.closePath(); ctx.stroke(); setA(1);
 }
-function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); const sc = lerp(1.6, 1, eout(a)); ctx.scale(sc, sc);
-  ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(s).width + 36; setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(-w / 2, -30, w, 52); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(s, 0, 8); ctx.restore(); setA(1); }
 
 // ─────────────────────────────────────────────────────────────
 //  SCENES
@@ -504,3 +485,6 @@ SC.push({ dur: 50, chapter: 'next', title: 'A puzzle', sub: 'Three models. Sixte
       text('then: GANs', 960, 780, { font: F.mono, size: 18, color: P.dust, align: 'center', a: eout(prog(t, 44, 1)) });
     }
   } });
+
+// the decoders are rebuilt from the exported weights once the page is ready
+ON_READY.push(() => { AE = netOf(A.ae); VAE = netOf(A.vae); BAE = bounds(ZAE); });

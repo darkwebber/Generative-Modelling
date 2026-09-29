@@ -8,16 +8,13 @@ chain crosses a ridge you hear it hop.
 
     python src/ep07_audio.py      # → ep07-audio.mp3
 """
-import json
-import os
-import re
 
 import numpy as np
 
-from audio_lib import HERE, ROOT, Score, ease, eout, hz, prog
+from audio_lib import Score, assets, ease, eout, hz, prog, scene_durations
 
-durs = [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", open(os.path.join(HERE, 'ep07-scenes.js')).read())]
-A = json.loads(re.search(r'window\.EP7 = (\{.*\});', open(os.path.join(ROOT, 'ep07-assets.js')).read(), re.S).group(1))
+durs = scene_durations(7)
+A = assets(7)
 S = Score('ep07-audio', durs, seed=7)
 LANG, GD, CH = np.array(A['lang']), np.array(A['gd']), np.array(A['chain'])
 NL = len(LANG) - 1

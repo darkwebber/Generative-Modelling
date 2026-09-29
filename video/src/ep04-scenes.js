@@ -2,31 +2,13 @@
 //  Real measurements (exported by code/export_ep04_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP4, R = A.rows;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-function u8imgs(s) { const u = b64bytes(s), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; }
 const S = {}; for (const k in A.samples) S[k] = u8imgs(A.samples[k]);
 const SEVENS = u8imgs(A.sevens), PER = u8imgs(A.percept.imgs);
 const EXS = u8imgs(A.examples.sharpImg)[0], EXA = u8imgs(A.examples.ambImg)[0];
 const PAIRS = {}; for (const k in A.nnPairs) PAIRS[k] = { s: u8imgs(A.nnPairs[k].s), n: u8imgs(A.nnPairs[k].n), d: A.nnPairs[k].d };
-const IMC = new Map();
-function imgCanvas(vals, col = P.terracotta) {
-  const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'); const d = g.createImageData(28, 28); const [r, gg, b] = hx(col);
-  for (let i = 0; i < 784; i++) { d.data[i * 4] = r; d.data[i * 4 + 1] = gg; d.data[i * 4 + 2] = b; d.data[i * 4 + 3] = Math.round(clamp(vals[i]) * 255); }
-  g.putImageData(d, 0, 0); return c;
-}
-function cached(key, make) { let c = IMC.get(key); if (!c) { c = make(); IMC.set(key, c); } return c; }
 const img = (key, vals, col) => cached(key, () => imgCanvas(vals, col));
-function drawImg(c, x, y, s, a = 1, o = {}) {
-  const { bg = true, frame = false, col = P.border } = o; if (a <= 0) return;
-  if (bg) { setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x, y, s, s); }
-  setA(a); ctx.imageSmoothingEnabled = s < 100; ctx.drawImage(c, x, y, s, s); ctx.imageSmoothingEnabled = true;
-  if (frame) { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s); }
-  setA(1);
-}
 function gridOf(key, arr, x, y, n, cell, a = 1) { for (let i = 0; i < n * n && i < arr.length; i++) drawImg(img(`${key}${i}`, arr[i]), x + (i % n) * cell, y + Math.floor(i / n) * cell, cell - 6, a); }
 const NOISE = (() => { const r = rng(4), out = []; for (let k = 0; k < 100; k++) { const v = new Float32Array(784); for (let i = 0; i < 784; i++) v[i] = r(); out.push(v); } return out; })();
-function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); const sc = lerp(1.6, 1, eout(a)); ctx.scale(sc, sc);
-  ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(s).width + 36; setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(-w / 2, -30, w, 52); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(s, 0, 8); ctx.restore(); setA(1); }
 const NAMES = { real: 'real (held-out)', vae: 'A · VAE', copier: 'B · photocopier', ones: 'C · one-trick pony', noise: 'static' };
 const ORDER = ['real', 'vae', 'copier', 'ones', 'noise'];
 const ELBO = A.vaeTest.recon + A.vaeTest.kl, BPD = ELBO / (784 * Math.LN2);

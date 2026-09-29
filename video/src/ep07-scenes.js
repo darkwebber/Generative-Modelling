@@ -2,12 +2,9 @@
 //  A real trained energy-based model (exported by code/export_ep07_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP7, RR = A.R, NL = A.lang.length - 1;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 const OC = new Map();  // per-object caches (maps are objects in the assets, so keys never collide)
 function oc(obj, tag, make) { let m = OC.get(obj); if (!m) OC.set(obj, m = {}); return m[tag] || (m[tag] = make()); }
-function square(x0, y0, S) { return { X: v => x0 + (v + RR) / (2 * RR) * S, Y: v => y0 + (RR - v) / (2 * RR) * S, s: S / (2 * RR), x0, y0, S }; }
-function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
-function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+function square(x0, y0, S) { return plotSquare(x0, y0, S, RR); }
 const heights = map => oc(map, 'h', () => Float32Array.from(b64bytes(map.u8), v => v / 255));
 // the landscape: height-shaded relief (valleys dark, ridges lit plum), lit from the top left
 function landCanvas(map) { return oc(map, 'L', () => { const n = map.n, h = heights(map), c = document.createElement('canvas'); c.width = c.height = n;
@@ -41,7 +38,6 @@ function landscape(m, map, a = 1, grow = 1) { frame(m, a); drawMap(m, landCanvas
 // exact energy above the floor (no display cap), from a 49 × 49 grid
 function Eraw(x, y) { const V = A.Eraw.v, n = A.Eraw.n, fi = clamp((x + RR) / (2 * RR) * (n - 1), 0, n - 1.001), fj = clamp((RR - y) / (2 * RR) * (n - 1), 0, n - 1.001), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
   return (V[j][i] * (1 - u) + V[j][i + 1] * u) * (1 - v) + (V[j + 1][i] * (1 - u) + V[j + 1][i + 1] * u) * v; }
-function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
 // marbles along recorded trajectories (stages every 4 sampler steps), linear between records
 function stagePts(S, f) { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); }
 function drawMarbles(m, S, f, col, a, r = 3.4, count = 1e9, pop0 = null) { const pts = stagePts(S, f); clipTo(m, () => pts.forEach((p, k) => { if (k >= count) return; const pa = pop0 ? pop0(k) : 1; if (pa > 0) marble(m.X(p[0]), m.Y(p[1]), r * (pa < 1 ? pop(pa) : 1), col, a * clamp(pa * 3)); })); }

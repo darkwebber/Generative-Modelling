@@ -7,16 +7,13 @@ picture sharpens (country → city → street). Particles following the arrows r
 
     python src/ep08_audio.py      # → ep08-audio.mp3
 """
-import json
-import os
-import re
 
 import numpy as np
 
-from audio_lib import HERE, ROOT, Score, ease, eout, prog
+from audio_lib import Score, assets, ease, eout, prog, scene_durations
 
-durs = [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", open(os.path.join(HERE, 'ep08-scenes.js')).read())]
-A = json.loads(re.search(r'window\.EP8 = (\{.*\});', open(os.path.join(ROOT, 'ep08-assets.js')).read(), re.S).group(1))
+durs = scene_durations(8)
+A = assets(8)
 S = Score('ep08-audio', durs, seed=8)
 ANN = np.array(A['ann']); NS = len(ANN) - 1; SIG = np.array(A['sigmas']); PER = A['T'] // A['keep']
 LADDER = [70, 72, 74, 76, 77, 79, 81, 82, 84, 86]          # one harp note per σ level, rising as σ shrinks

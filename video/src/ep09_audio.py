@@ -8,18 +8,16 @@ full E♭ chord.
 
     python src/ep09_audio.py      # → ep09-audio.mp3
 """
-import json
 import os
-import re
 import sys
 
 import numpy as np
 
-from audio_lib import HERE, ROOT, Score, ease, eout, prog
+from audio_lib import ROOT, Score, assets, ease, eout, prog, scene_durations
 
 sys.path.insert(0, os.path.join(ROOT, '..', 'code'))
-durs = [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", open(os.path.join(HERE, 'ep09-scenes.js')).read())]
-A = json.loads(re.search(r'window\.EP9 = (\{.*\});', open(os.path.join(ROOT, 'ep09-assets.js')).read(), re.S).group(1))
+durs = scene_durations(9)
+A = assets(9)
 S = Score('ep09-audio', durs, seed=9)
 ABAR = np.array(A['abar'])                                       # every 10th step
 abar = lambda t: np.where(np.asarray(t) < 0, 1.0, ABAR[np.clip(np.round(np.asarray(t) / 10).astype(int), 0, len(ABAR) - 1)])

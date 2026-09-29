@@ -2,14 +2,9 @@
 //  Real trained flows (exported by code/export_ep06_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP6, K = A.layers, RR = A.R;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-const IMC = new Map();
-function cached(key, make) { let c = IMC.get(key); if (!c) { c = make(); IMC.set(key, c); } return c; }
 function densCanvas(d, col) { return cached('d' + d.max + ':' + d.u8.length + col, () => { const u = b64bytes(d.u8), n = d.n, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), rgb = hx(col);
   for (let k = 0; k < n * n; k++) { im.data[k * 4] = rgb[0]; im.data[k * 4 + 1] = rgb[1]; im.data[k * 4 + 2] = rgb[2]; im.data[k * 4 + 3] = Math.round(u[k] * 0.92); } g.putImageData(im, 0, 0); return c; }); }
-function square(x0, y0, S) { return { X: v => x0 + (v + RR) / (2 * RR) * S, Y: v => y0 + (RR - v) / (2 * RR) * S, s: S / (2 * RR), x0, y0, S }; }
-function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
-function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+function square(x0, y0, S) { return plotSquare(x0, y0, S, RR); }
 function stageAt(stages, f) { const n = stages.length, fi = clamp(f, 0, n - 1), i = Math.floor(fi), j = Math.min(n - 1, i + 1), u = ease(fi - i); return [stages[i], stages[j], u]; }
 function drawPts(m, stages, f, col, a, r = 2.6, colFn = null) { const [S0, S1, u] = stageAt(stages, f); for (let k = 0; k < S0.length; k++) { const x = lerp(S0[k][0], S1[k][0], u), y = lerp(S0[k][1], S1[k][1], u); if (Math.abs(x) < RR && Math.abs(y) < RR) dot(m.X(x), m.Y(y), r, colFn ? colFn(f) : col, a); } }
 function drawGrid(m, f, a, col = P.borderLight) { const G = A.grid, [S0, S1, u] = stageAt(G.stages, f); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 1.2;

@@ -2,19 +2,8 @@
 //  Real GAN runs (exported by code/export_ep05_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP5, R4 = window.EP4.rows;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-function u8imgs(s) { const u = b64bytes(s), out = []; for (let i = 0; i < u.length / 784; i++) out.push(Float32Array.from(u.subarray(i * 784, (i + 1) * 784), v => v / 255)); return out; }
-const IMC = new Map();
-function imgCanvas(vals, col = P.terracotta) { const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'); const d = g.createImageData(28, 28); const [r, gg, b] = hx(col);
-  for (let i = 0; i < 784; i++) { d.data[i * 4] = r; d.data[i * 4 + 1] = gg; d.data[i * 4 + 2] = b; d.data[i * 4 + 3] = Math.round(clamp(vals[i]) * 255); } g.putImageData(d, 0, 0); return c; }
-function cached(key, make) { let c = IMC.get(key); if (!c) { c = make(); IMC.set(key, c); } return c; }
-function drawImg(c, x, y, s, a = 1, o = {}) { const { bg = true, frame = false, col = P.border } = o; if (a <= 0) return;
-  if (bg) { setA(a); ctx.fillStyle = P.elevated; ctx.fillRect(x, y, s, s); } setA(a); ctx.imageSmoothingEnabled = s < 100; ctx.drawImage(c, x, y, s, s); ctx.imageSmoothingEnabled = true;
-  if (frame) { ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s); } setA(1); }
 const MSNAP = A.mnistSnaps.map(u8imgs), GAN64 = u8imgs(A.gan64), VAE16 = u8imgs(A.vae16), SC5 = A.score, HIST = A.mnistHist;
 const EPOCHS = MSNAP.length - 1;
-function stamp(s, x, y, col, a, rot = -0.12) { if (a <= 0) return; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); const sc = lerp(1.6, 1, eout(a)); ctx.scale(sc, sc);
-  ctx.font = `400 34px ${F.mono}`; const w = ctx.measureText(s).width + 36; setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(-w / 2, -30, w, 52); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(s, 0, 8); ctx.restore(); setA(1); }
 const pct = v => `${Math.round(v * 100)}%`;
 
 // 2-D arena: [-3, 3]², the judge's field as a heat map, fakes, real modes
@@ -38,7 +27,6 @@ function arena(run, fi, x0, y0, S, o = {}) {
 }
 function dominant(run, i) { const x = A[run][i].x, c = new Array(8).fill(0); x.forEach(p => { let b = 0, bd = 1e9; MODES.forEach((m, k) => { const d = Math.hypot(p[0] - m[0], p[1] - m[1]); if (d < bd) { bd = d; b = k; } }); if (bd < 0.4) c[b]++; }); const mx = Math.max(...c); return { k: c.indexOf(mx), share: mx / x.length }; }
 // 1-D densities for the math scenes
-const npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(TAU));
 const pData = x => 0.5 * npdf(x, -1, 0.5) + 0.5 * npdf(x, 1.3, 0.6);
 function jsd(shift) { let s = 0; const dx = 0.01; for (let x = -6; x < 7; x += dx) { const a = pData(x), b = pData(x - shift), m = (a + b) / 2; if (a > 1e-12) s += 0.5 * a * Math.log(a / m) * dx; if (b > 1e-12) s += 0.5 * b * Math.log(b / m) * dx; } return s; }
 function curve1d(fn, x0, x1, base, sx, sy, col, lw, a, dash) { setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash); ctx.beginPath(); for (let i = 0; i <= 240; i++) { const x = -3.5 + 7 * i / 240, X = x0 + (x + 3.5) * sx, Yv = base - fn(x) * sy; i ? ctx.lineTo(X, Yv) : ctx.moveTo(X, Yv); } ctx.stroke(); ctx.setLineDash([]); setA(1); }

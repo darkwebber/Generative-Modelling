@@ -2,14 +2,8 @@
 //  Real diffusion models (exported by code/export_ep09_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP9, WR = 2.1;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-const MEMO = new Map(); const memo = (k, f) => { if (!MEMO.has(k)) MEMO.set(k, f()); return MEMO.get(k); };
-function square(x0, y0, S, R = WR) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v => y0 + (R - v) / (2 * R) * S, s: S / (2 * R), x0, y0, S }; }
-function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
-function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
-function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
+function square(x0, y0, S, R = WR) { return plotSquare(x0, y0, S, R); }
 const abar = t => t < 0 ? 1 : A.abar[Math.min(A.abar.length - 1, Math.round(t / 10))];
-function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 const lerpPts = (S, f) => { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); };
 
 // the cold open: 5000 particles × 62 stages, int16
@@ -41,7 +35,6 @@ const STATIC = (() => { const c = document.createElement('canvas'); c.width = 32
 function tvStatic(t, a) { if (GA * a <= 0.003) return; const k = Math.floor(t * 24); if (k !== STATIC.k) { STATIC.k = k; const r = rng(k * 7 + 1), d = STATIC.im.data;
     for (let i = 0; i < d.length; i += 4) { const v = r() * 255; d[i] = v; d[i + 1] = v * 0.93; d[i + 2] = v * 0.88; d[i + 3] = 255; } STATIC.g.putImageData(STATIC.im, 0, 0); }
   setA(a); ctx.imageSmoothingEnabled = false; ctx.drawImage(STATIC.c, 0, 0, 1920, 1080); ctx.imageSmoothingEnabled = true; setA(1); }
-function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
 
 // ─────────────────────────────────────────────────────────────
 //  SCENES

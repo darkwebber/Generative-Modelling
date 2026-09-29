@@ -25,23 +25,12 @@ import math
 
 import numpy as np
 
-from gan import MLP
+from nn import MLP, moons, ring
 
 LOG2PI = math.log(2 * math.pi)
 
 
-# ── data ──────────────────────────────────────────────────────
-def moons(n, rng, noise=0.08):
-    th = np.pi * rng.random(n); up = rng.random(n) < 0.5
-    x = np.where(up, np.cos(th) - 0.5, 0.5 - np.cos(th)); y = np.where(up, np.sin(th) - 0.25, 0.25 - np.sin(th))
-    return (np.stack([x, y], 1) * 1.5 + noise * rng.standard_normal((n, 2))).astype(np.float32)
-
-
-def ring(n, rng, k=8, r=2.0, std=0.12):
-    a = rng.integers(0, k, n) * 2 * np.pi / k
-    return (np.stack([r * np.cos(a), r * np.sin(a)], 1) + std * rng.standard_normal((n, 2))).astype(np.float32)
-
-
+# ── data (nn.moons, nn.ring) ──────────────────────────────────
 DATA = {'moons': moons, 'ring': ring}
 
 

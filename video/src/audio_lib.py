@@ -12,6 +12,7 @@ exactly as the picture does.
 """
 import json
 import os
+import re
 import subprocess
 import wave
 
@@ -54,6 +55,18 @@ def probe(html, exprs):
     val = json.loads(out.strip().splitlines()[-1])
     json.dump({'key': key, 'val': val}, open(cache, 'w'))
     return val
+
+
+def scene_durations(n):
+    """Scene lengths of episode n, read from src/epNN-scenes.js (the SC.push({ dur: … }) lines)."""
+    src = open(os.path.join(HERE, f'ep{n:02d}-scenes.js'), encoding='utf-8').read()
+    return [float(d) for d in re.findall(r"SC\.push\(\{ dur: ([\d.]+)", src)]
+
+
+def assets(n):
+    """The exported data of episode n (epNN-assets.js: window.EPn = {…}) as python values."""
+    src = open(os.path.join(ROOT, f'ep{n:02d}-assets.js'), encoding='utf-8').read()
+    return json.loads(re.search(r'window\.EP\d+ = (\{.*\});', src, re.S).group(1))
 
 
 class Score:

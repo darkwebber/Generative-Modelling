@@ -2,10 +2,7 @@
 //  Real noise-conditional score networks (exported by code/export_ep08_assets.py)
 // ─────────────────────────────────────────────────────────────
 const A = window.EP8, SIG = A.sigmas, NS = A.ann.length - 1, GN = A.grid.n, GL = A.grid.L, WR = 4;
-function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-function square(x0, y0, S) { return { X: v => x0 + (v + WR) / (2 * WR) * S, Y: v => y0 + (WR - v) / (2 * WR) * S, s: S / (2 * WR), x0, y0, S }; }
-function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
-function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+function square(x0, y0, S) { return plotSquare(x0, y0, S, WR); }
 function arr(x1, y1, x2, y2, col, lw, a, hd = 5) { if (GA * a <= 0.002) return; const L = Math.hypot(x2 - x1, y2 - y1); if (L < 0.5) return; setA(a); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   const an = Math.atan2(y2 - y1, x2 - x1), h = Math.min(hd, L * 0.45); ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - h * Math.cos(an - 0.45), y2 - h * Math.sin(an - 0.45)); ctx.lineTo(x2 - h * Math.cos(an + 0.45), y2 - h * Math.sin(an + 0.45)); ctx.fill(); setA(1); }
 const gpt = k => [-GL + (k % GN) * 2 * GL / (GN - 1), GL - Math.floor(k / GN) * 2 * GL / (GN - 1)];
@@ -13,7 +10,6 @@ const gpt = k => [-GL + (k % GN) * 2 * GL / (GN - 1), GL - Math.floor(k / GN) * 
 function field(m, F, a, col = P.sage, len = 26, G = null) { if (GA * a <= 0.002) return; clipTo(m, () => F.forEach((v, k) => { const [x, y] = gpt(k), n = Math.hypot(v[0], v[1]); if (n < 1e-6) return;
   const L = len * Math.tanh(n / 1.2), dx = v[0] / n * L, dy = -v[1] / n * L, X = m.X(x), Y = m.Y(y); arr(X - dx / 2, Y - dy / 2, X + dx / 2, Y + dy / 2, col, 1.6, a * (G ? G(k) : 0.85)); })); }
 function lerpField(F0, F1, u) { return F0.map((v, k) => [lerp(v[0], F1[k][0], u), lerp(v[1], F1[k][1], u)]); }
-function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
 function stagePts(S, f) { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); }
 function particles(m, S, f, col, a, r = 3, count = 1e9) { const pts = stagePts(S, f); clipTo(m, () => pts.forEach((p, k) => { if (k < count) marble(m.X(p[0]), m.Y(p[1]), r, col, a); })); }
 const levelOf = f => clamp(Math.floor((clamp(f, 0, NS) - 1e-9) / (A.T / A.keep)), 0, SIG.length - 1);
@@ -21,7 +17,6 @@ function fieldAtLevel(fl) { const i = clamp(Math.floor(fl), 0, SIG.length - 1), 
 const errCanvas = (() => { let c = null; return () => { if (c) return c; const n = A.err.n, u = b64bytes(A.err.u8); c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), rgb = hx(P.rose);
   for (let k = 0; k < n * n; k++) { im.data[k * 4] = rgb[0]; im.data[k * 4 + 1] = rgb[1]; im.data[k * 4 + 2] = rgb[2]; im.data[k * 4 + 3] = Math.round(Math.pow(u[k] / 255, 0.7) * 235); } g.putImageData(im, 0, 0); return c; }; })();
 // seeded normals for the scene-local simulations
-function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 const pct = v => (v * 100).toFixed(0) + '%';
 
 // 1-D pieces

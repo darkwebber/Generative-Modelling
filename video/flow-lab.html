@@ -7,40 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab-kit.css">
 <style>
-  :root {
-    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
-    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
-    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
-    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
-  }
-  * { box-sizing:border-box; }
-  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
-  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
-    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
-  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
-  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; }
-  .sub { margin:0 0 22px; max-width:780px; }
-  .grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:18px; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
-  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
-  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
-  button:hover, button.on { border-color:var(--terracotta); }
   canvas#lab { width:100%; aspect-ratio:1; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:block; cursor:crosshair; touch-action:none; }
   .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
   .knobs input[type=range] { width:100%; accent-color:var(--amber); }
-  .knobs .v { color:var(--amber); text-align:right; }
-  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
-  .stat b { color:var(--chalk); font-weight:400; }
   canvas#chart { width:100%; height:120px; display:block; margin-top:10px; }
   #probe { font-family:var(--mono); font-size:13px; background:var(--elevated); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:12px; white-space:pre-wrap; min-height:110px; color:var(--stone); }
   #probe b { color:var(--chalk); font-weight:400; }
   ul { padding-left:18px; } li { margin:4px 0; }
-  footer { margin-top:30px; font-size:13px; color:var(--dust); }
 </style>
 <script src="lab-kit.js"></script>
 </head>

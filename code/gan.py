@@ -21,64 +21,13 @@ import os
 
 import numpy as np
 
+import nn
+from nn import MLP, grad_check as check_grads
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-# ── a tiny MLP with hand-written backprop ─────────────────────
-class MLP:
-    """Layers: ('lin', n_in, n_out), 'lrelu', 'sigmoid'. forward() caches, backward() returns dL/dx."""
-
-    def __init__(self, spec, rng, scale=1.0):
-        self.spec, self.P = spec, {}
-        for i, s in enumerate(spec):
-            if isinstance(s, tuple):
-                _, a, b = s
-                self.P[f'W{i}'] = (rng.normal(0, 1, (a, b)) * np.sqrt(2 / a) * scale).astype(np.float32)
-                self.P[f'b{i}'] = np.zeros(b, np.float32)
-        self.m = {k: np.zeros_like(v) for k, v in self.P.items()}
-        self.v = {k: np.zeros_like(v) for k, v in self.P.items()}
-        self.t = 0
-
-    def forward(self, x):
-        self.cache = []
-        for i, s in enumerate(self.spec):
-            self.cache.append(x)
-            if isinstance(s, tuple):
-                x = x @ self.P[f'W{i}'] + self.P[f'b{i}']
-            elif s == 'lrelu':
-                x = np.where(x > 0, x, 0.2 * x)
-            elif s == 'sigmoid':
-                x = 1 / (1 + np.exp(-x))
-        self.out = x
-        return x
-
-    def backward(self, d, accumulate=True):
-        self.G = {k: np.zeros_like(v) for k, v in self.P.items()} if not accumulate or not hasattr(self, 'G') else self.G
-        y = self.out
-        for i in reversed(range(len(self.spec))):
-            s, x = self.spec[i], self.cache[i]
-            if isinstance(s, tuple):
-                self.G[f'W{i}'] += x.T @ d
-                self.G[f'b{i}'] += d.sum(0)
-                d = d @ self.P[f'W{i}'].T
-            elif s == 'lrelu':
-                d = d * np.where(x > 0, 1, 0.2)
-            elif s == 'sigmoid':
-                sg = 1 / (1 + np.exp(-x))
-                d = d * sg * (1 - sg)
-        return d
-
-    def zero_grad(self):
-        self.G = {k: np.zeros_like(v) for k, v in self.P.items()}
-
-    def step(self, lr, b1=0.5, b2=0.999):
-        self.t += 1
-        for k in self.P:
-            self.m[k] = b1 * self.m[k] + (1 - b1) * self.G[k]
-            self.v[k] = b2 * self.v[k] + (1 - b2) * self.G[k] ** 2
-            self.P[k] -= lr * (self.m[k] / (1 - b1 ** self.t)) / (np.sqrt(self.v[k] / (1 - b2 ** self.t)) + 1e-8)
-
-
+# the networks are nn.MLP: a layer list like [('lin', 2, 128), 'lrelu', …], backprop by hand, Adam (β₁ = 0.5)
 sig = lambda l: 1 / (1 + np.exp(-l))
 softplus = lambda l: np.logaddexp(0, l)
 
@@ -105,8 +54,7 @@ def gan_step(G, D, x_real, z, lr_g, lr_d, saturating=False):
 
 # ── data ──────────────────────────────────────────────────────
 def ring(n, rng, k=8, r=2.0, std=0.08):
-    a = rng.integers(0, k, n) * 2 * np.pi / k
-    return (np.stack([r * np.cos(a), r * np.sin(a)], 1) + std * rng.standard_normal((n, 2))).astype(np.float32)
+    return nn.ring(n, rng, k, r, std)                   # 8 tight blobs on a circle
 
 
 def modes_covered(x, k=8, r=2.0, std=0.08):
@@ -169,11 +117,7 @@ def grad_check():
         x = rng.standard_normal((4, 3)); w = rng.standard_normal((4, spec[-2][2] if spec[-1] == 'sigmoid' else 1))
         f = lambda: float((net.forward(x) * w).sum())
         f(); net.zero_grad(); dx = net.backward(w)
-        worst = 0
-        for k in net.P:
-            idx = tuple(rng.integers(0, s) for s in net.P[k].shape); old = net.P[k][idx]
-            net.P[k][idx] = old + 1e-6; a = f(); net.P[k][idx] = old - 1e-6; b = f(); net.P[k][idx] = old
-            num = (a - b) / 2e-6; worst = max(worst, abs(num - net.G[k][idx]) / max(1e-9, abs(num) + abs(net.G[k][idx])))
+        worst = check_grads(list(net.P.values()), [net.G[k] for k in net.P], f, rng)
         i = (1, 2); old = x[i]; x[i] = old + 1e-6; a = f(); x[i] = old - 1e-6; b = f(); x[i] = old
         worst = max(worst, abs((a - b) / 2e-6 - dx[i]) / max(1e-9, abs(dx[i])))
         print(f'{len(spec)}-layer net: worst relative gradient error {worst:.1e} ({"OK" if worst < 1e-4 else "CHECK"})')

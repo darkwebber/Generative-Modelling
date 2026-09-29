@@ -10,7 +10,7 @@ Sampling, ancestral (DDPM):
 Sampling, DDIM (Song et al. 2021): jump between any two steps, deterministically:
     x̂₀ = ( x_t − √(1 − ᾱ_t)·ε_θ ) / √ᾱ_t,     x_s = √ᾱ_s·x̂₀ + √(1 − ᾱ_s)·ε_θ
 
-The network is an MLP whose every hidden layer also receives a sinusoidal embedding of t. For MNIST it outputs its
+The network is an MLP whose every hidden layer also receives a sinusoidal embedding of t (nn.TimeMLP). For MNIST it outputs its
 guess of the clean image, x̂₀ = tanh(F), and reports ε_θ = (x_t − √ᾱ_t·x̂₀)/√(1 − ᾱ_t): the same model, rearranged,
 but an MLP finds a clean image far easier to produce than faint per-pixel noise. Its loss is then ‖ε − ε_θ‖²
 weighted by w_t = min(1, 5/SNR_t), SNR_t = ᾱ_t/(1 − ᾱ_t) (Hang et al., 2023), so nearly clean steps don't dominate.
@@ -27,77 +27,33 @@ import math
 
 import numpy as np
 
+from nn import TimeMLP, grad_check as check_grads, report, temb  # noqa: F401  (temb: the time embedding)
+
 T = 1000
 BETAS = np.linspace(1e-4, 0.02, T).astype(np.float64)
 ABAR = np.cumprod(1 - BETAS)
 
 
-def temb(t, dim=64):
-    """Sinusoidal embedding of the step t ∈ {0 … T−1}."""
-    f = np.exp(-math.log(1000) * np.arange(dim // 2) / (dim // 2))
-    a = (np.asarray(t, np.float64)[:, None] + 1) * f[None] * 1.0
-    return np.concatenate([np.sin(a), np.cos(a)], 1).astype(np.float32)
-
-
-def _sig(u): return 1 / (1 + np.exp(-np.clip(u, -60, 60)))
-
-
-class EpsNet:
-    """ε_θ(x, t):  h₁ = swish(x W₁ + e U₁ + b₁) … out = h W_o + b_o,  e = temb(t)."""
-    x0, gamma, freqs = False, 5.0, None
+class EpsNet(TimeMLP):
+    """ε_θ(x, t): an nn.TimeMLP (t embedded into every hidden layer, EMA weights), optionally with an x̂₀ head."""
+    x0, gamma = False, 5.0
 
     def __init__(self, dim, hidden=(256, 256, 256), ed=64, seed=0, ff=0, x0=False, gamma=5.0):
-        rng = np.random.default_rng(seed); self.dim, self.ed, self.x0, self.gamma = dim, ed, x0, gamma
-        # optional Fourier features of the input (sin/cos at 1 … 64 cycles): lets a small MLP draw sharp detail
-        self.freqs = (2.0 ** np.linspace(0, 6, ff)).astype(np.float32) if ff else None
-        ins = [dim * (1 + 2 * ff)] + list(hidden[:-1])
-        self.W = [(rng.standard_normal((a, h)) * np.sqrt(1 / a)).astype(np.float32) for a, h in zip(ins, hidden)]
-        self.U = [(rng.standard_normal((ed, h)) * np.sqrt(1 / ed)).astype(np.float32) for h in hidden]
-        self.b = [np.zeros(h, np.float32) for h in hidden]
-        self.Wo = np.zeros((hidden[-1], dim), np.float32); self.bo = np.zeros(dim, np.float32)
-        self.params = self.W + self.U + self.b + [self.Wo, self.bo]
-        self.m = [np.zeros_like(p) for p in self.params]; self.v = [np.zeros_like(p) for p in self.params]; self.k = 0
-        self.ema = [p.copy() for p in self.params]
+        super().__init__(dim, hidden, ed, seed, ff); self.x0, self.gamma = x0, gamma
 
     def __call__(self, x, t):
-        e = temb(t, self.ed)
         if self.x0:
             # predict the clean image instead, x̂₀ = tanh(F), and read the noise off it (the denoiser identity):
             #   ε_θ = (x_t − √ᾱ·x̂₀) / √(1 − ᾱ)
             # the same model, rearranged; an MLP finds a clean image far easier to output than faint per-pixel noise
-            ab = ABAR[np.asarray(t)].astype(np.float32)[:, None]; self.dk = -np.sqrt(ab / (1 - ab)); self.th = np.tanh(self._mlp(x, e))
+            ab = ABAR[np.asarray(t)].astype(np.float32)[:, None]; self.dk = -np.sqrt(ab / (1 - ab)); self.th = np.tanh(self.mlp(x, t))
             self.snr = ab / (1 - ab)
             return ((x - np.sqrt(ab) * self.th) / np.sqrt(1 - ab)).astype(x.dtype)
-        return self._mlp(x, e)
-
-    def _mlp(self, x, e):
-        if self.freqs is not None:
-            xf = (x[:, :, None] * self.freqs[None, None]).reshape(len(x), -1); x = np.concatenate([x, np.sin(xf), np.cos(xf)], 1).astype(np.float32)
-        self.e, self.a, self.z = e, [x], []
-        for W, U, b in zip(self.W, self.U, self.b):
-            z = self.a[-1] @ W + e @ U + b; self.z.append(z); self.a.append(z * _sig(z))
-        return self.a[-1] @ self.Wo + self.bo
+        return self.mlp(x, t)
 
     def backward(self, d):
         if self.x0: d = d * self.dk * (1 - self.th ** 2)          # back through ε = (x − √ᾱ·tanh F)/√(1 − ᾱ)
-        gW, gU, gb = [None] * len(self.W), [None] * len(self.W), [None] * len(self.W)
-        gWo, gbo = self.a[-1].T @ d, d.sum(0); d = d @ self.Wo.T
-        for i in reversed(range(len(self.W))):
-            s = _sig(self.z[i]); d = d * (s * (1 + self.z[i] * (1 - s)))
-            gW[i] = self.a[i].T @ d; gU[i] = self.e.T @ d; gb[i] = d.sum(0)
-            d = d @ self.W[i].T
-        self.grads = gW + gU + gb + [gWo, gbo]
-
-    def step(self, lr, b1=0.9, b2=0.999, ema=0.999):
-        self.k += 1
-        for i, (p, g) in enumerate(zip(self.params, self.grads)):
-            self.m[i] = b1 * self.m[i] + (1 - b1) * g; self.v[i] = b2 * self.v[i] + (1 - b2) * g * g
-            p -= lr * (self.m[i] / (1 - b1 ** self.k)) / (np.sqrt(self.v[i] / (1 - b2 ** self.k)) + 1e-8)
-            self.ema[i] = ema * self.ema[i] + (1 - ema) * p
-
-    def use_ema(self):
-        """Swap in the exponential-moving-average weights (smoother, better samples)."""
-        for p, e in zip(self.params, self.ema): p[...] = e
+        super().backward(d)
 
 
 def loss_and_grad(net, x0, rng):
@@ -170,12 +126,8 @@ def _grad_check(x0):
     net.W, net.U, net.b = net.params[:2], net.params[2:4], net.params[4:6]; net.Wo, net.bo = net.params[6], net.params[7]
     x = rng.standard_normal((5, 3)); t = rng.integers(0, T, 5); y = rng.standard_normal((5, 3))
     L = lambda: float(((net(x, t) - y) ** 2).sum())
-    out = net(x, t); net.backward(2 * (out - y)); G = net.grads; worst = 0
-    for P, Gp in zip(net.params, G):
-        idx = tuple(rng.integers(0, s) for s in P.shape); old = P[idx]
-        P[idx] = old + 1e-6; lp = L(); P[idx] = old - 1e-6; lm = L(); P[idx] = old
-        num = (lp - lm) / 2e-6; worst = max(worst, abs(num - Gp[idx]) / max(1e-9, abs(num) + abs(Gp[idx])))
-    print(f'{"x̂₀ head" if x0 else "ε head"}: worst relative gradient error {worst:.1e} ({"OK" if worst < 1e-4 else "CHECK"})')
+    out = net(x, t); net.backward(2 * (out - y))
+    report(check_grads(net.params, net.grads, L, rng), f'{"x̂₀ head" if x0 else "ε head"}: ')
 
 
 def main():

@@ -33,66 +33,34 @@ import math
 
 import numpy as np
 
+from nn import SwishMLP, grad_check as check_grads, moons, report, ring
+
 LOG2PI = math.log(2 * math.pi)
 R = 3.5  # the box the samplers live in: [-R, R]²
 
 
-# ── data ──────────────────────────────────────────────────────
-def ring(n, rng, k=8, r=2.0, std=0.12):
-    a = rng.integers(0, k, n) * 2 * np.pi / k
-    return (np.stack([r * np.cos(a), r * np.sin(a)], 1) + std * rng.standard_normal((n, 2))).astype(np.float32)
-
-
-def moons(n, rng, noise=0.08):
-    th = np.pi * rng.random(n); up = rng.random(n) < 0.5
-    x = np.where(up, np.cos(th) - 0.5, 0.5 - np.cos(th)); y = np.where(up, np.sin(th) - 0.25, 0.25 - np.sin(th))
-    return (np.stack([x, y], 1) * 1.5 + noise * rng.standard_normal((n, 2))).astype(np.float32)
-
-
+# ── data (nn.ring: 8 blobs on a circle of radius 2, nn.moons) ──
 DATA = {'ring': ring, 'moons': moons}
 
 
 # ── the energy network: 2 → H → H → H → 1, swish activations (smooth, so the slope is smooth) ──
-def _sig(u): return 1 / (1 + np.exp(-u))
+class Energy(SwishMLP):
+    """E(x): 2 → H → H → H → 1 (nn.SwishMLP), trained with Adam (β₁ = 0)."""
 
-
-class Energy:
     def __init__(self, hidden=96, seed=0):
-        rng = np.random.default_rng(seed); sizes = [2, hidden, hidden, hidden, 1]
-        self.W = [(rng.standard_normal((a, b)) * np.sqrt(1 / a)).astype(np.float32) for a, b in zip(sizes, sizes[1:])]
-        self.b = [np.zeros(b, np.float32) for b in sizes[1:]]
-        self.m = [np.zeros_like(p) for p in self.W + self.b]; self.v = [np.zeros_like(p) for p in self.W + self.b]; self.t = 0
+        super().__init__([2, hidden, hidden, hidden, 1], seed, b1=0.0)
 
     def __call__(self, x):
         """E(x) for a batch of points, shape (N,). Caches what backward() needs."""
-        self.h, self.u = [x], []
-        for i, (W, b) in enumerate(zip(self.W, self.b)):
-            u = self.h[-1] @ W + b
-            if i < len(self.W) - 1:
-                self.u.append(u); self.h.append(u * _sig(u))       # swish(u) = u·σ(u)
-            else:
-                return u[:, 0]
+        return self.forward(x)[:, 0]
 
     def backward(self, dE, params=True):
         """Given dL/dE (N,), return dL/dx (N, 2); if params, also store dL/dθ in self.gW, self.gb."""
-        d = dE[:, None].astype(np.float32); gW, gb = [], []
-        for i in reversed(range(len(self.W))):
-            if params: gW.insert(0, self.h[i].T @ d); gb.insert(0, d.sum(0))
-            d = d @ self.W[i].T
-            if i > 0:
-                s = _sig(self.u[i - 1]); d = d * (s * (1 + self.u[i - 1] * (1 - s)))   # swish′
-        if params: self.gW, self.gb = gW, gb
-        return d
+        return super().backward(dE[:, None].astype(np.float32), params)
 
     def grad_x(self, x):
         """The slope of the landscape, ∇ₓE(x) — the only thing a Langevin sampler needs."""
         self(x); return self.backward(np.ones(len(x), np.float32), params=False)
-
-    def step(self, lr, b1=0.0, b2=0.999):
-        self.t += 1
-        for k, (p, g) in enumerate(zip(self.W + self.b, self.gW + self.gb)):
-            self.m[k] = b1 * self.m[k] + (1 - b1) * g; self.v[k] = b2 * self.v[k] + (1 - b2) * g * g
-            p -= lr * (self.m[k] / (1 - b1 ** self.t)) / (np.sqrt(self.v[k] / (1 - b2 ** self.t)) + 1e-8)
 
 
 # ── sampling: Langevin dynamics ──────────────────────────────
@@ -175,15 +143,10 @@ def grad_check():
     L = lambda: float(E(x).mean() - E(f).mean() + a * ((E(x) ** 2).mean() + (E(f) ** 2).mean()))
     Ed = E(x); E.backward((1 + 2 * a * Ed) / 5); gd = [g.copy() for g in E.gW + E.gb]
     Ef = E(f); E.backward((-1 + 2 * a * Ef) / 5); G = [p + q for p, q in zip(gd, E.gW + E.gb)]
-    worst = 0
-    for P, Gp in zip(E.W + E.b, G):
-        idx = tuple(rng.integers(0, s) for s in P.shape); old = P[idx]
-        P[idx] = old + 1e-6; lp = L(); P[idx] = old - 1e-6; lm = L(); P[idx] = old
-        num = (lp - lm) / 2e-6; worst = max(worst, abs(num - Gp[idx]) / max(1e-9, abs(num) + abs(Gp[idx])))
-    gx = E.grad_x(x); i = (3, 1); old = x[i]
+    worst = check_grads(E.W + E.b, G, L, rng)
+    gx = E.grad_x(x); i = (3, 1); old = x[i]                   # and the slope ∇ₓE the sampler uses
     x[i] = old + 1e-6; ep = E(x)[3]; x[i] = old - 1e-6; em = E(x)[3]; x[i] = old
-    worst = max(worst, abs((ep - em) / 2e-6 - gx[i]) / max(1e-9, abs(gx[i])))
-    print(f'worst relative gradient error {worst:.1e} ({"OK" if worst < 1e-4 else "CHECK"})')
+    report(max(worst, abs((ep - em) / 2e-6 - gx[i]) / max(1e-9, abs(gx[i]))))
 
 
 def main():
