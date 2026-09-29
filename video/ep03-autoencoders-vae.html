@@ -32,6 +32,8 @@
     <button id="play">▶ play</button>
     <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
     <span class="time" id="time">0:00 / 0:00</span>
+    <button id="snd-btn" title="sound on / off (M)">♪ sound on</button>
+    <audio id="snd" src="ep03-audio.mp3" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
 </div>
@@ -748,13 +750,16 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); }; chapEl.appendChild(b); });
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
 function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
-function loop(ts) { if (!playing) return; if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; if (playing) requestAnimationFrame(loop); }
+const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
+function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; } if (force || Math.abs(snd.currentTime - now) > 0.25) snd.currentTime = now; if (snd.paused) snd.play().catch(() => {}); }
+sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
+function loop(ts) { if (!playing) return; if (soundOn && !snd.paused && snd.readyState >= 2 && !snd.seeking) now = snd.currentTime; else if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); syncAudio(); if (playing) requestAnimationFrame(loop); }
+function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); } });
+scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {

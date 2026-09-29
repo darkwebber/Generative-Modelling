@@ -14,5 +14,6 @@ tail = tail.replace('`EP 02  ·  SCENE', '`EP 04  ·  SCENE').replace(
     "DIG = { '3': makeDigit('3'), '8': makeDigit('8'), '0': makeDigit('0'), '6': makeDigit('6') };",
     'void 0;')
 scenes = open(os.path.join(here, 'ep04-scenes.js')).read()
-open(os.path.join(root, 'ep04-evaluation.html'), 'w').write(head + '\n' + scenes + '\n' + tail)
+from audio_player import inject
+open(os.path.join(root, 'ep04-evaluation.html'), 'w').write(inject(head + '\n' + scenes + '\n' + tail, 'ep04-audio.mp3'))
 print('built ep04-evaluation.html')

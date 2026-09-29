@@ -14,5 +14,6 @@ tail = tail.replace('`EP 02  ·  SCENE', '`EP 03  ·  SCENE').replace(
     "DIG = { '3': makeDigit('3'), '8': makeDigit('8'), '0': makeDigit('0'), '6': makeDigit('6') };",
     'AE = netOf(A.ae); VAE = netOf(A.vae); BAE = bounds(ZAE);')
 scenes = open(os.path.join(here, 'ep03-scenes.js')).read()
-open(os.path.join(root, 'ep03-autoencoders-vae.html'), 'w').write(head + '\n' + scenes + '\n' + tail)
+from audio_player import inject
+open(os.path.join(root, 'ep03-autoencoders-vae.html'), 'w').write(inject(head + '\n' + scenes + '\n' + tail, 'ep03-audio.mp3'))
 print('built ep03-autoencoders-vae.html')

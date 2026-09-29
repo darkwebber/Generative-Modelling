@@ -124,14 +124,6 @@ Built from `src/ep06-scenes.js` (`python src/build_ep06.py`). Every flow on scre
 RealNVP-style flow trained by exact maximum likelihood in `code/export_ep06_assets.py`:
 the layer-by-layer positions, warped grids and density maps are its actual outputs.
 
-**Sound (pilot).** Episode 06 has a soundtrack: a soft generative score (one chord per scene, a
-music-box pluck, sub bass) plus sound effects cued to the animation (whooshes on scene cuts,
-ticks as cards land, chimes on key equations, sand grains, a thud when det = 0 crushes the square,
-chains breaking in the hook). It is synthesised from scratch in numpy by `src/ep06_audio.py`
-(scene timings are read from `src/ep06-scenes.js`), saved as `ep06-audio.mp3`, and the player
-keeps it locked to the animation clock (♪ button or **M** to mute). The score sits ~5 dB under
-the effects at about −22 dBFS, leaving room for narration.
-
 The spine of the episode is one idea built up in steps: **slope → Jacobian → determinant →
 triangular → coupling**. Each step answers the question the previous one raises.
 
@@ -167,10 +159,42 @@ triangular → coupling**. Each step answers the question the previous one raise
 | 10 | Flow matching | learn a velocity field; straight paths; flows + diffusion unified | how do we steer what gets generated? |
 | 11 | Conditioning & guidance | p(x \| y), classifier & classifier-free guidance, latent diffusion (the VAE returns) | — the full picture of a modern text-to-image model |
 
+## Sound
+
+Every episode has its own soundtrack: a soft generative score plus sound effects locked to the
+animation. It is synthesised from scratch in numpy (no samples), deterministically, so the HTML
+player and the MP4 carry identical audio.
+
+- **Engine** — `src/audio_lib.py`: instruments (pad, sub, music box / celesta / marimba / glass /
+  kalimba leads, bell chimes, ticks, typewriter keys, dice rattle, rubber stamp, whoosh, riser,
+  heartbeat pulse), reverb and mix (score ~5 dB under the effects, about −22 dBFS overall, leaving
+  room for narration).
+- **Sync** — cues are written on the scene clock `(scene, local time)`. Motion sounds are generated
+  from the animation's own motion curve (same easing as the renderer): loudness follows speed,
+  brightness/pitch follows progress. Data-driven moments read their values from the page itself
+  (`src/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
+  lands, each mode a GAN finds, each mode-collapse hop.
+- **Player** — `src/audio_player.py` adds the ♪ button and keeps the audio locked to the animation
+  clock through play / pause / scrub / chapter jumps (**M** mutes).
+
+| Episode | Key & colour | Signature sounds |
+|---|---|---|
+| 01 | C lydian · celesta | data points and sampled particles sonified by position; the log-likelihood sings as the knobs turn; static for the random tries |
+| 02 | A minor · music box + clock | typewriter for every letter; slot-machine settle into "hello"; dice rattle per sampled letter; the τ slider as a tone |
+| 03 | E minor · glass | the latent code sings as digits melt; loss falls as a tone; a harp cascade as the decoded grid appears |
+| 04 | G minor · marimba | every verdict a rubber stamp (CAUGHT / FOOLED / COPIED); digits dropping into each model; the copier's zero-distance "clink" |
+| 05 | F♯ minor · kalimba + heartbeat | each mode the real GAN finds chimes; each collapse hop jumps; the GDA spiral pans as it circles |
+| 06 | D dorian · music box | the flow's 8 layer pulses each way; det 2 / ½ / 0 morphs; chains breaking in the hook |
+
+```bash
+python src/ep01_audio.py   # … ep06_audio.py  → epNN-audio.mp3 next to the episode HTML
+python src/audio_player.py generative-modelling.html ep01-audio.mp3   # (ep01/ep02 pages; builds do this themselves)
+```
+
 ## Watch / scrub
 
 Open any episode `.html` in a browser: play/pause (space), scrub, ←/→ to skip 5 s, or
-jump by chapter.
+jump by chapter. ♪ (or **M**) toggles the sound.
 
 ## Render the MP4s
 
@@ -185,7 +209,7 @@ WORKERS=4 node render.mjs ep03-autoencoders-vae.html 30 ep03-autoencoders-vae.mp
 WORKERS=4 node render.mjs ep04-evaluation.html 30 ep04-evaluation.mp4
 WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
-python src/ep06_audio.py                         # episode 06 soundtrack (pilot)
+# add the soundtrack (same for every episode)
 ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
 ```
 
