@@ -118,14 +118,6 @@ def gliss(f0, f1, dur, harm=(1, .3), shape=None):
     return (y * e).astype(np.float32)
 
 
-def sand(dur, density=90, bright=5000):  # grains of sand: sparse filtered clicks
-    n = int(dur * SR); y = np.zeros(n, np.float32); k = int(density * dur)
-    idx = rng.integers(0, n - 400, k)
-    click = fft_filter(rng.standard_normal(400).astype(np.float32), lo=bright * 0.5, hi=bright * 1.6) * np.exp(-np.arange(400) / 60)
-    for i, a in zip(idx, rng.uniform(0.2, 1, k)): y[i:i + 400] += a * click
-    return y * env_adsr(n, 0.4, 0.8)
-
-
 def clink(f=2100):
     return (bell(f, 0.6, 1.4) + 0.4 * bell(f * 1.47, 0.6, 1.2)) * 0.6
 
@@ -190,60 +182,106 @@ def cue(scene, t, kind, gain=1.0, pan=0.0, **kw):
     elif kind == 'chime': add(sfx, T, bell(hz(kw.get('m', 81)), 3.0, kw.get('bright', 1)), 0.09 * gain, pan)
     elif kind == 'thud': add(sfx, T, thud(kw.get('f', 60)), 0.35 * gain, pan)
     elif kind == 'whoosh': add(sfx, T, whoosh(kw.get('dur', 1.0), kw.get('f0', 300), kw.get('f1', 3000), kw.get('rev', False)), 0.06 * gain, pan)
-    elif kind == 'rise': add(sfx, T, gliss(hz(kw['m0']), hz(kw['m1']), kw['dur'], (1, .25, .1)), 0.035 * gain, pan)
-    elif kind == 'sand': add(sfx, T, sand(kw['dur'], kw.get('density', 90)), 0.03 * gain, pan)
     elif kind == 'clink': add(sfx, T, clink(kw.get('f', 2100)), 0.08 * gain, pan)
     elif kind == 'pluck': add(sfx, T, pluck(hz(kw.get('m', 79))), 0.09 * gain, pan)
 
 
+# Motion sounds are driven by the animation's own motion curve, so they speed up, slow down and
+# pulse exactly as the points do. The same easing the scene code uses:
+def ease(x):
+    x = np.clip(x, 0, 1); return np.where(x < .5, 4 * x ** 3, 1 - (-2 * x + 2) ** 3 / 2)
+
+
+def prog(t, a, d): return np.clip((t - a) / d, 0, 1)
+
+
+K = 8  # coupling layers in the trained flow
+
+
+def stage(f):  # drawPts interpolates layer by layer, easing inside each layer → visible pulses
+    f = np.clip(f, 0, K); i = np.minimum(np.floor(f), K - 1); return i + ease(f - i)
+
+
+def motion(scene, t0, t1, P, gain=1.0, lo=250, hi=2600, tone=None, pan=0.0):
+    """P(t) → position of the moving thing (any scale). Loudness ∝ its speed, brightness ∝ where it is."""
+    t = np.linspace(t0, t1, int((t1 - t0) * SR)); p = P(t).astype(np.float64)
+    v = np.abs(np.gradient(p, t)); if_ = v.max() + 1e-9; amp = (v / if_) ** 0.85
+    u = (p - p.min()) / (np.ptp(p) + 1e-9)                    # 0…1 along the path
+    frame, hop = 2048, 512; n = len(t); out = np.zeros(n + frame, np.float32); win = np.hanning(frame).astype(np.float32)
+    freqs = np.fft.rfftfreq(frame, 1 / SR)
+    for s in range(0, n, hop):
+        fc = lo * (hi / lo) ** u[min(s + frame // 2, n - 1)]
+        seg = rng.standard_normal(frame).astype(np.float32) * win
+        S = np.fft.rfft(seg) * np.exp(-0.5 * ((freqs - fc) / (fc / 2.2)) ** 2)
+        out[s:s + frame] += np.fft.irfft(S, frame).astype(np.float32) * win
+    y = out[:n] / (np.abs(out[:n]).max() + 1e-9) * amp
+    if tone:  # a soft pitched glide riding on the same curve
+        m0, m1 = tone; fr = hz(m0) * (hz(m1) / hz(m0)) ** u
+        y = y + 0.35 * np.sin(2 * np.pi * np.cumsum(fr) / SR) * amp
+    add(sfx, at(scene, t0), y.astype(np.float32), 0.075 * gain, pan)
+
+
 # scene transitions: a soft whoosh just before each new scene
 for sc in range(1, len(durs)): cue(sc, -0.45, 'whoosh', 0.9, dur=0.9, f0=250, f1=2500)
-# 00 cold open
-cue(0, 0.5, 'rise', m0=50, m1=62, dur=5.2); cue(0, 0.5, 'sand', 0.6, dur=5, density=40)
-cue(0, 6.5, 'rise', m0=62, m1=50, dur=5.0); cue(0, 12, 'rise', 0.8, m0=50, m1=62, dur=3.2)
+
+# 00 cold open — noise → data, back, and forward again (8 layer pulses each way)
+motion(0, 0.5, 5.6, lambda t: stage(K * ease(prog(t, 0.5, 5))), tone=(50, 62))
+motion(0, 6.5, 11.6, lambda t: -stage(K - K * ease(prog(t, 6.5, 5))), tone=(62, 50))
+motion(0, 12, 15.1, lambda t: stage(K * ease(prog(t, 12, 3))), 0.9, tone=(50, 62))
 cue(0, 15, 'pluck', m=81); cue(0, 18.8, 'chime', 1.4, m=74); cue(0, 18.8, 'chime', 0.9, m=81)
 for i in range(5): cue(0, 20 + i * 0.3, 'tick', 0.7, -0.6 + 0.3 * i, f=1300 + 120 * i)
-# 01 sand
-cue(1, 8, 'rise', 0.7, m0=57, m1=69, dur=1.6); cue(1, 15, 'tick'); cue(1, 15.2, 'sand', 1.1, dur=6.5)
-cue(1, 22, 'whoosh', 0.7, dur=0.8, f0=2500, f1=500); cue(1, 22.5, 'pluck', m=76); cue(1, 30, 'tick'); cue(1, 32, 'chime', m=79)
-cue(1, 31, 'sand', 1.2, dur=13, density=110); cue(1, 38.5, 'tick')
-# 02 jacobian
-cue(2, 2, 'rise', 0.8, m0=55, m1=62, dur=4); cue(2, 8, 'tick'); cue(2, 9, 'whoosh', 0.8, dur=5, f0=400, f1=4000)
+# 01 sand (no texture: the slice is quiet; sound only marks what appears)
+cue(1, 8, 'pluck', 0.8, m=69); cue(1, 15, 'tick'); cue(1, 22, 'pluck', m=76); cue(1, 30, 'tick'); cue(1, 32, 'chime', m=79); cue(1, 38.5, 'tick')
+# 02 jacobian — the grid warps, then the zoom
+motion(2, 2, 6.1, lambda t: ease(prog(t, 2, 4)), 0.8, lo=200, hi=1400)
+cue(2, 8, 'tick'); motion(2, 9, 14.1, lambda t: ease(prog(t, 9, 5)), 0.7, lo=500, hi=4000)
 cue(2, 15, 'pluck', 1.2, -0.3, m=81); cue(2, 23, 'pluck', 1.2, 0.3, m=84); cue(2, 30, 'chime', m=77)
 for i in range(4): cue(2, 32 + i * 0.15, 'tick', 0.6, f=1600 + 100 * i)
 cue(2, 38.5, 'tick'); cue(2, 40, 'tick')
-# 03 determinant
+# 03 determinant — ticks for the cut-away pieces, then each matrix morph (det 2, ½, 0, back)
 cue(3, 7, 'tick')
 for i in range(6): cue(3, 9 + i * 0.8, 'tick', 0.8, -0.5 + 0.2 * i, f=1200 + 90 * i)
-cue(3, 17, 'chime', 1.2, m=81); cue(3, 20.5, 'rise', m0=57, m1=64, dur=2); cue(3, 26.5, 'rise', m0=64, m1=55, dur=2)
+cue(3, 17, 'chime', 1.2, m=81)
+for (ta, tb, up) in [(20, 22, 1), (26, 27.5, -1), (30, 31.5, -1), (36, 37.5, 1)]:
+    motion(3, ta, tb + 0.05, lambda t, ta=ta, tb=tb, up=up: up * ease(prog(t, ta, tb - ta)), 0.8, lo=300, hi=1800, tone=(57, 64) if up > 0 else (64, 55))
 cue(3, 31.5, 'thud', 0.9); cue(3, 37.5, 'tick'); cue(3, 43, 'chime', m=74)
-# 04 the cost
+# 04 the cost — shear (deck of cards) and stretch
 cue(4, 3, 'tick', pan=-0.4); cue(4, 3.3, 'tick', pan=-0.3); cue(4, 8, 'tick'); cue(4, 15.5, 'thud', 0.8, f=48)
-cue(4, 23, 'tick'); cue(4, 25, 'chime', m=79); cue(4, 32, 'whoosh', 0.8, dur=3, f0=900, f1=2200); cue(4, 39, 'rise', m0=60, m1=67, dur=2.5)
-# 05 coupling
-cue(5, 8, 'tick'); cue(5, 16, 'rise', 0.7, m0=57, m1=64, dur=3.5); cue(5, 20, 'rise', 0.7, m0=64, m1=57, dur=3.5); cue(5, 24, 'rise', 0.7, m0=57, m1=64, dur=3.5)
+cue(4, 23, 'tick'); cue(4, 25, 'chime', m=79)
+motion(4, 32, 35.1, lambda t: ease(prog(t, 32, 3)), 0.8, lo=600, hi=1600)
+motion(4, 39, 41.6, lambda t: ease(prog(t, 39, 2.5)), 0.8, lo=300, hi=900, tone=(60, 67))
+# 05 coupling — one layer bends forth, back, forth; later four layers stack
+P5 = lambda t: ease(prog(t, 16, 3.5)) - ease(prog(t, 20, 3.5)) + ease(prog(t, 24, 3.5))
+motion(5, 16, 27.6, P5, 0.8, lo=300, hi=1500)
+cue(5, 8, 'tick')
 for tt, f in [(26, 1300), (28.5, 1200), (34, 1500), (35.5, 1600)]: cue(5, tt, 'tick', f=f)
-cue(5, 36.5, 'chime', 1.4, m=86, bright=1.3); cue(5, 37, 'tick'); cue(5, 40, 'tick'); cue(5, 47, 'tick'); cue(5, 48, 'rise', m0=50, m1=69, dur=7)
-# 06 likelihood
-cue(6, 8, 'tick'); cue(6, 9, 'rise', m0=62, m1=50, dur=6); cue(6, 16, 'tick', pan=-0.3); cue(6, 17.5, 'tick', pan=0.3)
-cue(6, 24, 'tick'); cue(6, 32, 'chime', m=81); cue(6, 40.5, 'rise', 0.8, m0=62, m1=50, dur=5)
-# 07 layers
-cue(7, 5, 'rise', m0=62, m1=50, dur=16); cue(7, 5, 'sand', 0.5, dur=16, density=30); cue(7, 24, 'whoosh', dur=1.0); cue(7, 25, 'rise', m0=50, m1=62, dur=14)
+cue(5, 36.5, 'chime', 1.4, m=86, bright=1.3); cue(5, 37, 'tick'); cue(5, 40, 'tick'); cue(5, 47, 'tick')
+motion(5, 48, 55.1, lambda t: stage(1 + 3 * ease(prog(t, 48, 7))), 0.9, tone=(50, 62))
+# 06 likelihood — points pushed through the flow (twice)
+cue(6, 8, 'tick'); motion(6, 9, 15.1, lambda t: -stage(K * ease(prog(t, 9, 6))), tone=(62, 50))
+cue(6, 16, 'tick', pan=-0.3); cue(6, 17.5, 'tick', pan=0.3); cue(6, 24, 'tick'); cue(6, 32, 'chime', m=81)
+motion(6, 40.5, 45.6, lambda t: -stage(K * ease(prog(t, 40.5, 5))), 0.8, tone=(62, 50))
+# 07 layers — forwards (left panel), then backwards (right panel), each layer a pulse
+motion(7, 5, 21.1, lambda t: -stage(K * ease(prog(t, 5, 16))), pan=-0.35, tone=(62, 50))
+motion(7, 25, 39.1, lambda t: stage(K * ease(prog(t, 25, 14))), pan=0.35, tone=(50, 62))
 # 08 density
 cue(8, 1, 'chime', 0.8, m=74); cue(8, 8, 'chime', m=86); cue(8, 16, 'whoosh', 0.8); cue(8, 24, 'tick'); cue(8, 24.2, 'tick')
-# 09 the catch
-cue(9, 4, 'tick'); cue(9, 10, 'pluck', m=69); cue(9, 17, 'rise', 0.9, m0=45, m1=52, dur=5); cue(9, 24, 'sand', 0.9, dur=6)
+# 09 the catch — the rubber neck stretches thin
+cue(9, 4, 'tick'); cue(9, 10, 'pluck', m=69)
+motion(9, 17, 22.1, lambda t: ease(prog(t, 17, 5)), 0.9, lo=150, hi=700, tone=(45, 52))
 cue(9, 32, 'thud', 0.6, f=70); cue(9, 40, 'clink', 0.8)
-# 10 continuous
-cue(10, 2, 'sand', 0.6, dur=16, density=45); cue(10, 2, 'rise', 0.6, m0=50, m1=62, dur=16); cue(10, 8, 'tick'); cue(10, 16, 'tick'); cue(10, 31, 'chime', m=79)
+# 10 continuous — the flow runs smoothly (cosine clock, layer pulses)
+motion(10, 2, 18.1, lambda t: stage(K * (0.5 - 0.5 * np.cos(np.pi * prog(t, 2, 16)))), 0.8, tone=(50, 62))
+cue(10, 8, 'tick'); cue(10, 16, 'tick'); cue(10, 31, 'chime', m=79)
 # 11 build it: soft keyboard clicks as code lines appear
 for i in range(16): cue(11, 0.8 + i * 0.12, 'tick', 0.45, 0.2 * np.sin(i), f=2400 + 200 * (i % 3))
 for i in range(5): cue(11, 18.5 + i * 1.6, 'tick', 0.8, f=1400)
-# 12 hook
+# 12 hook — chains appear, then fall away; balls roll into the valleys
 for i in range(3): cue(12, 1.5 + i * 0.8, 'clink', 0.8, -0.3 + 0.3 * i, f=1900 + 150 * i)
 for i in range(6): cue(12, 7.6 + i * 0.09, 'clink', 0.5, rng.uniform(-0.7, 0.7), f=rng.uniform(1600, 2600))
-cue(12, 7.5, 'whoosh', 1.2, dur=1.4, f0=3000, f1=250); cue(12, 8, 'rise', m0=38, m1=45, dur=6)
-cue(12, 15, 'sand', 0.8, dur=6, density=50); cue(12, 23, 'chime', m=74); cue(12, 31, 'rise', m0=45, m1=57, dur=7)
+cue(12, 7.5, 'whoosh', 1.2, dur=1.4, f0=3000, f1=250)
+motion(12, 15, 22.6, lambda t: -sum(ease(np.clip((t - 15 - k * 0.3) / 6, 0, 1)) for k in range(6)), 0.6, lo=120, hi=500)
+cue(12, 23, 'chime', m=74)
 cue(12, 38.5, 'thud', 1.1, f=45); cue(12, 38.5, 'chime', 1.5, m=62); cue(12, 38.55, 'chime', 1.2, m=69); cue(12, 40, 'tick'); cue(12, 40.5, 'chime', 1.0, m=86)
 
 
