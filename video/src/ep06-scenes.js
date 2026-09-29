@@ -33,7 +33,7 @@ SC.push({ dur: 26, chapter: 'intro',
     GA = dim; clipTo(m, () => { drawGrid(m, f2, eout(prog(t, 0.3, 1)) * 0.6); drawPts(m, A.inv, f2, null, 0.85, 2.6, ff => mixc(P.rose, P.terracotta, ff / K)); });
     text(t < 6 || t >= 12 ? 'noise  →  data' : 'data  →  noise', 960, 175, { font: F.mono, size: 22, color: P.dust, align: 'center', a: eout(prog(t, 0.5, 1)) });
     // the question a GAN could not answer
-    const qa = eout(prog(t, 15, 0.8)); if (qa > 0) { const px = m.X(-0.75), py = m.Y(1.1); ring(px, py, 16, P.amber, qa, 2.5); pill(px + 26, py - 34, 'p(x) = ?', P.amber, qa, { size: 24 }); }
+    const qa = eout(prog(t, 15, 0.8)) * (1 - ease(prog(t, 17.8, 0.8))); if (qa > 0) { const px = m.X(-0.75), py = m.Y(1.1); ring(px, py, 16, P.amber, qa, 2.5); pill(px + 26, py - 34, 'p(x) = ?', P.amber, qa, { size: 24 }); }
     GA = 1;
     const a = eout(prog(t, 18.8, 1.2));
     text('EPISODE 06', 960, 430, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a, ls: 4 });
