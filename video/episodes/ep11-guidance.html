@@ -827,12 +827,15 @@ window.GM = (function () {
   ];
   // published artifacts (claude.ai), filled in as they are published
   const URL = {
-    hub: null,
+    hub: 'https://claude.ai/artifact/WVgy6kYirop3zktVEdREvY',
     ep: { 1: 'https://claude.ai/artifact/JpqRF6pKvGRi8cK3cPsfZP', 2: 'https://claude.ai/artifact/3Dif6UYkDxky2pavqoqwvM', 3: 'https://claude.ai/artifact/EE1JD2Qq7PzuJWvpZBFLKi',
           4: 'https://claude.ai/artifact/CPUcuRDmkKUVm4jHXkqx4q', 5: 'https://claude.ai/artifact/9LbD4PaxKsHCW7q6wM9uSY', 6: 'https://claude.ai/artifact/P3MyVYi2RyGTMNkwZvnHX8',
           7: 'https://claude.ai/artifact/RBYTbCT4qpnViT2rrP1WSK', 8: 'https://claude.ai/artifact/5NC1JR7LE3kz6N3B3diM3P', 9: 'https://claude.ai/artifact/TkYw57ufRvnqXUbibDUvzD',
           10: 'https://claude.ai/artifact/8c8CcQLFogi2LmZELP3nCj', 11: 'https://claude.ai/artifact/HQ2ebzwJmVfQ9ksAf6EG1U' },
-    lab: {},
+    lab: { 1: 'https://claude.ai/artifact/4FgUUwtcBoxGfngx4GyN1x', 2: 'https://claude.ai/artifact/CnmK6jBMAPP87tAvUFW7fP', 3: 'https://claude.ai/artifact/H2KdSuiVqno9C2awDe632j',
+           4: 'https://claude.ai/artifact/JTkMZ3MwnCbCebchVQ8hRV', 5: 'https://claude.ai/artifact/6ENTFejgxbYVHcVpEJoec5', 6: 'https://claude.ai/artifact/9jn1d8p7hDu7daXV95scGe',
+           7: 'https://claude.ai/artifact/9QWRawZm2ETNyQbcPPkai9', 8: 'https://claude.ai/artifact/LpMp41VXM1eX7qtmhUZ9oe', 9: 'https://claude.ai/artifact/XYi8ABXwLBGkW4o9BUr3zF',
+           10: 'https://claude.ai/artifact/YaESNgKaqG5KgZF9gddoPv', 11: 'https://claude.ai/artifact/Rw9UJxfeuEXedezAbu7ReN' },
   };
   const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
   // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
