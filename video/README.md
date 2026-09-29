@@ -202,10 +202,37 @@ weights → many noise levels + annealed Langevin → run noise backwards: diffu
 | 11 | Build it | DSM training + annealed Langevin in 15 lines + recap | — |
 | 12 | Hook → diffusion | data dissolves into noise, arrows lead it back; destroy slowly, learn to undo | → *Episode 09: diffusion* |
 
+## Episode 09 — Diffusion models (~8:42)
+
+`ep09-diffusion.html` · playground: `diffusion-lab.html` · code: `../code/diffusion.py`
+
+Built from `src/ep09-scenes.js` (`python src/build_ep09.py`). Everything generated on screen comes from real diffusion
+models trained in `code/export_ep09_assets.py`, the title included: a 2-D model trained on the pixels of the word
+"Diffusion" writes it out of 5,000 points of static in the cold open.
+
+The spine: **destroy data slowly (and jump to any step in one line) → tiny steps are easy to undo, giant ones aren't →
+predict the noise (episode 8's score, one net for all levels) → run it backwards → 64 digits from nothing, and what
+the net believes along the way → why: a VAE with a thousand layers → DDIM: bigger steps, noise as a latent → the roads
+are curved: flow matching.**
+
+| # | Scene | Idea | Math |
+|---|-------|------|------|
+| 00 | Cold open | 5,000 points of static; a real diffusion model writes the title out of them; the melody emerges from noise with it | — |
+| 01 | Destroy it slowly | the eight blobs and a digit dissolve over 1,000 steps; ᾱ curve; variance balance | x_t = √ᾱ_t·x₀ + √(1−ᾱ_t)·ε |
+| 02 | Undo one small step | the true one-step posterior in 1-D: one narrow bell for a tiny step, two humps for a giant one | x_{t−1} ≈ (x_t + β_t·s)/√(1−β_t) + √β_t·z |
+| 03 | Training | x₀ + ε → x_t → ε_θ, a dial for t, the real loss curve | ‖ε − ε_θ(x_t, t)‖², ε_θ = −√(1−ᾱ)·s_θ, x̂₀ |
+| 04 | Running it backwards | 600 points from N(0, I) to the eight blobs, beside the net's guess x̂₀ at every step | the DDPM step |
+| 05 | Sixty-four digits | 64 MNIST digits born from static; x̂₀ over time for eight of them: composition first, detail last | — |
+| 06 | A VAE with a thousand layers | the noising chain as encoder, the ELBO as one KL per step | Σ KL → Σ w_t‖ε − ε_θ‖² |
+| 07 | Fewer steps: DDIM | 1000 / 100 / 20 / 5 steps from the same noise; slerp between two noise images morphs the digit | x_s = √ᾱ_s·x̂₀ + √(1−ᾱ_s)·ε_θ |
+| 08 | In the wild | DALL·E 2, Imagen, Stable Diffusion (latent), conditioning, video / audio / weather / proteins | — |
+| 09 | Build it | forward, training and sampling in 15 lines + recap | — |
+| 10 | Hook → flow matching | the curved roads DDIM took vs straight lines from noise to data | → *Episode 10: flow matching* |
+
 ## Playgrounds
 
 Every episode has a hands-on lab: `density-lab.html` (01), `ar-playground.html` (02), `vae-playground.html` (03),
-`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08). They share `lab-kit.js`:
+`metric-lab.html` (04), `gan-arena.html` (05), `flow-lab.html` (06), `ebm-lab.html` (07), `score-lab.html` (08), `diffusion-lab.html` (09). They share `lab-kit.js`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
 - **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
@@ -256,11 +283,12 @@ player and the MP4 carry identical audio.
 | 04 | G minor · marimba | every verdict a rubber stamp (CAUGHT / FOOLED / COPIED); digits dropping into each model; the copier's zero-distance "clink" |
 | 05 | F♯ minor · kalimba + heartbeat | each mode the real GAN finds chimes; each collapse hop jumps; the GDA spiral pans as it circles |
 | 06 | D dorian · music box | the flow's 8 layer pulses each way; det 2 / ½ / 0 morphs; chains breaking in the hook |
-| 08 | B♭ lydian · plucked harp | noise you can hear: a hiss that follows σ, a harp note per rung of the σ ladder, particles rolling at their real speed, the three √(2η) runs each singing their variance, the probe singing its score |
 | 07 | C minor · vibraphone | glass marbles poured, rolling and jiggling at their real speed; a chisel tap per sculpting step (as loud as the landscape moved); coin, wood-block (accepted) or thunk (rejected) per Metropolis proposal; a chime each time the long chain hops a ridge |
+| 08 | B♭ lydian · plucked harp | noise you can hear: a hiss that follows σ, a harp note per rung of the σ ladder, particles rolling at their real speed, the three √(2η) runs each singing their variance, the probe singing its score |
+| 09 | E♭ major · celesta | the melody itself diffuses: in the cold open and the 64-digit reveal it starts as random notes and snaps into tune as the noise falls (its detuning follows √(1−ᾱ_t)); TV static that thins with the noise; a heartbeat, a riser and a bang as the title lands |
 
 ```bash
-python src/ep01_audio.py   # … ep08_audio.py  → epNN-audio.mp3 next to the episode HTML
+python src/ep01_audio.py   # … ep09_audio.py  → epNN-audio.mp3 next to the episode HTML
 python src/audio_player.py generative-modelling.html ep01-audio.mp3   # (ep01/ep02 pages; builds do this themselves)
 ```
 
@@ -284,6 +312,7 @@ WORKERS=4 node render.mjs ep05-gans.html 30 ep05-gans.mp4
 WORKERS=4 node render.mjs ep06-flows.html 30 ep06-flows.mp4
 WORKERS=4 node render.mjs ep07-energy.html 30 ep07-energy.mp4
 WORKERS=4 node render.mjs ep08-score.html 30 ep08-score.mp4
+WORKERS=4 node render.mjs ep09-diffusion.html 30 ep09-diffusion.mp4
 # add the soundtrack (same for every episode)
 ffmpeg -i ep06-flows.mp4 -i ep06-audio.mp3 -c:v copy -c:a aac -b:a 192k -shortest ep06-flows-sound.mp4
 ```

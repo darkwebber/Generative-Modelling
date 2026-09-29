@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diffusion Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --border-light:#4d4540;
+    --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360;
+    --terracotta:#c4654a; --sage:#7a9e7e; --ink:#6889b1; --amber:#d4a853; --rose:#b5707e; --plum:#8b7bb5;
+    --serif:'Newsreader', Georgia, serif; --sans:'Karla', sans-serif; --mono:'JetBrains Mono', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:var(--sans); font-size:15px; line-height:1.6; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:overlay; z-index:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  main { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:40px 16px 60px; }
+  .kicker { font-family:var(--serif); font-style:italic; color:var(--terracotta); letter-spacing:.12em; text-transform:uppercase; font-size:12px; }
+  h1 { font-family:var(--serif); font-weight:400; color:var(--chalk); font-size:clamp(28px,5vw,40px); margin:4px 0 6px; letter-spacing:-.01em; text-wrap:balance; }
+  .sub { margin:0 0 22px; max-width:780px; }
+  .grid { display:grid; grid-template-columns: 1.1fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:color-mix(in srgb, var(--surface) 90%, transparent); border:1px solid var(--border); border-left:3px solid color-mix(in srgb, var(--accent, var(--plum)) 60%, transparent); border-radius:14px; padding:18px; min-width:0; }
+  .wide { grid-column: 1 / -1; }
+  .label { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--terracotta); }
+  .hint { font-size:13px; color:var(--dust); margin:4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:var(--elevated); color:var(--chalk); border:1px solid var(--border-light); border-radius:8px; padding:7px 12px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  button:hover, button.on { border-color:var(--terracotta); }
+  button.primary { background:color-mix(in srgb, var(--terracotta) 22%, var(--elevated)); border-color:color-mix(in srgb, var(--terracotta) 60%, transparent); }
+  canvas { display:block; image-rendering:pixelated; }
+  canvas#gen { width:100%; aspect-ratio:1; border-radius:10px; border:1px solid var(--border); background:var(--surface); }
+  .knobs { display:grid; grid-template-columns: 150px 1fr 70px; gap:8px 12px; align-items:center; font-family:var(--mono); font-size:13px; margin:12px 0; }
+  .knobs input[type=range] { width:100%; }
+  .knobs .v { color:var(--amber); text-align:right; }
+  .stat { font-family:var(--mono); font-size:14px; margin:6px 0; }
+  .stat b { color:var(--chalk); font-weight:400; }
+  .pair { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:12px; }
+  .pair canvas { width:100%; aspect-ratio:1; border-radius:10px; border:1px solid var(--border); background:#000; }
+  .pair canvas#pad { cursor:crosshair; }
+  .cap { font-family:var(--mono); font-size:12px; color:var(--dust); text-align:center; margin-top:6px; }
+  canvas#morph { width:100%; aspect-ratio: 8 / 1; border-radius:10px; border:1px solid var(--border); background:var(--surface); margin-top:10px; }
+  footer { margin-top:30px; font-size:13px; color:var(--dust); }
+</style>
+<script src="lab-kit.js"></script>
+</head>
+<body>
+<main>
+  <div class="kicker">Episode 09 · playground</div>
+  <h1>Diffusion Lab: noise in, digits out</h1>
+  <p class="sub">The real diffusion network from the video runs in your browser: 2.7 million weights, trained to predict the noise in an MNIST digit at any of 1,000 noise levels. Watch it pull digits out of static step by step, see what it believes at each step, morph between noise seeds, and let it redraw your own scribbles.</p>
+  <div class="grid">
+    <section class="card" style="--accent:var(--terracotta)">
+      <canvas id="gen" width="448" height="448" aria-label="sixteen digits being generated"></canvas>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="go">generate 16 digits</button><button id="view">view: x_t</button><button id="seed">new noise</button>
+        <span class="stat" id="prog">ready</span>
+      </div>
+    </section>
+    <section class="card" style="--accent:var(--amber)">
+      <div class="label">the sampler</div>
+      <div class="row" style="margin:10px 0" id="samp"><button data-s="ddim" class="on">DDIM (deterministic)</button><button data-s="ddpm">DDPM (1000 steps, fresh noise)</button></div>
+      <div class="knobs"><span>DDIM steps</span><input id="steps" type="range" min="2" max="200" step="1" value="40"><span class="v" id="stepsv"></span></div>
+      <p class="hint">Each step: predict the noise ε_θ(x_t, t), form the guess x̂₀ = (x_t − √(1−ᾱ)·ε_θ)/√ᾱ, and move to the next noise level. DDPM also adds a little fresh noise at every step.</p>
+      <div class="label" style="margin-top:14px">what you’re seeing</div>
+      <p class="hint" style="color:var(--stone);font-size:14px"><b>view: x_t</b> shows the noisy images as they clean up. <b>view: x̂₀</b> shows the network’s guess of the finished digit at that moment: a blurry average early on, a specific digit soon after, details last.</p>
+      <div class="stat">network calls this run: <b id="calls">0</b></div>
+    </section>
+    <section class="card wide" style="--accent:var(--sage)">
+      <div class="label">morph: slide between two noise images</div>
+      <p class="hint">With DDIM (no fresh noise) every noise image maps to exactly one digit. Blend two noise images and the digit changes smoothly.</p>
+      <div class="knobs"><span>mix</span><input id="mix" type="range" min="0" max="1" step="0.05" value="0"><span class="v" id="mixv"></span></div>
+      <canvas id="morph" width="448" height="56"></canvas>
+    </section>
+    <section class="card wide" style="--accent:var(--plum)">
+      <div class="label">redraw my scribble (SDEdit)</div>
+      <p class="hint">Draw anything in the black box. Noise it up to step t, then run the network back down from there. A little noise keeps your layout; a lot lets the model take over.</p>
+      <div class="pair">
+        <div><canvas id="pad" width="28" height="28"></canvas><div class="cap">your drawing</div></div>
+        <div><canvas id="noisy" width="28" height="28"></canvas><div class="cap" id="noisycap">noised to t</div></div>
+        <div><canvas id="redrawn" width="28" height="28"></canvas><div class="cap">redrawn by the network</div></div>
+      </div>
+      <div class="knobs"><span>noise it up to t =</span><input id="tsd" type="range" min="100" max="900" step="50" value="300"><span class="v" id="tsdv"></span></div>
+      <div class="row"><button class="primary" id="sde">noise &amp; redraw</button><button id="clear">clear</button></div>
+    </section>
+  </div>
+  <footer>The same model in Python: <span style="font-family:var(--mono)">code/diffusion.py</span>, exported by <span style="font-family:var(--mono)">code/export_ep09_assets.py</span> (weights stored in 8 bits here). Net: [x (784), sinusoidal embedding of t (64)] → 1024 → 1024 → 784, swish, t fed into every hidden layer; the output is its guess x̂₀ (through tanh) and the noise is read off it, ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ). Linear β from 0.0001 to 0.02 over 1,000 steps.</footer>
+</main>
+<script src="ep09-model.js"></script>
+<script>
+const $ = id => document.getElementById(id), M = window.EP9M, AB = M.abar, T = 1000;
+function b64i8(s) { const bin = atob(s), u = new Int8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = (bin.charCodeAt(i) << 24) >> 24; return u; }
+const deq = w => { const [a, b] = w.shape, q = b64i8(w.q), o = new Float32Array(a * b); for (let i = 0; i < a; i++) for (let j = 0; j < b; j++) o[i * b + j] = q[i * b + j] * w.s[j]; return { a, b, w: o }; };
+const W = M.W.map(deq), U = M.U.map(deq), B = M.b.map(v => Float32Array.from(v)), WO = deq(M.Wo), BO = Float32Array.from(M.bo), ED = M.ed;
+function temb(t) { const h = ED / 2, e = new Float32Array(ED); for (let k = 0; k < h; k++) { const f = Math.exp(-Math.log(1000) * k / h), a = (t + 1) * f; e[k] = Math.sin(a); e[k + h] = Math.cos(a); } return e; }
+function matvec(v, L, out) { const { a, b, w } = L; for (let i = 0; i < a; i++) { const vi = v[i]; if (!vi) continue; const r = i * b; for (let j = 0; j < b; j++) out[j] += vi * w[r + j]; } return out; }
+// ε_θ(x, t) for a batch of images (array of Float32Array(784))
+let calls = 0;
+// the net outputs its clean-image guess x̂₀ = tanh(F); the noise is read off it: ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ)
+function eps(xs, t) { const e = temb(t), eu = U.map((u, l) => matvec(e, u, Float32Array.from(B[l]))), ab = AB[t], sa = Math.sqrt(ab), sb = Math.sqrt(1 - ab); calls += xs.length;
+  return xs.map(x => { let h = x; for (let l = 0; l < W.length; l++) { const z = matvec(h, W[l], Float32Array.from(eu[l])); for (let j = 0; j < z.length; j++) z[j] = z[j] / (1 + Math.exp(-z[j])); h = z; } const F = matvec(h, WO, Float32Array.from(BO)); return M.x0 ? F.map((f, j) => (x[j] - sa * Math.tanh(f)) / sb) : F; }); }
+let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+const noise = () => Float32Array.from({ length: 784 }, gauss);
+// ── drawing digits
+const TC = [196, 101, 74];
+function paint(g, x, ox, oy, s, isX0) { const im = g.createImageData(28, 28); for (let i = 0; i < 784; i++) { const v = Math.max(0, Math.min(1, (x[i] + 1) / 2)); im.data[i * 4] = TC[0] * v + 28 * (1 - v); im.data[i * 4 + 1] = TC[1] * v + 24 * (1 - v); im.data[i * 4 + 2] = TC[2] * v + 22 * (1 - v); im.data[i * 4 + 3] = 255; }
+  const c = document.createElement('canvas'); c.width = c.height = 28; c.getContext('2d').putImageData(im, 0, 0); g.imageSmoothingEnabled = false; g.drawImage(c, ox, oy, s, s); }
+const gen = $('gen'), gg = gen.getContext('2d');
+let Z = Array.from({ length: 16 }, noise), X = Z.map(z => Float32Array.from(z)), X0 = null, view = 'xt', mode = 'ddim', running = false;
+function drawGrid() { gg.fillStyle = '#1c1816'; gg.fillRect(0, 0, 448, 448); const src = view === 'x0' && X0 ? X0 : X; src.forEach((x, k) => paint(gg, x, (k % 4) * 112 + 2, Math.floor(k / 4) * 112 + 2, 108)); }
+// ── samplers, one step at a time so we can animate
+function* ddimSteps(xs, n, tStart = T - 1) { const ts = []; for (let i = 0; i < n; i++) ts.push(Math.round(tStart - (tStart) * i / (n - 1 || 1)));
+  for (let i = 0; i < ts.length; i++) { const t = ts[i], ab = AB[t], e = eps(xs, t), abn = i + 1 < ts.length ? AB[ts[i + 1]] : 1;
+    // x̂₀, clipped to the data range [−1, 1], then the noise that goes with it
+    const x0 = xs.map((x, k) => x.map((v, j) => Math.max(-1, Math.min(1, (v - Math.sqrt(1 - ab) * e[k][j]) / Math.sqrt(ab)))));
+    const ec = xs.map((x, k) => x.map((v, j) => (v - Math.sqrt(ab) * x0[k][j]) / Math.sqrt(1 - ab)));
+    xs = x0.map((x, k) => x.map((v, j) => Math.sqrt(abn) * v + Math.sqrt(1 - abn) * ec[k][j])); yield { xs, x0, t, i, n: ts.length }; } }
+function* ddpmSteps(xs) { for (let t = T - 1; t >= 0; t--) { const ab = AB[t], b = 1 - ab / (t ? AB[t - 1] : 1), e = eps(xs, t);
+    const x0 = xs.map((x, k) => x.map((v, j) => (v - Math.sqrt(1 - ab) * e[k][j]) / Math.sqrt(ab)));
+    xs = xs.map((x, k) => x.map((v, j) => (v - b / Math.sqrt(1 - ab) * e[k][j]) / Math.sqrt(1 - b) + (t ? Math.sqrt(b * (1 - AB[t - 1]) / (1 - ab)) * gauss() : 0)));
+    yield { xs, x0, t, i: T - 1 - t, n: T }; } }
+let lastRun = null, sawX0 = false, lowSteps = false;
+function run() { if (running) return; running = true; calls = 0; X = Z.map(z => Float32Array.from(z)); const it = mode === 'ddim' ? ddimSteps(X, +$('steps').value) : ddpmSteps(X), per = mode === 'ddim' ? 1 : 8;
+  LabKit.sfx.whoosh(0.6, false);
+  const tick = () => { let r; const t0 = performance.now(); for (let q = 0; q < per; q++) { r = it.next(); if (r.done) break; X = r.value.xs; X0 = r.value.x0; if (performance.now() - t0 > 30) break; }
+    drawGrid(); $('calls').textContent = calls.toLocaleString('en-US');
+    if (!r.done) { $('prog').innerHTML = `step <b>${r.value.i + 1}</b> / ${r.value.n} · t = ${r.value.t}`; LabKit.sfx.tick(1 - r.value.t / 1000); if (view === 'x0') sawX0 = true; requestAnimationFrame(tick); }
+    else { running = false; $('prog').innerHTML = `done: <b>${mode === 'ddim' ? $('steps').value + ' DDIM' : '1000 DDPM'}</b> steps`; X0 = null; drawGrid(); LabKit.sfx.success(); lastRun = { mode, steps: +$('steps').value }; if (mode === 'ddim' && +$('steps').value <= 10) lowSteps = true; } };
+  requestAnimationFrame(tick); }
+$('go').onclick = run;
+$('view').onclick = () => { view = view === 'xt' ? 'x0' : 'xt'; $('view').textContent = 'view: ' + (view === 'xt' ? 'x_t' : 'x̂₀'); $('view').classList.toggle('on', view === 'x0'); drawGrid(); };
+$('seed').onclick = () => { if (running) return; Z = Array.from({ length: 16 }, noise); X = Z.map(z => Float32Array.from(z)); X0 = null; drawGrid(); LabKit.sfx.patter(10, 0.3); };
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { mode = b.dataset.s; document.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); });
+$('steps').oninput = () => $('stepsv').textContent = $('steps').value;
+// ── morph between two noise images (DDIM, 30 steps each frame on demand)
+const mc = $('morph'), mg = mc.getContext('2d'), ZA = noise(), ZB = noise(); let morphs = 0;
+function slerp(a, b, u) { let d = 0, na = 0, nb = 0; for (let i = 0; i < 784; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; } const th = Math.acos(Math.max(-1, Math.min(1, d / Math.sqrt(na * nb)))); return a.map((v, i) => (Math.sin((1 - u) * th) * v + Math.sin(u * th) * b[i]) / Math.sin(th)); }
+function ddimFinal(xs, n) { let r, last; const it = ddimSteps(xs, n); while (!(r = it.next()).done) last = r.value; return last.xs; }
+let strip = null;
+function drawMorph() { if (!strip) strip = ddimFinal([0, 1 / 7, 2 / 7, 3 / 7, 4 / 7, 5 / 7, 6 / 7, 1].map(u => slerp(ZA, ZB, u)), 25); mg.fillStyle = '#1c1816'; mg.fillRect(0, 0, 448, 56); strip.forEach((x, k) => paint(mg, x, k * 56, 0, 56));
+  const u = +$('mix').value, k = Math.round(u * 7); mg.strokeStyle = '#d4a853'; mg.lineWidth = 2; mg.strokeRect(k * 56 + 1, 1, 54, 54); $('mixv').textContent = u.toFixed(2); }
+$('mix').oninput = () => { drawMorph(); morphs++; };
+// ── SDEdit: noise a drawing up to t, then denoise from there
+const pad = $('pad'), pg = pad.getContext('2d'); let px = new Float32Array(784).fill(-1), drawing = false, sdeDone = 0;
+const scratch = LabKit.throttle(() => LabKit.sfx.scratch(), 40);
+function brush(e) { const r = pad.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width * 28, cy = (e.clientY - r.top) / r.height * 28; scratch();
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + .5 - cx, y + .5 - cy); if (d < 1.9) px[y * 28 + x] = Math.min(1, px[y * 28 + x] + (d < 1 ? 2 : 0.8)); }
+  paint(pg, px, 0, 0, 28); }
+pad.addEventListener('pointerdown', e => { drawing = true; pad.setPointerCapture(e.pointerId); brush(e); });
+pad.addEventListener('pointermove', e => { if (drawing) brush(e); });
+pad.addEventListener('pointerup', () => drawing = false);
+$('clear').onclick = () => { px = new Float32Array(784).fill(-1); paint(pg, px, 0, 0, 28); };
+$('tsd').oninput = () => { $('tsdv').textContent = $('tsd').value; };
+$('sde').onclick = () => { const t = +$('tsd').value, ab = AB[t], xn = px.map(v => Math.sqrt(ab) * v + Math.sqrt(1 - ab) * gauss());
+  paint($('noisy').getContext('2d'), xn, 0, 0, 28); $('noisycap').textContent = `noised to t = ${t}`; LabKit.sfx.whoosh(0.4);
+  const it = ddimSteps([xn], Math.max(4, Math.round(t / 20)), t); let r, last; const step = () => { for (let q = 0; q < 4; q++) { r = it.next(); if (r.done) break; last = r.value; } if (last) paint($('redrawn').getContext('2d'), last.xs[0], 0, 0, 28); if (!r.done) requestAnimationFrame(step); else { sdeDone++; LabKit.sfx.chime(0.8); } }; requestAnimationFrame(step); };
+// start with a stroke in the pad so SDEdit works right away
+for (let y = 6; y < 22; y++) { px[y * 28 + 14] = 1; px[y * 28 + 13] = 0.6; } paint(pg, px, 0, 0, 28);
+$('stepsv').textContent = $('steps').value; $('tsdv').textContent = $('tsd').value; drawGrid(); drawMorph();
+LabKit.init({ id: 'ep09',
+  steps: ['<strong>Generate</strong>: sixteen squares of pure static become digits, one denoising step at a time.', '<strong>Switch the view</strong> to x̂₀ to see what the network believes mid-way, and try fewer DDIM steps.', '<strong>Morph</strong> between noise images and <strong>redraw a scribble</strong>. The missions walk you through it.'],
+  legend: [['var(--terracotta)', 'pixels'], ['var(--rose)', 'noise'], ['var(--amber)', 'steps & knobs'], ['var(--sage)', 'the network’s guess x̂₀']],
+  missions: [
+    { id: 'gen', title: 'Generate 16 digits from static', hint: 'Press <b>generate 16 digits</b>.', check: () => lastRun !== null },
+    { id: 'x0', title: 'Watch it think: view x̂₀ during a run', hint: 'Press <b>view: x_t</b> to switch to x̂₀, then generate. Early guesses are blurry averages; the digit is decided long before the details.', check: () => sawX0 },
+    { id: 'few', title: 'Go fast: 10 DDIM steps or fewer', hint: 'Drag <b>DDIM steps</b> down to 10 and generate. How few can you go before the digits break?', check: () => lowSteps },
+    { id: 'ddpm', title: 'Run the full 1000-step DDPM', hint: 'Choose <b>DDPM</b> and generate. It takes 1000 network calls per digit, and each step adds a little fresh noise.', check: () => lastRun && lastRun.mode === 'ddpm' },
+    { id: 'morph', title: 'Morph between two noise images', hint: 'Drag the <b>mix</b> slider in the morph panel back and forth.', check: () => morphs >= 6 },
+    { id: 'sde', title: 'Let the network redraw your scribble', hint: 'Draw something rough in the black box, choose a noise level, then press <b>noise &amp; redraw</b>. Try t = 300 and t = 800.', check: () => sdeDone >= 2 },
+  ] });
+</script>
+</body>
+</html>

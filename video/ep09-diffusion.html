@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diffusion Models</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
+  html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
+  .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
+  button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--terracotta); }
+  input[type=range] { flex:1; accent-color:var(--terracotta); min-width:0; }
+  .time { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--dust); min-width:104px; text-align:right; }
+  .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
+  .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
+  body.capture .ctl, body.capture .chapters { display:none; }
+  body.capture .wrap { padding:0; max-width:none; }
+  body.capture canvas { width:1920px; border-radius:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="1920" height="1080" aria-label="Diffusion Models explainer animation"></canvas>
+  <div class="ctl">
+    <button id="play">▶ play</button>
+    <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button id="snd-btn" title="sound on / off (M)">♪ sound on</button>
+    <audio id="snd" src="ep09-audio.mp3" preload="auto"></audio>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+<script src="ep09-assets.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────
+//  Midnight Atelier tokens + engine (shared across episodes)
+// ─────────────────────────────────────────────────────────────
+const P = {
+  canvas:"#13100e", surface:"#1c1816", elevated:"#272220", border:"#3a3432", borderLight:"#4d4540",
+  chalk:"#ede6db", stone:"#a89f97", dust:"#6b6360",
+  terracotta:"#c4654a", sage:"#7a9e7e", ink:"#6889b1", amber:"#d4a853", clay:"#a0735c", rose:"#b5707e", plum:"#8b7bb5",
+};
+const F = { serif:"'Newsreader', Georgia, serif", sans:"'Karla', sans-serif", mono:"'JetBrains Mono', monospace" };
+const W = 1920, H = 1080;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+const prog = (t, a, d) => clamp((t - a) / d);
+const ease = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const eout = x => { x = clamp(x); return 1 - Math.pow(1 - x, 3); };
+const ein = x => { x = clamp(x); return x * x * x; };
+const pop = x => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const HX = {};
+function hx(h) { return HX[h] || (HX[h] = (n => [n >> 16, (n >> 8) & 255, n & 255])(parseInt(h.slice(1), 16))); }
+function rgba(h, a) { const c = hx(h); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function mixc(a, b, u) { const A = hx(a), B = hx(b); return `rgb(${Math.round(A[0] + (B[0] - A[0]) * u)},${Math.round(A[1] + (B[1] - A[1]) * u)},${Math.round(A[2] + (B[2] - A[2]) * u)})`; }
+
+let GA = 1;
+const setA = a => { ctx.globalAlpha = clamp(GA * a); };
+function text(s, x, y, o = {}) {
+  const { font = F.sans, size = 28, color = P.stone, align = 'left', a = 1, italic = false, weight = 400, ls = 0 } = o;
+  if (GA * a <= 0.002) return;  // skip invisible draws (some browsers ignore globalAlpha = 0)
+  ctx.font = `${italic ? 'italic ' : ''}${weight} ${size}px ${font}`;
+  ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.fillStyle = color; setA(a);
+  ctx.fillText(s, x, y); ctx.letterSpacing = '0px'; ctx.textAlign = 'left'; setA(1);
+}
+function wrap(str, maxW, font) {
+  ctx.font = font; const words = str.split(' '); const lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines;
+}
+function para(str, x, y, maxW, o = {}) {
+  const { size = 24, lh = 1.45, color = P.stone, a = 1, font = F.sans, italic = false } = o;
+  const lines = wrap(str, maxW, `${italic ? 'italic ' : ''}400 ${size}px ${font}`);
+  lines.forEach((l, i) => text(l, x, y + i * size * lh, { font, size, color, a, italic }));
+  return lines.length * size * lh;
+}
+const CM = { d:P.terracotta, p:P.ink, a:P.amber, n:P.rose, m:P.plum, s:P.sage, k:P.dust, w:P.chalk, c:P.clay, t:P.stone };
+const MCACHE = new Map();
+function parseM(str) {
+  if (MCACHE.has(str)) return MCACHE.get(str);
+  const out = []; const re = /\[([a-z])([_^B]?)\|([^\]]*)\]/g; let last = 0, m;
+  while ((m = re.exec(str))) {
+    if (m.index > last) out.push([str.slice(last, m.index), P.stone, '']);
+    out.push([m[3], CM[m[1]], m[2] === '_' ? 's' : m[2] === '^' ? 'S' : m[2] === 'B' ? 'b' : '']);
+    last = re.lastIndex;
+  }
+  if (last < str.length) out.push([str.slice(last), P.stone, '']);
+  MCACHE.set(str, out); return out;
+}
+function M(str, x, y, size = 34, o = {}) {
+  const { align = 'left', a = 1 } = o;
+  const parts = parseM(str).map(([s, col, mod]) => {
+    const sz = mod === 's' || mod === 'S' ? size * 0.66 : mod === 'b' ? size * 1.3 : size;
+    ctx.font = `400 ${sz}px ${F.mono}`;
+    return { s, col, sz, dy: mod === 's' ? size * 0.26 : mod === 'S' ? -size * 0.42 : mod === 'b' ? size * 0.1 : 0, w: ctx.measureText(s).width };
+  });
+  const total = parts.reduce((acc, p) => acc + p.w, 0);
+  if (GA * a <= 0.002) return total;
+  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+  setA(a); ctx.textAlign = 'left';
+  for (const p of parts) { ctx.font = `400 ${p.sz}px ${F.mono}`; ctx.fillStyle = p.col; ctx.fillText(p.s, cx, y + p.dy); cx += p.w; }
+  setA(1); return total;
+}
+function dot(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.fill(); setA(1); }
+function glow(x, y, r, col, a = 1) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = r * 3.5; dot(x, y, r, col, a); ctx.restore(); }
+function ring(x, y, r, col, a = 1, lw = 2) { if (GA * a <= 0.002) return; setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.stroke(); setA(1); }
+function line(x1, y1, x2, y2, col, lw = 2, a = 1, dash = null) { if (GA * a <= 0.002) return; setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); setA(1); }
+function arrow(x1, y1, x2, y2, col, lw = 2, a = 1) {
+  line(x1, y1, x2, y2, col, lw, a);
+  const ang = Math.atan2(y2 - y1, x2 - x1), L = 12;
+  setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - L * Math.cos(ang - 0.4), y2 - L * Math.sin(ang - 0.4));
+  ctx.lineTo(x2 - L * Math.cos(ang + 0.4), y2 - L * Math.sin(ang + 0.4)); ctx.fill(); setA(1);
+}
+function rbox(x, y, w, h, r, fill, stroke, a = 1, lw = 1.5) { setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, r); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } setA(1); }
+function card(x, y, w, h, accent, a = 1) {
+  if (a <= 0) return;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 18); ctx.fillStyle = rgba(P.surface, 0.86); ctx.fill();
+  ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.clip(); ctx.fillStyle = rgba(accent, 0.6); ctx.fillRect(x, y, 4, h);
+  ctx.restore(); setA(1);
+}
+function label(s, x, y, a = 1, color = P.terracotta) { text(s.toUpperCase(), x, y, { font: F.mono, size: 16, color, a, ls: 2 }); }
+function tag(x, y, color, s, a = 1, size = 19) {
+  ctx.font = `400 ${size}px ${F.mono}`; const w = ctx.measureText(s).width + size * 2.1; const h = size * 1.75;
+  if (GA * a <= 0.002) return w;
+  ctx.save(); setA(a);
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fillStyle = rgba(color, 0.08); ctx.fill();
+  ctx.strokeStyle = rgba(color, 0.3); ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x + size * 0.8, y + h / 2, size * 0.22, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillText(s, x + size * 1.35, y + h * 0.68);
+  ctx.restore(); setA(1); return w;
+}
+function pill(x, y, s, color, a = 1, o = {}) {
+  const { size = 20, align = 'left', font = F.mono } = o;
+  ctx.font = `400 ${size}px ${font}`; const w = ctx.measureText(s).width + size * 1.2, h = size * 1.7;
+  const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  if (GA * a <= 0.002) return w;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, h / 2);
+  ctx.fillStyle = rgba(P.canvas, 0.85); ctx.fill(); ctx.strokeStyle = rgba(color, 0.45); ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.fillStyle = color; ctx.fillText(s, x0 + size * 0.6, y + size * 0.35); ctx.restore(); setA(1);
+  return w;
+}
+function insight(x, y, w, s, a = 1, head = 'intuition') {
+  if (a <= 0) return 0;
+  const lines = wrap(s, w - 48, `400 25px ${F.sans}`); const h = 70 + lines.length * 35;
+  ctx.save(); setA(a); ctx.beginPath(); ctx.roundRect(x, y, w, h, 16);
+  ctx.fillStyle = rgba(P.sage, 0.07); ctx.fill(); ctx.strokeStyle = rgba(P.sage, 0.3); ctx.lineWidth = 1.3; ctx.stroke(); ctx.restore();
+  text(head, x + 24, y + 38, { font: F.serif, italic: true, size: 22, color: P.sage, a });
+  lines.forEach((l, i) => text(l, x + 24, y + 76 + i * 35, { size: 25, color: P.stone, a }));
+  return h;
+}
+// a letter tile (data)
+function tile(ch, x, y, s = 64, a = 1, o = {}) {
+  const { col = P.terracotta, glowOn = false, fs = s * 0.58 } = o;
+  if (a <= 0) return;
+  ctx.save(); setA(a);
+  if (glowOn) { ctx.shadowColor = col; ctx.shadowBlur = 18; }
+  ctx.beginPath(); ctx.roundRect(x - s / 2, y - s / 2, s, s, s * 0.18); ctx.fillStyle = rgba(col, 0.12); ctx.fill();
+  ctx.strokeStyle = rgba(col, 0.7); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  text(ch, x, y + fs * 0.36, { font: F.mono, size: fs, color: ch === '.' ? P.dust : P.chalk, align: 'center', a });
+}
+// bar chart over the 27 symbols
+function bars27(p, x, y, w, h, o = {}) {
+  const { a = 1, col = P.ink, hi = -1, hiCol = P.terracotta, labels = true, maxP = null, lab = 16 } = o;
+  const mx = maxP || Math.max(...p); const bw = w / 27;
+  for (let j = 0; j < 27; j++) {
+    const bh = p[j] / mx * h; const isHi = j === hi;
+    setA(a * (isHi ? 0.95 : 0.75)); ctx.fillStyle = isHi ? hiCol : col; ctx.fillRect(x + j * bw + 2, y - bh, bw - 4, bh);
+    if (labels) text(VOC[j], x + j * bw + bw / 2, y + lab + 8, { font: F.mono, size: lab, color: isHi ? hiCol : P.dust, align: 'center', a });
+  }
+  setA(a); line(x, y, x + w, y, P.borderLight, 1.5, a);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Real diffusion models (exported by code/export_ep09_assets.py)
+// ─────────────────────────────────────────────────────────────
+const A = window.EP9, WR = 2.1;
+function b64bytes(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+const MEMO = new Map(); const memo = (k, f) => { if (!MEMO.has(k)) MEMO.set(k, f()); return MEMO.get(k); };
+function square(x0, y0, S, R = WR) { return { X: v => x0 + (v + R) / (2 * R) * S, Y: v => y0 + (R - v) / (2 * R) * S, s: S / (2 * R), x0, y0, S }; }
+function frame(m, a = 1) { setA(a); ctx.fillStyle = P.surface; ctx.fillRect(m.x0, m.y0, m.S, m.S); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.strokeRect(m.x0, m.y0, m.S, m.S); setA(1); }
+function clipTo(m, fn) { ctx.save(); ctx.beginPath(); ctx.rect(m.x0, m.y0, m.S, m.S); ctx.clip(); fn(); ctx.restore(); }
+function marble(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; dot(x, y, r, col, a); dot(x - r * 0.32, y - r * 0.36, r * 0.36, P.chalk, a * 0.5); }
+const abar = t => t < 0 ? 1 : A.abar[Math.min(A.abar.length - 1, Math.round(t / 10))];
+function gaussian(r) { return () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
+const lerpPts = (S, f) => { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); };
+
+// the cold open: 5000 particles × 62 stages, int16
+const TITLE = (() => { const T = A.title, u = b64bytes(T.q), v = new Int16Array(u.buffer); return { n: T.n, S: T.stages, v, ts: T.ts }; })();
+function titlePt(k, f) { const S = TITLE.S - 1, fi = clamp(f, 0, S), i = Math.min(S - 1, Math.floor(fi)), u = fi - i, n = TITLE.n, a = (i * n + k) * 2, b = ((i + 1) * n + k) * 2, s = A.titleScale / 4000;
+  return [lerp(TITLE.v[a], TITLE.v[b], u) * s, lerp(TITLE.v[a + 1], TITLE.v[b + 1], u) * s]; }
+
+// digits: uint8 images in [-1, 1] → 0…255
+const imgs = (b, n) => memo('i' + b, () => { const u = b64bytes(b); return Array.from({ length: n }, (_, i) => u.subarray(i * 784, (i + 1) * 784)); });
+const COLD = hx(P.terracotta);
+function digitCanvas(px, key) { return memo('c' + key, () => { const c = document.createElement('canvas'); c.width = c.height = 28; const g = c.getContext('2d'), im = g.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) { const v = px[i] / 255; im.data[i * 4] = COLD[0] * v + 28 * (1 - v); im.data[i * 4 + 1] = COLD[1] * v + 24 * (1 - v); im.data[i * 4 + 2] = COLD[2] * v + 22 * (1 - v); im.data[i * 4 + 3] = 255; } g.putImageData(im, 0, 0); return c; }); }
+function drawDigit(px, key, x, y, s, a = 1) { if (GA * a <= 0.002) return; setA(a); ctx.imageSmoothingEnabled = false; ctx.drawImage(digitCanvas(px, key), x, y, s, s); ctx.imageSmoothingEnabled = true; setA(1); }
+const DS = A.digits, NDS = DS.x.length - 1;
+const digitAt = (stage, i) => imgs(DS.x[stage], 64)[i];
+// the forward process on one digit, computed here: xₜ = √ᾱ·x₀ + √(1−ᾱ)·ε
+const FWD_EPS = (() => { const g = gaussian(rng(19)); return Float32Array.from({ length: 784 }, g); })();
+function noisyDigit(t) { const x0 = digitAt(NDS, 0), ab = abar(t), out = new Uint8Array(784); for (let i = 0; i < 784; i++) { const v = Math.sqrt(ab) * (x0[i] / 127.5 - 1) + Math.sqrt(1 - ab) * FWD_EPS[i]; out[i] = clamp((v + 1) / 2) * 255; } return out; }
+// the forward process on the 8 blobs, computed here
+const RING0 = A.ring.x[A.ring.x.length - 1], RING_EPS = (() => { const g = gaussian(rng(23)); return RING0.map(() => [g(), g()]); })();
+const ringFwd = t => { const ab = abar(t), a = Math.sqrt(ab), b = Math.sqrt(1 - ab); return RING0.map((p, k) => [a * p[0] + b * RING_EPS[k][0], a * p[1] + b * RING_EPS[k][1]]); };
+// 1-D reverse-step illustration
+const N1 = (x, m, v) => Math.exp(-0.5 * (x - m) ** 2 / v) / Math.sqrt(TAU * v);
+const P1 = y => 0.5 * N1(y, -1.107, 0.2265) + 0.5 * N1(y, 1.107, 0.2265);
+function postr(x, b) { const g = [], n = 240; let s = 0; for (let i = 0; i <= n; i++) { const y = -3 + 6 * i / n, v = N1(x, Math.sqrt(1 - b) * y, b) * P1(y); g.push(v); s += v; } return g.map(v => v / (s * 6 / n)); }
+const pct = v => (v * 100).toFixed(0) + '%';
+// full-frame TV static, re-rolled 24 times a second
+const STATIC = (() => { const c = document.createElement('canvas'); c.width = 320; c.height = 180; return { c, g: c.getContext('2d'), im: c.getContext('2d').createImageData(320, 180), k: -1 }; })();
+function tvStatic(t, a) { if (GA * a <= 0.003) return; const k = Math.floor(t * 24); if (k !== STATIC.k) { STATIC.k = k; const r = rng(k * 7 + 1), d = STATIC.im.data;
+    for (let i = 0; i < d.length; i += 4) { const v = r() * 255; d[i] = v; d[i + 1] = v * 0.93; d[i + 2] = v * 0.88; d[i + 3] = 255; } STATIC.g.putImageData(STATIC.im, 0, 0); }
+  setA(a); ctx.imageSmoothingEnabled = false; ctx.drawImage(STATIC.c, 0, 0, 1920, 1080); ctx.imageSmoothingEnabled = true; setA(1); }
+function shake(t, t0, amp = 10) { if (t < t0 || t > t0 + 0.8) return [0, 0]; const u = (t - t0) / 0.8, d = amp * Math.exp(-5 * u); return [d * Math.sin(u * 60), d * Math.cos(u * 47)]; }
+
+// ─────────────────────────────────────────────────────────────
+//  SCENES
+// ─────────────────────────────────────────────────────────────
+const SC = [];
+
+// 00 — cold open: the title writes itself out of static
+const BANG = 21;
+SC.push({ dur: 36, chapter: 'intro',
+  caps: [[1, 7, 'Five thousand points of pure static. No shape. No meaning.'],
+         [7, 13, 'A small network looks at them and asks one question, again and again: which part of this is noise?'],
+         [13, 19.5, 'It removes a tiny bit, then asks again. A thousand times.'],
+         [27.5, 35.6, 'Everything you just watched, the title included, was drawn by a real diffusion model. Today: how noise becomes a picture.']],
+  draw(t) {
+    const [sx, sy] = shake(t, BANG, 14); ctx.save(); ctx.translate(sx, sy);
+    const f = (TITLE.S - 1) * (t < 9 ? 0 : Math.pow(ease(prog(t, 9, 12)), 0.9)), jit = t < 9 ? 1 : 1 - prog(t, 9, 3), r = rng(Math.floor(t * 24) + 3);
+    const cx = 960, cy = 530, sc = 300, done = clamp((f - (TITLE.S - 8)) / 7), hot = t >= BANG ? Math.exp(-(t - BANG) * 1.2) : 0;
+    const col = mixc(P.rose, P.chalk, done), a0 = eout(prog(t, 0.2, 1.2)), tNow = TITLE.ts[Math.min(TITLE.S - 1, Math.round(f))], nz = Math.sqrt(1 - abar(tNow));
+    tvStatic(t, a0 * 0.10 * nz ** 3 * (t < BANG ? 1 : 0));
+    ctx.fillStyle = col;
+    for (let k = 0; k < TITLE.n; k++) { const [x, y] = titlePt(k, f), jx = jit * (r() - 0.5) * 0.02, jy = jit * (r() - 0.5) * 0.02, X = cx + (x + jx) * sc, Y = cy - (y + jy) * sc;
+      if (X < -10 || X > 1930 || Y < -10 || Y > 1090) continue; setA(a0 * (0.8 + 0.2 * done)); ctx.fillRect(X - 1.5, Y - 1.5, 3, 3); }
+    setA(1);
+    if (hot > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowColor = P.terracotta; ctx.shadowBlur = 40 * hot; ctx.fillStyle = rgba(P.terracotta, 0.5 * hot);
+      for (let k = 0; k < TITLE.n; k += 3) { const [x, y] = titlePt(k, f); ctx.fillRect(cx + x * sc - 1.5, cy - y * sc - 1.5, 3, 3); } ctx.restore();
+      ring(cx, cy, 200 + (t - BANG) * 1400, P.chalk, hot * 0.35, 3); }
+    ctx.restore();
+    const a = eout(prog(t, BANG + 0.6, 1.2));
+    text('EPISODE 09', 960, 330, { font: F.serif, italic: true, size: 26, color: P.terracotta, align: 'center', a, ls: 4 });
+    text('noise, run backwards', 960, 760, { size: 36, color: P.stone, align: 'center', a: eout(prog(t, BANG + 1.4, 1.2)) });
+    const tg = [[P.terracotta, 'x₀  data'], [P.rose, 'ε  noise'], [P.amber, 't  step · ᾱ signal left'], [P.plum, 'εθ  the network'], [P.sage, 'x̂₀  its guess']];
+    ctx.font = `400 21px ${F.mono}`; const tw = tg.reduce((acc, [, s]) => acc + ctx.measureText(s).width + 21 * 2.1 + 14, -14);
+    let tx = 960 - tw / 2; tg.forEach(([c, s], i) => { tx += tag(tx, 830, c, s, eout(prog(t, 23.5 + i * 0.3, 0.6)), 21) + 14; });
+  } });
+
+// 01 — destroy slowly: the forward process
+const tF1 = t => 999 * ease(prog(t, 2, 20));
+SC.push({ dur: 56, chapter: 'forward', title: 'Destroy it slowly', sub: 'The forward process: a thousand pinches of noise.',
+  caps: [[1, 8, 'First, the easy direction: destroying data. Take the eight blobs and add a pinch of Gaussian noise. Then another. A thousand times.'],
+         [8, 16, 'Each step shrinks every point a tiny bit toward the centre and adds a small kick: xₜ = √(1 − βₜ)·xₜ₋₁ + √βₜ·ε.'],
+         [16, 24, 'Why shrink? Episode 8’s balance again: shrinking removes variance, the kick adds it back, and the cloud settles at exactly N(0, I). Static with a known shape.'],
+         [24, 32, 'Gaussians add up: a thousand small kicks make one big kick. So we can jump straight to any step: xₜ = √ᾱₜ·x₀ + √(1 − ᾱₜ)·ε.'],
+         [32, 40, 'ᾱₜ is how much of the original signal survives. It starts at 1 and slides down to almost 0.'],
+         [40, 48, 'The same on a digit: a little noise, then more, and by step 1000 nothing of it is left.'],
+         [48, 55.6, 'No learning so far. This direction is fixed and free. All the magic is in going back.']],
+  draw(t) {
+    const m = square(110, 250, 560), a0 = eout(prog(t, 0.6, 0.8)), tt = tF1(t); frame(m, a0);
+    clipTo(m, () => ringFwd(tt).forEach(p => marble(m.X(p[0]), m.Y(p[1]), 2.6, mixc(P.terracotta, P.rose, clamp(1 - abar(tt))), a0)));
+    text(`step t = ${Math.round(tt)}   ·   ᾱₜ = ${abar(tt).toFixed(3)}`, 110, 850, { font: F.mono, size: 20, color: P.chalk, a: a0 });
+    // ᾱ curve
+    const ca = eout(prog(t, 32, 0.8)); if (ca > 0) { const x0 = 110, y0 = 930, w = 560, h = 50; line(x0, y0, x0 + w, y0, P.border, 1, ca);
+      setA(ca); ctx.strokeStyle = P.amber; ctx.lineWidth = 2.5; ctx.beginPath(); A.abar.forEach((v, i) => { const X = x0 + i / (A.abar.length - 1) * w, Y = y0 - v * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke(); setA(1);
+      dot(x0 + tt / 999 * w, y0 - abar(tt) * h, 5, P.amber, ca); text('ᾱₜ: signal left', x0 + w, y0 - h + 4, { font: F.mono, size: 14, color: P.amber, align: 'right', a: ca }); }
+    const c1 = eout(prog(t, 8, 0.8)); card(730, 250, 1100, 150, P.rose, c1); label('one step', 764, 296, c1, P.rose);
+    M('[d|x][d_|t] = √(1 − [a|β][a_|t])·[d|x][d_|t−1] + √[a|β][a_|t]·[n|ε]        [a|β][a_|t]: 0.0001 → 0.02', 764, 356, 26, { a: c1 });
+    const c2 = eout(prog(t, 16, 0.8)); card(730, 420, 1100, 150, P.sage, c2); label('why shrink', 764, 466, c2, P.sage);
+    M('Var[t_|t] = (1 − [a|β])·Var[t_|t−1] + [a|β]   →   1          (episode 8’s balance)', 764, 526, 26, { a: c2 });
+    const c3 = eout(prog(t, 24, 0.8)); card(730, 590, 1100, 170, P.amber, c3); label('jump to any step', 764, 636, c3, P.amber);
+    M('[d|x][d_|t] = √[a|ᾱ][a_|t]·[d|x₀] + √(1 − [a|ᾱ][a_|t])·[n|ε]        [a|ᾱ][a_|t] = Π(1 − [a|β][a_|s])', 764, 700, 28, { a: c3 });
+    const da = eout(prog(t, 40, 0.8)); if (da > 0) { card(730, 780, 1100, 150, P.terracotta, da);
+      [0, 100, 250, 400, 600, 999].forEach((ts, i) => { const x = 770 + i * 172; drawDigit(noisyDigit(ts), 'f' + ts, x, 796, 100, da * eout(prog(t, 40.3 + i * 0.3, 0.4))); text(`t = ${ts}`, x + 50, 916, { font: F.mono, size: 13, color: P.dust, align: 'center', a: da }); }); }
+  } });
+
+// 02 — undo one small step
+SC.push({ dur: 52, chapter: 'reverse', title: 'Undo one small step', sub: 'Tiny steps are easy to reverse. Giant ones aren’t.',
+  caps: [[1, 8, 'Going back: given a noisy point xₜ, where was it one step earlier? Look at one step in one dimension.'],
+         [8, 16, 'Because the step is tiny, the answer is a narrow bell curve, nudged slightly toward where the data is. Easy to describe.'],
+         [16, 24, 'Take one giant step instead and the answer splits into two possibilities. No single bell curve fits. That is why diffusion takes many small steps.'],
+         [24, 32, 'And the nudge? It points toward more likely x: it is the score from episode 8.'],
+         [32, 40, 'So every reverse step is a small Langevin-style move: follow the arrows a little, then add a little fresh noise.'],
+         [40, 51.6, 'All we need is the score at every noise level. And we already know how to learn that: predict the noise.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), xt = 0.35 + 0.25 * Math.sin(t * 0.25);
+    [[8, 0.02, 'one tiny step  (β = 0.02)', P.sage], [16, 0.6, 'one giant step  (β = 0.6)', P.rose]].forEach(([t0, b, nm, col], r) => {
+      const a = a0 * eout(prog(t, r ? t0 : 1, 0.8)), X0 = 130 + r * 870, X1 = X0 + 760, X = y => X0 + (y + 3) / 6 * (X1 - X0), base = 700, Y = v => base - v * 240;
+      if (a <= 0) return;
+      line(X0, base, X1, base, P.borderLight, 1.5, a); setA(a * 0.15); ctx.fillStyle = P.ink; ctx.beginPath(); ctx.moveTo(X(-3), base); for (let i = 0; i <= 240; i++) { const y = -3 + 6 * i / 240; ctx.lineTo(X(y), Y(P1(y))); } ctx.lineTo(X(3), base); ctx.fill(); setA(1);
+      setA(a); ctx.strokeStyle = P.ink; ctx.lineWidth = 2.5; ctx.beginPath(); for (let i = 0; i <= 240; i++) { const y = -3 + 6 * i / 240; i ? ctx.lineTo(X(y), Y(P1(y))) : ctx.moveTo(X(y), Y(P1(y))); } ctx.stroke(); setA(1);
+      const po = postr(xt, b), pm = Math.max(...po), sc = Math.min(1, 1.6 / pm);
+      setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.beginPath(); po.forEach((v, i) => { const y = -3 + 6 * i / 240; i ? ctx.lineTo(X(y), Y(v * sc * 0.55)) : ctx.moveTo(X(y), Y(v * sc * 0.55)); }); ctx.stroke(); setA(1);
+      line(X(xt), base + 10, X(xt), 380, P.amber, 2, a, [4, 5]); marble(X(xt), base + 18, 8, P.amber, a); text('xₜ', X(xt), base + 52, { font: F.mono, size: 18, color: P.amber, align: 'center', a });
+      text(nm, X0, 360, { font: F.mono, size: 20, color: col, a }); text('ink: data one step earlier · colour: where xₜ came from', X0, 750 + 40, { font: F.mono, size: 14, color: P.dust, a });
+      if (t > (r ? 18 : 10)) text(r ? '✗ two separate answers' : '✓ one narrow bell', X1, 360, { font: F.mono, size: 18, color: col, align: 'right', a: a * eout(prog(t, r ? 18 : 10, 0.6)) });
+    });
+    const c1 = eout(prog(t, 24, 0.8)); card(130, 840, 1700, 100, P.sage, c1);
+    M('[d|x][d_|t−1] ≈ ( [d|x][d_|t] + [a|β][a_|t]·[s|s]([d|x][d_|t]) ) / √(1 − [a|β][a_|t]) + √[a|β][a_|t]·[n|z]      follow the arrows a little, add a little noise', 164, 902, 24, { a: c1 });
+  } });
+
+// 03 — training: one regression, a thousand noise levels
+const TRAIN_T = [612, 244, 874, 403, 96, 733];
+SC.push({ dur: 54, chapter: 'training', title: 'One regression, a thousand noise levels', sub: 'Predict the noise. That’s the whole training loop.',
+  caps: [[1, 8, 'Training is almost embarrassingly simple. Take a real image x₀. Pick a random step t, which means a random amount of noise.'],
+         [8, 16, 'Draw fresh noise ε and jump straight to xₜ = √ᾱₜ·x₀ + √(1 − ᾱₜ)·ε. One line, no loop.'],
+         [16, 24, 'Show the network xₜ and t, and ask it to predict ε: the noise that was added. The loss is ‖ε − εθ(xₜ, t)‖².'],
+         [24, 32, 'That is episode 8’s denoising score matching, with one network for all thousand noise levels. The predicted noise is the score, rescaled: εθ = −√(1 − ᾱₜ)·sθ.'],
+         [32, 40, 'Knowing the noise means knowing the clean image: x̂₀ = (xₜ − √(1 − ᾱₜ)·εθ)/√ᾱₜ. A denoiser, exactly as Tweedie promised.'],
+         [40, 47, 'The network here: two hidden layers of 1,024, with t fed into each, trained 30,000 steps on MNIST. It outputs its guess x̂₀ and reads the noise off it: the same thing, rearranged.'],
+         [47, 53.6, 'Ho, Jain and Abbeel, 2020: “Denoising Diffusion Probabilistic Models”. This one loss is why they work.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), cyc = Math.floor(clamp(t - 1, 0, 60) / 7) % TRAIN_T.length, tt = TRAIN_T[cyc], u = ((t - 1) % 7) / 7;
+    const x0 = digitAt(NDS, cyc % 8), ab = abar(tt), eps = FWD_EPS;
+    const xt = memo('xt' + cyc, () => { const o = new Uint8Array(784); for (let i = 0; i < 784; i++) o[i] = clamp(((Math.sqrt(ab) * (x0[i] / 127.5 - 1) + Math.sqrt(1 - ab) * eps[i]) + 1) / 2) * 255; return o; });
+    const epsImg = memo('eps', () => Uint8Array.from(eps, v => clamp((v / 2.5 + 1) / 2) * 255));
+    const cols = [[x0, 'x₀  a real image', P.terracotta, 1], [epsImg, 'ε  fresh noise', P.rose, 8], [xt, `xₜ  (t = ${tt})`, P.amber, 8], [epsImg, 'εθ(xₜ, t)  predicted noise', P.plum, 16]];
+    cols.forEach(([img, nm, col, t0], i) => { const x = 130 + i * 300, a = a0 * eout(prog(t, t0, 0.6)); drawDigit(img, `tr${i}${cyc}`, x, 290, 220, a); text(nm, x, 550, { font: F.mono, size: 16, color: col, a }); });
+    const ops = [['+', 8], ['→', 8], ['≈', 16]]; ops.forEach(([s, t0], i) => text(s, 380 + i * 300 + 1, 410, { font: F.mono, size: 40, color: P.dust, align: 'center', a: a0 * eout(prog(t, t0, 0.6)) }));
+    const da = eout(prog(t, 3, 0.6)); if (da > 0) { const X = 1360, Y = 400, R = 90; ring(X, Y, R, P.border, da, 3); const ang = -Math.PI / 2 + TAU * (tt / 1000) * ease(clamp(u * 3)); line(X, Y, X + R * Math.cos(ang), Y + R * Math.sin(ang), P.amber, 4, da); dot(X, Y, 6, P.amber, da);
+      text(`t = ${tt}`, X, Y + R + 40, { font: F.mono, size: 22, color: P.amber, align: 'center', a: da }); text(`ᾱ = ${ab.toFixed(2)}`, X, Y + R + 70, { font: F.mono, size: 16, color: P.dust, align: 'center', a: da }); }
+    const c1 = eout(prog(t, 16, 0.8)); card(130, 600, 1220, 110, P.plum, c1); M('loss = ‖ [n|ε] − [m|ε][m_|θ]( √[a|ᾱ][a_|t]·[d|x₀] + √(1 − [a|ᾱ][a_|t])·[n|ε],  [a|t] ) ‖²', 164, 668, 28, { a: c1 });
+    const c2 = eout(prog(t, 24, 0.8)); card(130, 730, 1220, 90, P.sage, c2); M('[m|ε][m_|θ] = −√(1 − [a|ᾱ][a_|t])·[s|s][s_|θ]         (episode 8: “the network predicts the noise”)', 164, 786, 24, { a: c2 });
+    const c3 = eout(prog(t, 32, 0.8)); card(130, 840, 1220, 90, P.ink, c3); M('[s|x̂₀] = ( [d|x][d_|t] − √(1 − [a|ᾱ][a_|t])·[m|ε][m_|θ] ) / √[a|ᾱ][a_|t]        a denoiser', 164, 896, 24, { a: c3 });
+    const ha = eout(prog(t, 40, 0.8)); if (ha > 0) { const H = A.hist, x0p = 1420, y0 = 900, w = 400, h = 200, lo = Math.min(...H), hi = Math.max(...H.slice(3));
+      card(1390, 600, 440, 330, P.amber, ha); text('training loss (real run)', x0p, 640, { font: F.mono, size: 15, color: P.dust, a: ha });
+      setA(ha); ctx.strokeStyle = P.plum; ctx.lineWidth = 2.5; ctx.beginPath(); H.forEach((v, i) => { const X = x0p + i / (H.length - 1) * w, Y = y0 - clamp((v - lo) / (hi - lo)) * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke(); setA(1); }
+  } });
+
+// 04 — running it backwards (2-D)
+const RX = A.ring.x, RX0 = A.ring.x0, NR = RX.length - 1, fR = t => NR * ease(prog(t, 4, 38));
+SC.push({ dur: 52, chapter: 'sampling', title: 'Running it backwards', sub: 'Predict the noise, remove a little, add a little back.',
+  caps: [[1, 8, 'Now run it backwards. Start from pure static: 600 points drawn from N(0, I).'],
+         [8, 16, 'At each step: predict the noise, remove a little of it, rescale, and add a little fresh noise back.'],
+         [16, 24, 'The fresh noise keeps it a sampler, not a single-answer denoiser. Without it, every point would slide to the same average.'],
+         [24, 32, 'Right: the network’s guess of the finished picture, x̂₀, at every step. Early on, the best guess is the average of everything: a blur at the centre.'],
+         [32, 40, 'As the noise falls, the guesses commit: first to a region, then to a blob, then to a precise spot.'],
+         [40, 47, 'Coarse first, fine last: the same country–city–street order as annealed Langevin. This is annealed Langevin, done carefully.'],
+         [47, 51.6, 'Now let’s point it at something much harder.']],
+  draw(t) {
+    const L = square(110, 250, 600), Rm = square(760, 250, 600), a0 = eout(prog(t, 0.6, 0.8)), f = fR(t), i = Math.min(NR, Math.round(f)), tt = A.ring.ts[Math.min(NR, Math.floor(f))];
+    frame(L, a0); clipTo(L, () => lerpPts(RX, f).forEach(p => marble(L.X(p[0]), L.Y(p[1]), 2.8, mixc(P.rose, P.terracotta, f / NR), a0)));
+    text(`xₜ   ·   t = ${tt < 0 ? 0 : tt}`, 110, 885, { font: F.mono, size: 20, color: P.chalk, a: a0 });
+    const ra = eout(prog(t, 24, 1)); frame(Rm, ra); clipTo(Rm, () => lerpPts(RX0, f).forEach(p => dot(Rm.X(p[0]), Rm.Y(p[1]), 2.4, P.sage, ra * 0.8)));
+    text('x̂₀: the network’s current guess', 760, 885, { font: F.mono, size: 20, color: P.sage, a: ra });
+    const c1 = eout(prog(t, 8, 0.8)); card(1400, 250, 430, 360, P.plum, c1); label('one reverse step', 1428, 296, c1, P.plum);
+    M('[d|x][d_|t−1] =', 1428, 352, 22, { a: c1 }); M('  ( [d|x][d_|t] − [a|β][a_|t]/√(1−[a|ᾱ][a_|t])·[m|ε][m_|θ] )', 1428, 392, 20, { a: c1 }); M('  / √(1 − [a|β][a_|t])', 1428, 428, 20, { a: c1 }); M('  + [a|σ][a_|t]·[n|z]', 1428, 468, 22, { a: eout(prog(t, 16, 0.8)) });
+    text('remove a little noise · add a little back', 1428, 520, { font: F.mono, size: 14, color: P.dust, a: c1 }); text(`1000 steps`, 1428, 570, { font: F.mono, size: 18, color: P.amber, a: c1 });
+    const c2 = eout(prog(t, 40, 0.8)); if (c2 > 0) { card(1400, 640, 430, 250, P.amber, c2); text('country', 1428, 710, { font: F.serif, italic: true, size: 34, color: P.amber, a: c2 }); text('→ city', 1500, 770, { font: F.serif, italic: true, size: 34, color: P.amber, a: eout(prog(t, 41, 0.6)) }); text('→ street', 1560, 830, { font: F.serif, italic: true, size: 34, color: P.amber, a: eout(prog(t, 42, 0.6)) }); }
+  } });
+
+// 05 — the wow: 64 digits from static
+const fD = t => NDS * Math.pow(ease(prog(t, 4, 16)), 0.85);
+SC.push({ dur: 50, chapter: 'digits', title: 'Sixty-four digits from nothing', sub: 'The same recipe, now in 784 dimensions.',
+  caps: [[1, 8, 'Sixty-four images of pure static. Same network, same recipe, now in 784 dimensions.'],
+         [8, 19, 'A thousand steps. Watch.'],
+         [20, 28, 'Sixty-four handwritten digits, from nothing but noise and a network that learned to remove it.'],
+         [28, 36, 'Here is what the network believes at each step, x̂₀, for the first eight. At first, a ghostly average of all digits.'],
+         [36, 43, 'Then it commits to which digit, surprisingly early. The strokes, the thickness, the little details come last.'],
+         [43, 49.6, 'Composition first, detail last. That order is a big part of why diffusion images look so coherent.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), f = fD(t), i = Math.min(NDS - 1, Math.floor(f)), u = f - i, done = t > 20.2;
+    const gx = t < 27 ? 614 : 110, gy = 250, cell = t < 27 ? 82 : 76, pad = 4, ga = a0 * (t < 27 ? 1 : 1);
+    for (let k = 0; k < 64; k++) { const x = gx + (k % 8) * (cell + pad), y = gy + Math.floor(k / 8) * (cell + pad);
+      drawDigit(digitAt(i, k), `d${i}_${k}`, x, y, cell, ga * (1 - u)); if (u > 0) drawDigit(digitAt(i + 1, k), `d${i + 1}_${k}`, x, y, cell, ga * u); }
+    const tt = A.digits.ts[Math.min(NDS, Math.round(f))]; text(t < 21 ? `t = ${tt < 0 ? 0 : tt}` : 'done: 1,000 steps each', t < 27 ? gx - 24 : gx, t < 27 ? 280 : 250 + 8 * (cell + pad) + 30, { font: F.mono, size: 20, color: P.amber, align: t < 27 ? 'right' : 'left', a: a0 });
+    const ga2 = t > 20.2 ? Math.exp(-(t - 20.2) * 1.5) : 0; if (ga2 > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; setA(ga2 * 0.35); ctx.fillStyle = P.terracotta; ctx.fillRect(gx - 10, gy - 10, 8 * (cell + pad) + 16, 8 * (cell + pad) + 16); ctx.restore(); setA(1); }
+    // watch it think: x̂₀ over time for eight digits
+    const wa = eout(prog(t, 28, 1));
+    if (wa > 0) { const cols = [0, 5, 10, 15, 20, 25, 29, NDS], x0 = 780, y0 = 280, c = 118;
+      text('x̂₀ at step →', x0, 262, { font: F.mono, size: 15, color: P.sage, a: wa });
+      cols.forEach((s, j) => { const ts = A.digits.ts[s]; text(ts < 0 ? 'final' : `${ts}`, x0 + j * (c + 12) + c / 2, y0 + 8 * 0 - 0, { font: F.mono, size: 13, color: P.dust, align: 'center', a: wa }); });
+      for (let r = 0; r < 5; r++) cols.forEach((s, j) => { const im = imgs(DS.x0[s], 8)[r]; drawDigit(im, `x0${s}_${r}`, x0 + j * (c + 12), y0 + 14 + r * (c + 10), c, wa * eout(prog(t, 28.3 + j * 0.25 + r * 0.1, 0.5))); }); }
+  } });
+
+// 06 — why it works: a VAE with a thousand layers
+const CHAIN = [NDS, 26, 20, 14, 8, 0];
+SC.push({ dur: 48, chapter: 'why it works', title: 'A VAE with a thousand layers', sub: 'Why such a simple loss is maximum likelihood in disguise.',
+  caps: [[1, 8, 'Why does such a simple loss work? Remember episode 3’s VAE: an encoder squeezes x into a latent z, a decoder rebuilds it, and the ELBO keeps it honest.'],
+         [8, 16, 'Diffusion is a VAE with a thousand latent layers. The encoder is the fixed noising process: nothing to learn.'],
+         [16, 24, 'The last layer, x₁₀₀₀, is exactly N(0, I) by construction. The VAE’s leash comes for free.'],
+         [24, 32, 'Write out the ELBO and it splits into one term per step: how well does the learned reverse step match the true one, given x₀?'],
+         [32, 40, 'Both are Gaussians of the same width, so each term is just a squared distance between their centres, which works out to ‖ε − εθ‖².'],
+         [40, 47.6, 'Drop the per-step weights and you get the simple loss. A bound on maximum likelihood once again, split into a thousand easy pieces.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), y = 420, c = 150;
+    CHAIN.forEach((s, j) => { const x = 150 + j * 290, a = a0 * eout(prog(t, 1 + j * 0.3, 0.5)); drawDigit(digitAt(s, 3), `ch${s}`, x, y - c / 2, c, a);
+      const ts = A.digits.ts[s]; text(j === 0 ? 'x₀' : j === CHAIN.length - 1 ? 'x₁₀₀₀ ~ N(0, I)' : 'x' + String(ts).replace(/\d/g, d => '₀₁₂₃₄₅₆₇₈₉'[d]), x + c / 2, y + c / 2 + 34, { font: F.mono, size: 18, color: j === CHAIN.length - 1 ? P.rose : P.terracotta, align: 'center', a });
+      if (j < CHAIN.length - 1) { const fa = a0 * eout(prog(t, 8, 0.8)), ba = a0 * eout(prog(t, 10, 0.8)), xa = x + c + 16, xb = x + 290 - 16;
+        arrow(xa, y - 40, xb, y - 40, P.rose, 2.5, fa); arrow(xb, y + 40, xa, y + 40, P.sage, 2.5, ba); } });
+    text('q: add noise (fixed, the “encoder”)', 960, 300, { font: F.mono, size: 20, color: P.rose, align: 'center', a: a0 * eout(prog(t, 8, 0.8)) });
+    text('pθ: remove noise (learned, the “decoder”)', 960, 590, { font: F.mono, size: 20, color: P.sage, align: 'center', a: a0 * eout(prog(t, 10, 0.8)) });
+    const c1 = eout(prog(t, 24, 0.8)); card(150, 650, 1620, 270, P.plum, c1); label('the elbo, one term per step', 184, 696, c1, P.plum);
+    M('−log [p|p]([d|x₀]) ≤ [kB|Σ][k_|t] KL( q([d|x][d_|t−1] | [d|x][d_|t], [d|x₀])  ‖  [s|p][s_|θ]([d|x][d_|t−1] | [d|x][d_|t]) ) + …', 184, 766, 26, { a: c1 });
+    M('   = [kB|Σ][k_|t] w[t_|t] · ‖ [n|ε] − [m|ε][m_|θ]([d|x][d_|t], t) ‖² + const          (two Gaussians, same width)', 184, 830, 26, { a: eout(prog(t, 32, 0.8)) });
+    M('   set w[t_|t] = 1  →  the simple loss', 184, 890, 26, { a: eout(prog(t, 40, 0.8)) });
+  } });
+
+// 07 — fewer steps: DDIM
+SC.push({ dur: 50, chapter: 'fewer steps', title: 'Fewer steps: DDIM', sub: 'Jump between noise levels using the network’s own guess.',
+  caps: [[1, 8, 'A thousand network calls per image is slow. Can we take bigger steps?'],
+         [8, 16, 'DDIM, 2021: use the network’s guess x̂₀ to jump directly between any two noise levels, with no fresh noise at all.'],
+         [16, 24, 'Same network, no retraining. 1,000 steps, 100, 20: the quality holds up surprisingly well. At 5 steps it starts to crack.'],
+         [24, 32, 'Without fresh noise, sampling is deterministic: each noise image maps to exactly one digit. The noise has become a latent code, like the VAE’s z.'],
+         [32, 40, 'So slide smoothly between two noise images, and the digit morphs smoothly from one to another.'],
+         [40, 49.6, 'Big steps work because the path from noise to data is smooth. But it isn’t straight. Hold that thought.']],
+  draw(t) {
+    const a0 = eout(prog(t, 0.6, 0.8)), fade = 1 - ease(prog(t, 23.5, 1));
+    const c1 = eout(prog(t, 8, 0.8)) * fade; card(110, 250, 1720, 110, P.sage, c1); M('[d|x][d_|s] = √[a|ᾱ][a_|s]·[s|x̂₀] + √(1 − [a|ᾱ][a_|s])·[m|ε][m_|θ]([d|x][d_|t], t)        any s < t, no fresh noise', 144, 318, 28, { a: c1 });
+    if (fade > 0) [['1000', 'DDPM · 1000 steps', 1], ['100', 'DDIM · 100', 16], ['20', 'DDIM · 20', 18], ['5', 'DDIM · 5', 20]].forEach(([k, nm, t0], j) => {
+      const a = a0 * fade * eout(prog(t, t0, 0.6)), x0 = 110 + j * 440; if (a <= 0) return; const ims = imgs(A.stepsCmp[k], 16);
+      for (let q = 0; q < 16; q++) drawDigit(ims[q], `sc${k}_${q}`, x0 + (q % 4) * 98, 400 + Math.floor(q / 4) * 98, 94, a); text(nm, x0, 810, { font: F.mono, size: 20, color: j ? P.sage : P.chalk, a }); });
+    const ia = eout(prog(t, 24, 1));
+    if (ia > 0) { const ims = imgs(A.interp, 16), w = 104;
+      text('slide between two noise images → the digit slides too', 110, 300, { font: F.mono, size: 20, color: P.amber, a: ia });
+      for (let q = 0; q < 16; q++) drawDigit(ims[q], `ip${q}`, 110 + q * (w + 4), 340, w, ia * eout(prog(t, 24.5 + q * 0.12, 0.4)));
+      const u = 0.5 + 0.5 * Math.sin((t - 32) * 0.9), qi = clamp(Math.round(u * 15), 0, 15);
+      if (t > 32) { drawDigit(ims[qi], `ip${qi}`, 760, 500, 380, ia * eout(prog(t, 32, 0.8))); text(`noise mix ${(u * 100).toFixed(0)}%`, 950, 920, { font: F.mono, size: 18, color: P.amber, align: 'center', a: ia * eout(prog(t, 32, 0.8)) }); } }
+  } });
+
+// 08 — in the wild
+SC.push({ dur: 44, chapter: 'in the wild', title: 'Diffusion, everywhere', sub: 'From digits to the images, video and molecules of today.',
+  caps: [[1, 9, 'Scale this recipe up and you get the image generators of 2022: DALL·E 2, Imagen, Stable Diffusion.'],
+         [9, 18, 'Stable Diffusion runs diffusion not on pixels but in the latent space of an autoencoder, 48 times smaller: episode 3’s idea, back for the big stage.'],
+         [18, 27, 'Condition the noise predictor on a caption and it draws what you ask for. How that steering works is episode 11.'],
+         [27, 36, 'The same recipe generates video, audio, weather forecasts, and new protein structures that have been made in the lab.'],
+         [36, 43.6, 'All of it: add noise, learn to predict it, and run the process backwards.']],
+  draw(t) {
+    const cards = [[1, 'images · 2022', P.terracotta, 'DALL·E 2 · Imagen · Stable Diffusion', 'text-to-image at photographic quality'],
+      [9, 'latent diffusion', P.plum, 'diffuse in a VAE’s latent space', '512×512×3 → 64×64×4: 48× fewer numbers'],
+      [18, 'conditioning', P.amber, 'εθ(xₜ, t, caption)', 'steering with text: episode 11'],
+      [27, 'beyond images', P.sage, 'video · audio · weather · proteins', 'e.g. RFdiffusion designs protein binders']];
+    cards.forEach(([t0, h, c, m1, s], i) => { const a = eout(prog(t, t0, 0.8)), x = 100 + (i % 2) * 880, y = 260 + Math.floor(i / 2) * 330;
+      card(x, y, 840, 300, c, a); label(h, x + 32, y + 46, a, c); text(m1, x + 32, y + 140, { font: F.mono, size: 26, color: P.chalk, a }); para(s, x + 32, y + 206, 780, { size: 24, a: a * eout(prog(t, t0 + 1, 0.8)) }); });
+  } });
+
+// 09 — build it
+const CODE = [
+  '[k|# the forward process: jump to any step in one line]',
+  'betas = np.linspace([a|1e-4], [a|0.02], [a|1000]);  abar = np.cumprod([a|1] - betas)',
+  '',
+  '[k|# training: predict the noise]',
+  '[m|for] step [m|in] [p|range]([a|30000]):',
+  '    x0 = [d|batch]([a|128]);  t = randint([a|0], [a|1000], [a|128]);  eps = randn(*x0.shape)',
+  '    xt = sqrt(abar[t])[:, [m|None]]*x0 + sqrt([a|1]-abar[t])[:, [m|None]]*eps',
+  '    loss = ((net(xt, t) - eps)**[a|2]).mean();  net.[p|backward]();  net.[p|step]()',
+  '',
+  '[k|# sampling: run it backwards]',
+  'x = randn(n, [a|784])',
+  '[m|for] t [m|in] [p|range]([a|999], -[a|1], -[a|1]):',
+  '    e = net(x, t)',
+  '    x = (x - betas[t]/sqrt([a|1]-abar[t])*e) / sqrt([a|1]-betas[t])',
+  '    [m|if] t > [a|0]: x += sqrt(betas[t]*([a|1]-abar[t-[a|1]])/([a|1]-abar[t])) * randn(n, [a|784])',
+];
+SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'The forward process, training and sampling, in fifteen lines.',
+  caps: [[1, 9, 'The whole method fits on a screen: a noise schedule, a regression onto the noise, and a loop that runs it backwards. The full code, with hand-written backprop, is linked below.'],
+         [9, 18, 'Train it on the eight blobs in a minute, or on MNIST in about fifteen minutes. Then swap the sampler for DDIM and count how few steps you need.'],
+         [18, 31.6, 'Recap: destroy data slowly with Gaussian noise; learn to predict that noise at every level; run the chain backwards from static.']],
+  draw(t) {
+    const a = eout(prog(t, 0.6, 0.8)); card(100, 240, 1100, 690, P.plum, a);
+    CODE.forEach((l, i) => { if (l) M(l, 136, 296 + i * 40, 18, { a: a * eout(prog(t, 0.8 + i * 0.12, 0.4)) }); });
+    const ra = eout(prog(t, 18, 0.8)); card(1240, 240, 580, 690, P.sage, ra); label('the whole episode', 1276, 290, ra, P.sage);
+    [['forward (fixed)', '[d|x]_t = √[a|ᾱ]·[d|x₀] + √(1−[a|ᾱ])·[n|ε]'], ['training', '‖[n|ε] − [m|εθ]([d|x]_t, t)‖²'], ['a denoiser', '[s|x̂₀] = ([d|x]_t − √(1−[a|ᾱ])[m|εθ])/√[a|ᾱ]'], ['sampling', '1000 small steps, or DDIM: 20–100'], ['why', 'a VAE with 1000 layers (ELBO)']].forEach(([nm, m], i) => {
+      const ai = eout(prog(t, 18.5 + i * 1.6, 0.8)); text(nm, 1276, 370 + i * 112, { font: F.serif, italic: true, size: 24, color: P.dust, a: ai }); M(m, 1276, 412 + i * 112, 20, { a: ai }); });
+  } });
+
+// 10 — hook → flow matching
+const PATHS = A.ring.paths, NP = PATHS.length - 1;
+SC.push({ dur: 48, chapter: 'next', title: 'Curved roads', sub: 'Why so many steps?',
+  caps: [[1, 8, 'Look at the roads the particles took from noise to data. Each one bends and curves as the network steers it.'],
+         [8, 16, 'Curved roads are why we need many small steps: take one big step along a curve and you fly off it.'],
+         [16, 24, 'Now imagine a straight line from each noise point to its data point. One big step would get you there.'],
+         [24, 32, 'What if we trained a network not to predict noise, but to push points along straight lines: a velocity field?'],
+         [32, 39, 'Continuous flows from episode 6, diffusion from today, and straight roads all meet in one idea.'],
+         [39, 47.6, 'Next episode: flow matching. The straight way from noise to data.']],
+  draw(t) {
+    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const m = square(110, 250, 640, 2.4), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const grow = NP * ease(prog(t, 1, 7));
+    clipTo(m, () => PATHS[0].forEach((_, k) => { if (k % 2) return; setA(a0 * 0.75); ctx.strokeStyle = mixc(P.rose, P.terracotta, 0.5); ctx.lineWidth = 1.4; ctx.beginPath();
+      for (let s = 0; s <= Math.min(NP, grow); s++) { const p = PATHS[s][k]; s ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1);
+      const e = PATHS[Math.min(NP, Math.floor(grow))][k]; dot(m.X(e[0]), m.Y(e[1]), 2.6, P.terracotta, a0);
+      const sa = eout(prog(t, 16, 1)); if (sa > 0) { const p0 = PATHS[0][k], p1 = PATHS[NP][k]; line(m.X(p0[0]), m.Y(p0[1]), m.X(p0[0] + (p1[0] - p0[0]) * sa), m.Y(p0[1] + (p1[1] - p0[1]) * sa), P.sage, 1.6, sa * 0.9, [5, 4]); } }));
+    text('rose: the roads DDIM took · sage dashed: straight lines', 110, 925, { font: F.mono, size: 16, color: P.dust, a: a0 });
+    const c1 = eout(prog(t, 8, 0.8)); card(830, 250, 1000, 170, P.rose, c1); label('curved roads', 864, 296, c1, P.rose); para('A big step along a curve flies off it, so we take many small steps.', 864, 350, 920, { size: 26, a: c1 });
+    const c2 = eout(prog(t, 16, 0.8)); card(830, 440, 1000, 190, P.sage, c2); label('straight roads', 864, 486, c2, P.sage);
+    M('[d|x][d_|t] = (1 − t)·[n|noise] + t·[d|data]       velocity: [d|data] − [n|noise]', 864, 550, 26, { a: c2 }); text('one big step would do', 864, 600, { font: F.mono, size: 16, color: P.dust, a: c2 });
+    const c3 = eout(prog(t, 24, 0.8)); card(830, 650, 1000, 150, P.plum, c3); text('learn the velocity field instead of the noise?', 864, 738, { font: F.serif, italic: true, size: 32, color: P.chalk, a: c3 });
+    GA = 1;
+    const qa = eout(prog(t, 38.5, 1.2));
+    if (qa > 0) {
+      text('Straight lines.', 960, 440, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: qa });
+      text('Fewer steps.', 960, 530, { font: F.serif, size: 76, color: P.chalk, align: 'center', a: eout(prog(t, 39.3, 1.2)) });
+      text('NEXT  ·  EPISODE 10', 960, 640, { font: F.mono, size: 22, color: P.terracotta, align: 'center', a: eout(prog(t, 40.5, 1)), ls: 4 });
+      text('Flow matching — the straight way from noise to data', 960, 695, { font: F.serif, italic: true, size: 42, color: P.stone, align: 'center', a: eout(prog(t, 41, 1)) });
+    }
+  } });
+
+// ─────────────────────────────────────────────────────────────
+//  Timeline, chrome, grain, player
+// ─────────────────────────────────────────────────────────────
+let acc = 0; SC.forEach(s => { s.start = acc; acc += s.dur; });
+const DURATION = acc;
+const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); const img = g.createImageData(256, 256); const r = rng(1234);
+  for (let i = 0; i < 256 * 256; i++) { const v = Math.floor(r() * 255); img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; } g.putImageData(img, 0, 0); return c; })();
+let GRAIN_PAT = null, VIGNETTE = null;
+function header(i, s, t) {
+  const a = eout(prog(t, 0.15, 0.8));
+  text(`EP 09  ·  SCENE ${String(i).padStart(2, '0')}`, 80, 82, { font: F.serif, italic: true, size: 21, color: P.terracotta, a, ls: 3 });
+  text(s.title, 80 + (1 - a) * -16, 142, { font: F.serif, size: 58, color: P.chalk, a, ls: -0.5 });
+  text(s.sub, 80, 188, { size: 26, color: P.stone, a: eout(prog(t, 0.5, 0.8)) });
+}
+function captions(s, t) {
+  for (const [a, b, str] of s.caps) {
+    if (t < a || t > b) continue;
+    const al = Math.min(clamp((t - a) / 0.35), clamp((b - t) / 0.35));
+    const lines = wrap(str, 1560, `400 34px ${F.sans}`); const ys = lines.length === 1 ? [992] : [972, 1014];
+    ctx.save(); ctx.shadowColor = 'rgba(10,8,7,0.95)'; ctx.shadowBlur = 14;
+    lines.slice(0, 2).forEach((l, k) => text(l, 960, ys[k], { size: 34, color: P.chalk, align: 'center', a: al * 0.95 }));
+    ctx.restore();
+  }
+}
+function progressBar(T, idx) {
+  const x0 = 80, x1 = 1840, y = 1040;
+  ctx.fillStyle = P.border; setA(1); ctx.fillRect(x0, y, x1 - x0, 2);
+  ctx.fillStyle = rgba(P.terracotta, 0.85); ctx.fillRect(x0, y, (x1 - x0) * T / DURATION, 2);
+  SC.forEach((s, j) => { const x = x0 + (x1 - x0) * s.start / DURATION; line(x, y - 4, x, y + 6, j === idx ? P.terracotta : P.borderLight, 1.5);
+    text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: 11, color: j === idx ? P.terracotta : P.dust, ls: 0.5 }); });
+}
+function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
+function render(T) {
+  T = clamp(T, 0, DURATION - 1e-3);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
+  ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
+  const i = sceneAt(T), s = SC[i], t = T - s.start;
+  ctx.save(); s.draw(t); ctx.restore(); GA = 1;
+  if (s.title) header(i, s, t);
+  captions(s, t);
+  const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
+  if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
+  ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
+  progressBar(T, i);
+  if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
+  const fr = Math.floor(T * 24), r = rng(fr + 7);
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
+  ctx.fillStyle = GRAIN_PAT; ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore();
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+const capture = new URLSearchParams(location.search).has('capture');
+if (capture) document.body.classList.add('capture');
+let now = 0, playing = false, lastTs = null;
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
+function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; } if (force || Math.abs(snd.currentTime - now) > 0.25) snd.currentTime = now; if (snd.paused) snd.play().catch(() => {}); }
+sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
+function loop(ts) { if (!playing) return; if (soundOn && !snd.paused && snd.readyState >= 2 && !snd.seeking) now = snd.currentTime; else if (lastTs != null) now += (ts - lastTs) / 1000; lastTs = ts; if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; } draw(); syncAudio(); if (playing) requestAnimationFrame(loop); }
+function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+playBtn.onclick = toggle;
+scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+window.DURATION = DURATION;
+window.renderAt = T => render(T);
+(async () => {
+  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  void 0;
+  draw(); window.READY = true;
+})();
+</script>
+</body>
+</html>

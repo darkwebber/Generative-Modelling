@@ -9,6 +9,7 @@ Everything from the videos, runnable, with backprop written out by hand so nothi
 - **Episode 06 · normalizing flows:** `flow.py` (numpy; RealNVP-style couplings in 2-D)
 - **Episode 07 · energy-based models:** `ebm.py` (numpy; Langevin sampling and contrastive divergence in 2-D)
 - **Episode 08 · score matching:** `score.py` (numpy; denoising score matching, noise-conditional net, annealed Langevin)
+- **Episode 09 · diffusion:** `diffusion.py` (numpy; DDPM training and sampling, DDIM, 2-D blobs and MNIST)
 
 ## Episode 02 — autoregressive generation
 
@@ -256,4 +257,35 @@ implicit SM           E_p[ ‖s_θ‖² + 2·tr ∇ₓ s_θ ]               (Hyv
 denoising SM          E ‖σ·s_θ(x + σε, σ) + ε‖²                 (Vincent, 2011) → s_θ = ∇ log p_σ
 Tweedie               E[x | x̃] = x̃ + σ²·∇ log p_σ(x̃)
 annealed Langevin     for σ₁ > … > σ_L: T steps with η = c·σ²    (Song & Ermon, 2019)
+```
+
+## Episode 09 — diffusion models (DDPM & DDIM)
+
+| file | what it is |
+|------|------------|
+| `diffusion.py` | a noise predictor ε_θ(x, t): an MLP with a sinusoidal embedding of t added into every hidden layer (swish, EMA weights, optional Fourier features of x), trained on ‖ε − ε_θ(x_t, t)‖² with hand-written backprop (for MNIST the net outputs its clean-image guess x̂₀ = tanh(F) and reports ε_θ = (x_t − √ᾱ·x̂₀)/√(1 − ᾱ), with Min-SNR weights w_t = min(1, 5/SNR_t): an MLP finds clean images far easier to output than faint noise); ancestral DDPM sampling with the posterior variance; deterministic DDIM with any number of steps |
+| `export_ep09_assets.py` | trains the three nets in the video (the title, the eight blobs, MNIST) → `../video/ep09-assets.js`, plus the MNIST net in 8 bits → `../video/ep09-model.js`. `python export_ep09_assets.py title` (or `ring`, `mnist`) trains just one, so you can run them in parallel |
+| `../video/diffusion-lab.html` | the real MNIST diffusion model running in your browser: watch digits form from static (x_t or the network's guess x̂₀), DDPM vs DDIM at any step count, morph between two noise images, draw something and let the model "fix" it (SDEdit) |
+
+```bash
+python diffusion.py --check                  # gradients vs numerical
+python diffusion.py --data ring              # 8 blobs: DDPM 1000 steps vs DDIM 100 / 20
+python diffusion.py --data mnist --plot      # ~15 min: 64 digits from noise
+```
+
+From the video (the eight blobs sit at radius 2.00 ± 0.12; 600 samples from the same noise):
+
+```
+DDPM 1000 steps: radius 2.00 ± 0.12     DDIM 100: 1.99 ± 0.10     DDIM 20: 1.95 ± 0.09     DDIM 5: 1.15 ± 0.39 (it cracks)
+```
+
+```
+schedule        β_t: 1e-4 → 0.02 (linear, T = 1000),   ᾱ_t = Π_{s≤t} (1 − β_s)
+forward         x_t = √ᾱ_t·x₀ + √(1 − ᾱ_t)·ε                                  (any step, in one jump)
+training        E ‖ε − ε_θ(x_t, t)‖²                                           (Ho, Jain & Abbeel, 2020)
+= score         ε_θ = −√(1 − ᾱ_t)·s_θ(x_t)                                     (episode 8's denoising score matching)
+denoiser        x̂₀ = (x_t − √(1 − ᾱ_t)·ε_θ) / √ᾱ_t                            (Tweedie)
+DDPM step       x_{t−1} = (x_t − β_t/√(1 − ᾱ_t)·ε_θ) / √(1 − β_t) + σ_t·z,   σ_t² = β_t(1 − ᾱ_{t−1})/(1 − ᾱ_t)
+DDIM step       x_s = √ᾱ_s·x̂₀ + √(1 − ᾱ_s)·ε_θ                               (Song, Meng & Ermon, 2021; no fresh noise)
+why it works    the ELBO of a VAE whose 1000 latent layers are the noising chain splits into one Gaussian KL per step
 ```
