@@ -170,7 +170,7 @@ LabKit.init({ id: 'ep09',
     { id: 'gen', title: 'Generate 16 digits from static', hint: 'Press <b>generate 16 digits</b>.', check: () => lastRun !== null },
     { id: 'x0', title: 'Watch it think: view x̂₀ during a run', hint: 'Press <b>view: x_t</b> to switch to x̂₀, then generate. Early guesses are blurry averages; the digit is decided long before the details.', check: () => sawX0 },
     { id: 'few', title: 'Go fast: 10 DDIM steps or fewer', hint: 'Drag <b>DDIM steps</b> down to 10 and generate. How few can you go before the digits break?', check: () => lowSteps },
-    { id: 'ddpm', title: 'Run the full 1000-step DDPM', hint: 'Choose <b>DDPM</b> and generate. It takes 1000 network calls per digit, and each step adds a little fresh noise.', check: () => lastRun && lastRun.mode === 'ddpm' },
+    { id: 'ddpm', title: 'Run the full 1000-step DDPM', hint: 'Choose <b>DDPM</b> and generate. It takes 1000 network calls per digit (give it half a minute or so), and each step adds a little fresh noise.', check: () => lastRun && lastRun.mode === 'ddpm' },
     { id: 'morph', title: 'Morph between two noise images', hint: 'Drag the <b>mix</b> slider in the morph panel back and forth.', check: () => morphs >= 6 },
     { id: 'sde', title: 'Let the network redraw your scribble', hint: 'Draw something rough in the black box, choose a noise level, then press <b>noise &amp; redraw</b>. Try t = 300 and t = 800.', check: () => sdeDone >= 2 },
   ] });

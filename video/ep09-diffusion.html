@@ -253,8 +253,9 @@ SC.push({ dur: 36, chapter: 'intro',
     for (let k = 0; k < TITLE.n; k++) { const [x, y] = titlePt(k, f), jx = jit * (r() - 0.5) * 0.02, jy = jit * (r() - 0.5) * 0.02, X = cx + (x + jx) * sc, Y = cy - (y + jy) * sc;
       if (X < -10 || X > 1930 || Y < -10 || Y > 1090) continue; setA(a0 * (0.8 + 0.2 * done)); ctx.fillRect(X - 1.5, Y - 1.5, 3, 3); }
     setA(1);
-    if (hot > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowColor = P.terracotta; ctx.shadowBlur = 40 * hot; ctx.fillStyle = rgba(P.terracotta, 0.5 * hot);
-      for (let k = 0; k < TITLE.n; k += 3) { const [x, y] = titlePt(k, f); ctx.fillRect(cx + x * sc - 1.5, cy - y * sc - 1.5, 3, 3); } ctx.restore();
+    if (hot > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'lighter';          // glow: soft additive halos, no shadowBlur (fast)
+      for (const [r, al] of [[9, 0.05], [5, 0.12], [2.5, 0.35]]) { ctx.fillStyle = rgba(P.terracotta, al * hot);
+        for (let k = 0; k < TITLE.n; k += 2) { const [x, y] = titlePt(k, f); ctx.fillRect(cx + x * sc - r, cy - y * sc - r, 2 * r, 2 * r); } } ctx.restore();
       ring(cx, cy, 200 + (t - BANG) * 1400, P.chalk, hot * 0.35, 3); }
     ctx.restore();
     const a = eout(prog(t, BANG + 0.6, 1.2));
