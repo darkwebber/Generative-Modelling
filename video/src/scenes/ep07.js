@@ -101,7 +101,7 @@ SC.push({ dur: 42, chapter: 'energy', title: 'One number per point', sub: 'The l
          [9, 17, 'An energy-based model promises almost nothing. Take any network, any architecture, and have it output one number: the energy, E(x).'],
          [17, 25, 'Low energy means “this looks like data”. High energy means “this doesn’t”. That is the whole model: a landscape over every possible x.'],
          [25, 33, `Probe the real trained landscape, measured from its lowest point: on a blob, ${PB.blob.toFixed(1)}. Between two blobs, ${PB.between.toFixed(1)}. Out in the corner, ${PB.corner.toFixed(1)}.`],
-         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is easier than drawing one. That is the hard part.']],
+         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is easy; making one is the hard part.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8));
     // the promises every earlier family had to make
@@ -223,11 +223,11 @@ SC.push({ dur: 56, chapter: 'push & pull', title: 'Learning: push down, pull up'
     const x0 = 110, a0 = eout(prog(t, 0.6, 0.8)), fade = 1 - ease(prog(t, 35.5, 1));
     const rows = [[1, 'log [p|p][k_|θ]([d|x]) = −[m|E][k_|θ]([d|x]) − log [a|Z][k_|θ]'], [8, '∇[k_|θ] log [p|p][k_|θ]([d|x]) = −∇[k_|θ][m|E][k_|θ]([d|x]) − ∇[k_|θ] log [a|Z][k_|θ]'],
       [15, '∇[k_|θ] log [a|Z] = (1/[a|Z]) ∇[k_|θ][a|Z] = (1/[a|Z]) [pB|∫] ∇[k_|θ] e[m^|−E(x′)] d[n|x′]'], [22, '             = [pB|∫] (e[m^|−E(x′)] / [a|Z]) · (−∇_θ[m|E](x′)) d[n|x′]'], [29, '             = − [kB|E][k_|x′∼pθ] [ ∇[k_|θ][m|E]([n|x′]) ]']];
-    let hx0 = 0, hw = 0;
+    let hx0 = 0, hw = 0, rowEnd = 0;
     rows.forEach(([t0, s], i) => { const ai = a0 * fade * eout(prog(t, t0, 0.8)), y = 320 + i * 82;
       if (i !== 3) return M(s, x0, y, 28, { a: ai });
-      let x = x0; x += M('             = [pB|∫] ', x, y, 28, { a: ai }); hx0 = x; hw = M('(e[m^|−E(x′)] / [a|Z])', x, y, 28, { a: ai }); M(' · (−∇[k_|θ][m|E](x′)) d[n|x′]', x + hw, y, 28, { a: ai }); });
-    const ha = eout(prog(t, 23.5, 0.6)) * fade; if (ha > 0) { rbox(hx0 - 8, 320 + 3 * 82 - 38, hw + 16, 58, 12, rgba(P.ink, 0.12), P.ink, ha, 2); pill(hx0 + hw / 2, 320 + 3 * 82 + 52, '= pθ(x′): the model’s own distribution', P.ink, ha, { size: 20, align: 'center' }); }
+      let x = x0; x += M('             = [pB|∫] ', x, y, 28, { a: ai }); hx0 = x; hw = M('(e[m^|−E(x′)] / [a|Z])', x, y, 28, { a: ai }); rowEnd = x + hw + M(' · (−∇[k_|θ][m|E](x′)) d[n|x′]', x + hw, y, 28, { a: ai }); });
+    const ha = eout(prog(t, 23.5, 0.6)) * fade; if (ha > 0) { rbox(hx0 - 8, 320 + 3 * 82 - 38, hw + 16, 58, 12, rgba(P.ink, 0.12), P.ink, ha, 2); pill(rowEnd + 28, 320 + 3 * 82 - 9, '← = pθ(x′): the model’s own distribution', P.ink, ha, { size: 20 }); }
     const la = eout(prog(t, 30.5, 0.6)) * fade; if (la > 0) text('an average over the model’s own samples: its “fantasies”', x0, 720, { font: F.serif, italic: true, size: 28, color: P.sage, a: la });
     // the result
     const ra = eout(prog(t, 36, 0.9));
@@ -299,11 +299,11 @@ SC.push({ dur: 54, chapter: 'metropolis', title: 'Sampling with ratios', sub: 'P
     axes1(X0, X1, 560, a0); curve(Efn, -3.3, 3.3, X, Y, P.plum, 4, a0, 240, [P.plum, 0.1], 560);
     const kf = kAt(t), k = Math.floor(kf);
     // histogram of visited states vs e^−E/Z
-    const ha = eout(prog(t, 30, 1)), NB = 44, bw = 6.6 / NB, hb = 910, sc = 230 / (Math.exp(-Efn(-2.1)) / Z1);
+    const ha = eout(prog(t, 30, 1)), NB = 44, bw = 6.6 / NB, hb = 885, sc = 230 / (Math.exp(-Efn(-2.1)) / Z1);
     if (ha > 0 && k > 0) { const cnt = new Array(NB).fill(0), kk = Math.min(k, MET.length); for (let i = 1; i <= kk; i++) cnt[clamp(Math.floor((metState(i) + 3.3) / bw), 0, NB - 1)]++;
       cnt.forEach((c, i) => { const h = Math.min(300, c / kk / bw * sc); setA(ha * 0.55); ctx.fillStyle = P.amber; ctx.fillRect(X(-3.3 + i * bw) + 1, hb - h, X(-3.3 + bw) - X(-3.3) - 2, h); setA(1); });
       curve(x => Math.exp(-Efn(x)) / Z1, -3.3, 3.3, X, v => hb - v * sc, P.ink, 3, ha, 200); line(X0, hb, X1, hb, P.borderLight, 1.5, ha);
-      text(`visited positions (${Math.min(k, MET.length)} steps)   ·   line: e^−E / Z`, X0, hb + 34, { font: F.mono, size: 16, color: P.dust, a: ha }); }
+      text(`visited positions (${Math.min(k, MET.length)} steps)   ·   line: e^−E / Z`, X0, hb + 26, { font: F.mono, size: 16, color: P.dust, a: ha }); }
     // the marble and the proposal
     if (t >= mT0 - 1) { const cur = metState(k), ma = eout(prog(t, mT0 - 1, 0.6));
       if (k < MSLOW && t >= mT0) { const [x, prop, dE, u, acc] = MET[k], ph = kf - k;
@@ -364,7 +364,7 @@ SC.push({ dur: 56, chapter: 'langevin', title: 'Use the slope', sub: 'Roll downh
 const NS = A.train.length - 1, trF = t => NS * ease(prog(t, 6, 38));
 SC.push({ dur: 56, chapter: 'training', title: 'Sculpting in 2-D, for real', sub: 'Contrastive divergence: Langevin fantasies from a replay buffer.',
   caps: [[1, 8, 'Now for real, in two dimensions: a small network sculpting a landscape for the eight blobs that troubled the flow.'],
-         [8, 16, `Every step: take a batch of fantasies from a buffer, let them roll for ${A.k} Langevin steps, then push down on data and up on fantasies.`],
+         [8, 16, `Every step: take fantasies saved from earlier steps (a replay buffer), roll them ${A.k} Langevin steps, then push down on data, up on fantasies.`],
          [16, 24, 'At first the fantasies are scattered everywhere, so the ground rises everywhere else. Eight valleys begin to open.'],
          [24, 32, 'Fantasies that wander between the blobs raise ridges there. Watch them grow into walls.'],
          [32, 40, 'The two energies chase each other: once fantasies sit as low as the data, the pushes cancel.'],
@@ -432,7 +432,7 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
     SH.forEach((s, j) => { const x = 2 * Math.cos(j * Math.PI / 4), y = 2 * Math.sin(j * Math.PI / 4), ai = sa * eout(prog(t, 1.8 + j * 0.25, 0.5)), col = s > 0.14 ? P.amber : s < 0.11 ? P.rose : P.sage;
       pill(m.X(x * 1.33), m.Y(y * 1.33) + 8, `${(s * 100).toFixed(1)}%`, col, ai, { align: 'center', size: 18 }); });
     // one long chain
-    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 32, 1)));
+    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));        // gone before the next cards land
     if (ca > 0) { const f = chT(t), n = Math.floor(f); setA(ca * 0.55); ctx.strokeStyle = P.amber; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = Math.max(0, n - 400); i <= n; i++) { const p = CH[i]; i > Math.max(0, n - 400) ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1);
       const p = CH[n], q = CH[Math.min(CH.length - 1, n + 1)], u = f - n; marble(m.X(lerp(p[0], q[0], u)), m.Y(lerp(p[1], q[1], u)), 8, P.terracotta, ca);
       card(850, 250, 980, 200, P.amber, ca); label('one marble, one long run', 884, 296, ca, P.amber);
@@ -441,7 +441,7 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
       text('valleys visited: ' + new Set(CH.slice(0, n + 1).filter(p => Math.hypot(...p) > 1.4).map(secOf)).size + ' of 8', 884, 410, { font: F.mono, size: 18, color: P.stone, a: ca }); }
     const ma = eout(prog(t, 8, 0.8)) * (1 - ease(prog(t, 12.8, 1)));
     if (ma > 0) { card(850, 250, 980, 300, P.rose, ma); label('why training didn’t notice', 884, 296, ma, P.rose); para('Short chains start from noise, roll into the nearest valley and stay. Every valley gets its fantasies, so each one looks “right” — but no fantasy ever compares two valleys.', 884, 350, 900, { size: 26, a: ma }); }
-    const xa = eout(prog(t, 24, 0.8)) * (1 - ease(prog(t, 32, 1)));
+    const xa = eout(prog(t, 24, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));
     if (xa > 0) { card(850, 480, 980, 180, P.plum, xa); label('mixing', 884, 526, xa, P.plum); para('Crossing a ridge of height ΔE takes about e^ΔE tries. High walls = marbles trapped.', 884, 576, 900, { size: 26, a: xa }); }
     // the other catches
     const k2 = eout(prog(t, 32, 0.8));
@@ -507,7 +507,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Only the slope?', sub: 'Where Z quie
          [30, 38, 'So why sculpt a landscape at all? What if a network learned the arrows directly — no energy, no Z, no fantasies?'],
          [38, 47.6, 'Next episode: score matching — and why slope plus jiggle lands on exactly the right distribution. Follow the arrows.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = square(110, 250, 660), a0 = eout(prog(t, 0.6, 0.8)); landscape(m, A.E, a0 * (1 - 0.55 * ease(prog(t, 23, 2))));
     // the score field
     const sa = eout(prog(t, 23, 1.5));

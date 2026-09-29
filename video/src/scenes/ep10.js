@@ -137,7 +137,7 @@ SC.push({ dur: 46, chapter: 'roads', title: 'The simplest road', sub: 'A straigh
       if (t > 8) { const tp = t < 24 ? tt : (t - 24) % 4 / 4, p = onRoad(PAIR.z, PAIR.x, tp), pa = oneA * eout(prog(t, 8, 0.6)); marble(m.X(p[0]), m.Y(p[1]), 8, P.amber, pa);
         text(`xₜ   t = ${tp.toFixed(2)}`, m.X(p[0]) + 16, m.Y(p[1]) + 30, { font: F.mono, size: 18, color: P.amber, a: pa });
         const va = oneA * eout(prog(t, 16, 0.8)); if (va > 0) { const u = [PAIR.x[0] - PAIR.z[0], PAIR.x[1] - PAIR.z[1]]; arrow(m.X(p[0]), m.Y(p[1]), m.X(p[0] + u[0] * 0.3), m.Y(p[1] + u[1] * 0.3), P.sage, 4, va);
-          text('x − z', m.X(p[0] + u[0] * 0.3) + 10, m.Y(p[1] + u[1] * 0.3) - 12, { font: F.mono, size: 20, color: P.sage, a: va }); } } }
+          text('x − z', m.X(p[0] + u[0] * 0.15) + 14, m.Y(p[1] + u[1] * 0.15) + 30, { font: F.mono, size: 20, color: P.sage, a: va }); } } }
     // six hundred random roads
     const ma = eout(prog(t, 32.5, 1.2));
     if (ma > 0) clipTo(m, () => RG.x0.forEach((z, k) => { const u = eout(prog(t, 33 + (k % 60) * 0.05, 0.9)); if (u <= 0) return; const x = RG.x1[k];
@@ -179,8 +179,8 @@ SC.push({ dur: 54, chapter: 'crossings', title: 'When roads cross', sub: 'One pl
       const nv = eout(prog(t, 41, 0.8)); if (nv > 0) { arrow(C[0], C[1], C[0] + FAN.net[0] * sc * Z, C[1] - FAN.net[1] * sc * Z, P.plum, 3, nv); }
       if (av > 0) { text('sage: the average of the fan', 1540, 790, { font: F.mono, size: 17, color: P.sage, a: av }); text('(both drawn 3× longer)', 1540, 850, { font: F.mono, size: 15, color: P.dust, a: av }); }
       if (nv > 0) text(`plum: the network, vθ(x, ½)`, 1540, 818, { font: F.mono, size: 17, color: P.plum, a: nv });
-      const ca = eout(prog(t, 24, 0.8)); if (ca > 0) { M('min[a_|θ]  [kB|E] ‖ [m|v][m_|θ]([d|x][d_|t], t) − ([d|x] − [n|z]) ‖²', 1066, 360, 26, { a: ca * (1 - ease(prog(t, 47, 0.8))) }); }
-      const ra = eout(prog(t, 47, 0.8)); if (ra > 0) M('[m|v]([d|x], t) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x] ]', 1066, 360, 28, { a: ra }); }
+      const ca = eout(prog(t, 24, 0.8)); if (ca > 0) { M('min[a_|θ]  [kB|E] ‖ [m|v][m_|θ]([d|x][d_|t], t) − ([d|x] − [n|z]) ‖²', 1066, 360, 26, { a: ca * (1 - ease(prog(t, 46.5, 0.5))) }); }          // out, then the next formula in: never both at once
+      const ra = eout(prog(t, 47.05, 0.7)); if (ra > 0) M('[m|v]([d|x], t) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x] ]', 1066, 360, 28, { a: ra }); }
   } });
 
 // 04 — the averaged wind still delivers the data
@@ -340,10 +340,10 @@ SC.push({ dur: 56, chapter: 'reflow', title: 'Straighten the roads', sub: 'Reflo
   caps: [[1, 8, 'The roads bend because random pairs cross. So find better pairs: run the trained wind, and note where each noise point lands.'],
          [8, 16, 'These new pairs never cross: they came from a flow, and flow lines cannot cross. Now train again, on these pairs.'],
          [16, 24, 'Straight roads between pairs that never cross leave nothing to average. The new wind blows in straight lines.'],
-         [24, 32, `Measured as straight distance over distance travelled: ${RG.ratio1.toFixed(3)} before, ${RG.ratio2.toFixed(3)} after. Almost perfectly straight.`],
+         [24, 32, `Measured as straight distance over distance travelled: ${RG.ratio1.toFixed(3)} before, ${RG.ratio2.toFixed(3)} after: straight to three decimal places.`],
          [32, 40, 'And now a single step: the whole ring, from one call to the network. Before, one step fell into the middle.'],
          [40, 48, `On digits, one step goes from FID ${J.fm1.FID.toFixed(0)} to ${J.rf1.FID.toFixed(0)}. The price: with many steps, reflow levels off near ${J.rf16.FID.toFixed(0)}.`],
-         [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or distil it, and generators take one step or a few.']],
+         [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or train a student network to copy it in one jump: one-step generators.']],
   draw(t) {
     const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))));
     const ca = eout(prog(t, 1.5, 1)) * (1 - ease(prog(t, 15.5, 1)));
@@ -455,7 +455,7 @@ SC.push({ dur: 46, chapter: 'next', title: 'Which one?', sub: 'Generating is eas
          [32, 39, 'Compare what the wind does with the request and without it, then push further in that direction. How far is a dial.'],
          [39, 45.6, 'Next episode: guidance. Steering the flow toward what we ask for.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const phase = t < 16 ? 0 : t < 24 ? 1 : 2, PP = [HPN, HP2, HP6][t < 16 ? 0 : t < 20 ? 1 : 2], t0 = t < 16 ? 1.5 : t < 20 ? 16.3 : 20.3, f = (PP.S - 1) * ease(prog(t, t0, 3.2)), want = t < 16 ? -1 : t < 20 ? 2 : 6;
     clipTo(m, () => { for (let k = 0; k < 8; k++) { const b = BLOB(k); ring(m.X(b[0]), m.Y(b[1]), 26, BLOBCOL[k], a0 * (want === k ? 1 : 0.35), want === k ? 3 : 1.5); text(String(k + 1), m.X(b[0] * 1.35), m.Y(b[1] * 1.35) + 6, { font: F.mono, size: 18, color: BLOBCOL[k], align: 'center', a: a0 * (want === k || want < 0 ? 1 : 0.4) }); }

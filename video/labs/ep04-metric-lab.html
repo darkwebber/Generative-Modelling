@@ -32,7 +32,7 @@
   .m .tag { float: right; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
   .m.fooled .tag { color: var(--sage); } .m.caught .tag { color: var(--rose); }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -164,11 +164,11 @@ LabKit.init({ id: 'ep04',
   steps: ['<strong>Build a fake model</strong> with the sliders (or a preset): a mix of real digits, copies, VAE blurs, only-ones and static.', '<strong>Watch the six judges</strong> re-score it live. Sage = fooled, rose = caught.', '<strong>Do the missions</strong>: each one exposes a blind spot of a real metric.'],
   legend: [['var(--terracotta)', 'your model’s samples'], ['var(--plum)', 'metric scores'], ['var(--sage)', 'judge fooled'], ['var(--rose)', 'judge caught it'], ['var(--amber)', 'your mix']],
   missions: [
-    { id: 'suspects', title: 'Meet the suspects: try 3 presets', hint: 'Click any three of the preset buttons: the photocopier, the one-trick pony, our VAE…', check: () => TRIED.size >= 3 },
-    { id: 'heist', title: 'The heist: fool 5 of 6 judges with a model that is at least half stolen', hint: 'Try the <b>half copied</b> preset. Only one judge compares samples against the training set.', check: () => LM && (SHARE.copies || 0) >= 0.5 && LM.fooled.length >= 5 },
-    { id: 'blur', title: 'Blur test: blur a perfect model until a judge complains', hint: 'Load <b>perfect model</b>, then drag <b>blur</b> up slowly. Which judge turns rose first?', check: () => LM && (SHARE.new || 0) >= 0.9 && +$('blur').value >= 0.75 && LM.caught.length >= 1 },
-    { id: 'static', title: 'Garbage paradox: 90% static, yet recall above 50%', hint: 'Load <b>99% static</b>. Precision collapses, but each static sample has a huge nearest-neighbour ball that swallows real digits, so k-NN recall is fooled by outliers.', check: () => LM && (SHARE.static || 0) >= 0.9 && LM.m.recall > 0.5 },
-    { id: 'pony', title: 'Catch the one-trick pony with the diversity judge', hint: 'Make a model that is at least half <b>only ones</b>. Recall (diversity) should turn rose.', check: () => LM && (SHARE.ones || 0) >= 0.5 && LM.caught.includes('recall') },
+    { id: 'suspects', title: 'Meet the suspects: try 3 presets', hint: 'Click any three of the preset buttons: the photocopier, the one-trick pony, our VAE…', learn: "Each preset fails in its own way: copies, a single class, blur. No one number describes all three failures.", check: () => TRIED.size >= 3 },
+    { id: 'heist', title: 'The heist: fool 5 of 6 judges with a model that is at least half stolen', hint: 'Try the <b>half copied</b> preset. Only one judge compares samples against the training set.', learn: "Five of the six judges only compare samples with real data, so copies look perfect to them. Only the novelty judge looks at the training set.", check: () => LM && (SHARE.copies || 0) >= 0.5 && LM.fooled.length >= 5 },
+    { id: 'blur', title: 'Blur test: blur a perfect model until a judge complains', hint: 'Load <b>perfect model</b>, then drag <b>blur</b> up slowly. Which judge turns rose first?', learn: "Blur moves samples away from real images in feature space, and the judges notice at different speeds. Know what each judge actually measures.", check: () => LM && (SHARE.new || 0) >= 0.9 && +$('blur').value >= 0.75 && LM.caught.length >= 1 },
+    { id: 'static', title: 'Garbage paradox: 90%+ static, yet recall above 50%', hint: 'Load <b>99% static</b>. Precision collapses, but each static sample has a huge nearest-neighbour ball that swallows real digits, so k-NN recall is fooled by outliers.', learn: "k-NN recall counts real points inside the samples' balls, and a static sample's nearest neighbour is far away, so its ball is huge. Outliers can fool a metric that looks sound.", check: () => LM && (SHARE.static || 0) >= 0.9 && LM.m.recall > 0.5 },
+    { id: 'pony', title: 'Catch the one-trick pony with the diversity judge', hint: 'Make a model that is at least half <b>only ones</b>. Recall (diversity) should turn rose.', learn: "One class covers a tenth of real data: precision stays high while recall collapses. That pair of numbers is the signature of mode collapse.", check: () => LM && (SHARE.ones || 0) >= 0.5 && LM.caught.includes('recall') },
   ] });
 setTimeout(() => { REF = P.ref.map(feat); REF_MC = meanCov(REF); REF_SQ = sqrtm(REF_MC.C); REF_R = kthRadius(REF); REFV = metrics(P.new); run(); }, 50);
 </script>

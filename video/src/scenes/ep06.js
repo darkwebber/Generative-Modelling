@@ -9,7 +9,7 @@ function stageAt(stages, f) { const n = stages.length, fi = clamp(f, 0, n - 1), 
 function drawPts(m, stages, f, col, a, r = 2.6, colFn = null) { const [S0, S1, u] = stageAt(stages, f); for (let k = 0; k < S0.length; k++) { const x = lerp(S0[k][0], S1[k][0], u), y = lerp(S0[k][1], S1[k][1], u); if (Math.abs(x) < RR && Math.abs(y) < RR) dot(m.X(x), m.Y(y), r, colFn ? colFn(f) : col, a); } }
 function drawGrid(m, f, a, col = P.borderLight) { const G = A.grid, [S0, S1, u] = stageAt(G.stages, f); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 1.2;
   for (let l = 0; l < G.n; l++) { ctx.beginPath(); for (let k = 0; k < G.m; k++) { const i = l * G.m + k, x = lerp(S0[i][0], S1[i][0], u), y = lerp(S0[i][1], S1[i][1], u); k ? ctx.lineTo(m.X(x), m.Y(y)) : ctx.moveTo(m.X(x), m.Y(y)); } ctx.stroke(); } setA(1); }
-const EX = A.example, sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+const EX = A.example, sgn = v => (v >= 0 ? '+ ' : '− ') + Math.abs(v).toFixed(2), num = v => (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
 
 // ─────────────────────────────────────────────────────────────
 //  SCENES
@@ -281,7 +281,7 @@ SC.push({ dur: 56, chapter: 'coupling', title: 'The coupling trick', sub: 'A fle
 SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likelihood', sub: 'No judge. No bound. The real thing.',
   caps: [[1, 8, 'Training is pure episode 1: maximum likelihood. No judge like the GAN, no lower bound like the VAE — the exact quantity.'],
          [8, 16, "Push a data point through all the layers to get its z. Its log-probability is the bell curve's score for z, plus every layer's log-stretch."],
-         [16, 24, `A point on the moons: ${EX.on.logN.toFixed(2)} ${sgn(EX.on.logdet)} = ${EX.on.logp.toFixed(2)}. A point out in the void: ${EX.off.logN.toFixed(2)} ${sgn(EX.off.logdet)} = ${EX.off.logp.toFixed(2)}.`],
+         [16, 24, `A point on the moons: ${num(EX.on.logN)} ${sgn(EX.on.logdet)} = ${num(EX.on.logp)}. A point out in the void: ${num(EX.off.logN)} ${sgn(EX.off.logdet)} = ${num(EX.off.logp)}.`],
          [24, 32, 'Average −log p over the data, differentiate through every layer, and take a step. This is the real training curve.'],
          [32, 40, `On held-out points the flow scores ${A.nll.toFixed(2)} nats per point; the best single bell curve manages ${A.gauss.toFixed(2)}. Exact numbers, not estimates.`],
          [40, 47.6, "Why “normalizing”? Because the trained flow turns the data into a normal distribution."]],
@@ -295,13 +295,13 @@ SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likeli
     text(t < 40 ? (ff < K - 0.01 ? 'pushing x through the layers…' : 'every point now has its z') : 'data  →  f  →  a normal distribution', 140, 424, { font: F.mono, size: 16, color: P.chalk, a: pa });
     if (pa > 0) [['on', P.sage], ['off', P.rose]].forEach(([k, col]) => { const e = EX[k], u = ease(ff / K), px = lerp(e.x[0], e.z[0], u), py = lerp(e.x[1], e.z[1], u);
       const lim = RR - 0.25, cx = clamp(px, -lim, lim), cy = clamp(py, -lim, lim), out = cx !== px || cy !== py;
-      glow(m.X(cx), m.Y(cy), 7, col, pa); if (out) { arrow(m.X(cx) - 34, m.Y(cy), m.X(cx) - 4, m.Y(cy), col, 2.5, pa); text('z far out in the tails →', m.X(cx) - 40, m.Y(cy) - 16, { font: F.mono, size: 15, color: col, align: 'right', a: pa }); } });
+      glow(m.X(cx), m.Y(cy), 7, col, pa); if (out) { arrow(m.X(cx) - 34, m.Y(cy), m.X(cx) - 4, m.Y(cy), col, 2.5, pa); text('z far out in the tails →', m.X(cx) - 40, m.Y(cy) + 30, { font: F.mono, size: 15, color: col, align: 'right', a: pa }); } });
     const ea = eout(prog(t, 16, 0.8));
     [['on', 'on the moons', P.sage], ['off', 'out in the void', P.rose]].forEach(([k, nm, col], i) => { const x = 680, y = 390 + i * 270, e = EX[k], a = ea * eout(prog(t, 16 + i * 1.5, 0.8));
       card(x, y, 420, 250, col, a); label(nm, x + 30, y + 42, a, col);
       M(`[d|x] = (${e.x[0].toFixed(2)}, ${e.x[1].toFixed(2)})  →  [n|z] = (${e.z[0].toFixed(1)}, ${e.z[1].toFixed(1)})`, x + 30, y + 90, 17, { a });
-      M(`log N([n|z]) = ${e.logN.toFixed(2)}`, x + 30, y + 136, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 174, 22, { a });
-      M(`log [p|p]([d|x]) = ${e.logp.toFixed(2)}`, x + 30, y + 222, 24, { a }); });
+      M(`log N([n|z]) = ${num(e.logN)}`, x + 30, y + 136, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 174, 22, { a });
+      M(`log [p|p]([d|x]) = ${num(e.logp)}`, x + 30, y + 222, 24, { a }); });
     const ca = eout(prog(t, 24, 0.8));
     if (ca > 0) { const x0 = 1170, y0 = 800, w = 640, h = 330, H = A.hist, mx = Math.max(...H.slice(2)), mn = Math.min(...H);
       card(x0 - 30, 390, w + 60, 520, P.plum, ca); text('training −log p (nats per point, real run)', x0, 432, { font: F.mono, size: 16, color: P.dust, a: ca });
@@ -441,7 +441,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
     const sh = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 7.5, 1)));
     if (sh > 0) [['every layer invertible', -1], ['every determinant cheap', 0], ['no tearing', 1]].forEach(([s0, k], i) => { const x = 960 + k * 60, y = 520 + k * 90 + (t > 7.5 ? (t - 7.5) * 90 * (1 + i * 0.3) : 0);
       pill(x, y, '⛓  ' + s0, P.rose, sh * eout(prog(t, 1.5 + i * 0.8, 0.6)), { size: 26, align: 'center' }); });
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const x0 = 160, base = 640, sx = 150, X = x => x0 + (x + 3.3) * sx, Yv = e => base - 30 - (e + 0.5) * 55, a0 = eout(prog(t, 8, 1));
     // energy landscape
     if (a0 > 0) { setA(a0 * 0.15); ctx.fillStyle = P.plum; ctx.beginPath(); ctx.moveTo(X(-3.3), base); for (let i = 0; i <= 200; i++) { const x = -3.3 + 6.6 * i / 200; ctx.lineTo(X(x), Math.min(base, Yv(Efn(x)))); } ctx.lineTo(X(3.3), base); ctx.fill();

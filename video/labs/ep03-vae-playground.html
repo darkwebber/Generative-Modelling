@@ -31,7 +31,7 @@
   .cap { font-family:var(--mono); font-size:12px; color:var(--dust); text-align:center; margin-top:6px; }
   @keyframes enter { from { opacity:0; transform:scale(.85) translateY(-6px);} to { opacity:1; transform:none; } }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -170,12 +170,12 @@ LabKit.init({ id: 'ep03',
   steps: ['<strong>Drag on the latent map</strong>: every point is 2 numbers, and the decoder turns them into a picture.', '<strong>Draw a digit</strong> in panel 3: the encoder squeezes it into 2 numbers and rebuilds it.', '<strong>Switch VAE ↔ autoencoder</strong> and do the missions to see why the VAE can generate and the plain autoencoder can’t.'],
   legend: [['var(--rose)', 'latent codes z'], ['var(--terracotta)', 'pixels / images'], ['var(--ink)', 'N(0, I): where the VAE packs its codes'], ['var(--chalk)', 'your chosen point']],
   missions: [
-    { id: 'visit', title: 'Visit 6 different digits on the map', hint: 'Drag slowly across the latent map. A chime marks each new digit region you enter.', check: () => VISITED.size >= 6 },
-    { id: 'draw', title: 'Draw your own digit and watch it get encoded', hint: 'Press <b>clear</b> in panel 3, then draw with your mouse or finger.', check: () => LabKit.flags.drew },
-    { id: 'both', title: 'Encode the same drawing with both models', hint: 'Draw something, then switch between <b>VAE</b> and <b>autoencoder</b> at the top. Its point moves: each model has its own map.', check: () => encodedWith.size >= 2 },
-    { id: 'hole', title: 'Fall into a hole: sample from the autoencoder', hint: 'Switch to <b>autoencoder</b> and press <b>sample z ~ N(0, I)</b> a few times. Its codes don’t live there, so you get smudges.', check: () => LabKit.flags.aeSample },
-    { id: 'walk', title: 'Take a 10-second walk through latent space', hint: 'Press <b>walk ▸</b> and watch the digits morph as the point travels.', check: () => walkT >= 10 },
-    { id: 'morph', title: 'Morph between 3 different pairs of digits', hint: 'Press <b>new pair</b> in panel 4 three times. Try it with both models.', check: () => (LabKit.counts.interp || 0) >= 3 },
+    { id: 'visit', title: 'Visit 6 different digits on the map', hint: 'Drag slowly across the latent map. A chime marks each new digit region you enter.', learn: "The encoder sorted digits into regions without ever seeing a label. Nearby points decode to similar images: a map of meaning.", check: () => VISITED.size >= 6 },
+    { id: 'draw', title: 'Draw your own digit and watch it get encoded', hint: 'Press <b>clear</b> in panel 3, then draw with your mouse or finger.', learn: "Your drawing became two numbers, and the decoder rebuilt it from those alone. Whatever survives the squeeze is what the model thinks matters.", check: () => LabKit.flags.drew },
+    { id: 'both', title: 'Encode the same drawing with both models', hint: 'Draw something, then switch between <b>VAE</b> and <b>autoencoder</b> at the top. Its point moves: each model has its own map.', learn: "Each model learns its own map. The VAE's is packed round the centre, because the leash pulls every code toward N(0, I).", check: () => encodedWith.size >= 2 },
+    { id: 'hole', title: 'Fall into a hole: sample from the autoencoder', hint: 'Switch to <b>autoencoder</b> and press <b>sample z ~ N(0, I)</b> a few times. Its codes don’t live there, so you get smudges.', learn: "The autoencoder's codes never lived near N(0, I), so sampling there lands in holes the decoder never learned. That is why the VAE adds fuzz and a leash.", check: () => LabKit.flags.aeSample },
+    { id: 'walk', title: 'Take a 10-second walk through latent space', hint: 'Press <b>walk ▸</b> and watch the digits morph as the point travels.', learn: "A smooth path through latent space gives a smooth morph of images. In the VAE almost every point decodes to something digit-like.", check: () => walkT >= 10 },
+    { id: 'morph', title: 'Morph between 3 different pairs of digits', hint: 'Press <b>new pair</b> in panel 4 three times. Try it with both models.', learn: "A straight line between two codes passes through plausible digits in the VAE. In the autoencoder the same line crosses gaps and smudges.", check: () => (LabKit.counts.interp || 0) >= 3 },
   ] });
 </script>
 </body>

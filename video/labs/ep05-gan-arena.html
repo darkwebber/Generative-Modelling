@@ -16,7 +16,7 @@
   .legend span { font-family:var(--mono); font-size:12px; margin-right:14px; }
   ul { padding-left:18px; } li { margin:4px 0; }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -140,12 +140,12 @@ LabKit.init({ id: 'ep05',
   steps: ['<strong>Watch the duel</strong>: the forger (dots) moves its fakes wherever the judge (blue glow) says “real”. Green lines are the judge’s push.', '<strong>Change the rules</strong>: learning rates, the loss, the data. <strong>Click the arena</strong> to plant a new blob.', '<strong>Do the missions</strong>: find every mode, then break the game on purpose.'],
   legend: [['var(--terracotta)', 'fakes G(z)'], ['var(--chalk)', 'real data'], ['var(--ink)', 'judge says “real”'], ['var(--sage)', 'the judge’s gradient on each fake']],
   missions: [
-    { id: 'all8', title: 'Let the forger find all 8 blobs', hint: 'Default settings on <b>8 blobs</b>. Give it a few thousand steps (raise speed).', check: () => dataKind === 'ring' && MODES.total >= 8 && MODES.found === MODES.total },
-    { id: 'collapse', title: 'Cause mode collapse', hint: 'Forger lr high (≥ 3e-3), judge lr low (≤ 3e-4), then <b>reset</b>. The fakes pile onto one or two blobs and hop between them.', check: () => dataKind === 'ring' && lrOf('lrg') >= 2.9e-3 && lrOf('lrd') <= 3.1e-4 && step > 600 && MODES.found <= 2 },
-    { id: 'stall', title: 'Stall the forger: original loss + a fast judge', hint: 'Tick the <b>saturating</b> loss, drag <b>judge lr</b> near the top, then <b>reset</b>. The judge wins early, D(fake) sinks toward 0, and with this loss the forger’s gradient fades: progress crawls.', check: () => $('sat').checked && lrOf('lrd') >= 3 * lrOf('lrg') && step > 400 && avgLast(1, 10) !== null && avgLast(1, 10) < 0.2 },
-    { id: 'plant', title: 'Plant a new blob: does the forger ever find it?', hint: 'Click an empty spot in the arena on <b>8 blobs</b> and keep training for a while. Often the forger never goes there: silently dropping a whole mode is a classic GAN failure. A blob near the others is found more easily than one far away.', check: () => planted >= 0 && step - plantedAt > 1500 },
-    { id: 'eq', title: 'Reach the stalemate: both curves at ½', hint: 'Let a healthy run train for a while. When the judge can’t tell, D(real) ≈ D(fake) ≈ ½.', check: () => step > 1000 && Math.abs(avgLast(0, 10) - 0.5) < 0.08 && Math.abs(avgLast(1, 10) - 0.5) < 0.08 },
-    { id: 'grid', title: 'Hard mode: find 20 of the 25 blobs', hint: 'Switch to <b>25 blobs</b> and be patient. Try a slightly faster judge.', check: () => dataKind === 'grid' && MODES.found >= 20 },
+    { id: 'all8', title: 'Let the forger find all 8 blobs', hint: 'Default settings on <b>8 blobs</b>. Give it a few thousand steps (raise speed).', learn: "The forger never saw a blob. It found all eight by following the judge's gradient, the only signal it ever gets.", check: () => dataKind === 'ring' && MODES.total >= 8 && MODES.found === MODES.total },
+    { id: 'collapse', title: 'Cause mode collapse', hint: 'Forger lr high (≥ 3e-3), judge lr low (≤ 3e-4), then <b>reset</b>. The fakes pile onto one or two blobs and hop between them.', learn: "A fast forger outruns a slow judge and piles onto whatever the judge likes right now. Nothing in its loss rewards variety: that is mode collapse.", check: () => dataKind === 'ring' && lrOf('lrg') >= 2.9e-3 && lrOf('lrd') <= 3.1e-4 && step > 600 && MODES.found <= 2 },
+    { id: 'stall', title: 'Stall the forger: original loss + a fast judge', hint: 'Tick the <b>saturating</b> loss, drag <b>judge lr</b> near the top, then <b>reset</b>. The judge wins early, D(fake) sinks toward 0, and with this loss the forger’s gradient fades: progress crawls.', learn: "With log(1 − D) and a confident judge, D(fake) sits near 0 where that loss is flat, so the forger's gradient fades. That is why practice uses −log D.", check: () => $('sat').checked && lrOf('lrd') >= 3 * lrOf('lrg') && step > 400 && avgLast(1, 10) !== null && avgLast(1, 10) < 0.2 },
+    { id: 'plant', title: 'Plant a new blob: does the forger ever find it?', hint: 'Click an empty spot in the arena on <b>8 blobs</b> and keep training for a while. Often the forger never goes there: silently dropping a whole mode is a classic GAN failure. A blob near the others is found more easily than one far away.', learn: "If no fakes go near the new blob, the judge has no reason to light it up, and nobody notices it is missing. Dropped modes are silent.", check: () => planted >= 0 && step - plantedAt > 1500 },
+    { id: 'eq', title: 'Reach the stalemate: both curves at ½', hint: 'Let a healthy run train for a while. When the judge can’t tell, D(real) ≈ D(fake) ≈ ½.', learn: "At the equilibrium the judge cannot tell real from fake: D = ½ everywhere, the perfect score of episode 4's two-sample test.", check: () => step > 1000 && Math.abs(avgLast(0, 10) - 0.5) < 0.08 && Math.abs(avgLast(1, 10) - 0.5) < 0.08 },
+    { id: 'grid', title: 'Hard mode: find 20 of the 25 blobs', hint: 'Switch to <b>25 blobs</b> and be patient. Try a slightly faster judge.', learn: "More modes means more ways to drop some. Recall, episode 4's diversity judge, is how you would catch the missing ones.", check: () => dataKind === 'grid' && MODES.found >= 20 },
   ] });
 </script>
 </body>

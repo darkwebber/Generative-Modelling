@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Flow Matching</title>
+<title>Ep 10 · Flow Matching</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
   html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
   .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
-  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); cursor:pointer; }
   .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
   button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--terracotta); }
@@ -20,14 +20,19 @@
   .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
   .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
-  body.capture .ctl, body.capture .chapters { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .links a { color:var(--stone); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; }
+  .links a:hover { color:var(--chalk); border-color:var(--terracotta); }
+  .links a.lab { color:#d4a853; border-color:rgba(212,168,83,.45); }
+  .links a.next { margin-left:auto; }
+  body.capture .ctl, body.capture .chapters, body.capture .links { display:none; }
   body.capture .wrap { padding:0; max-width:none; }
   body.capture canvas { width:1920px; border-radius:0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="c" width="1920" height="1080" aria-label="Flow Matching explainer animation"></canvas>
+  <canvas id="c" width="1920" height="1080" aria-label="Ep 10 · Flow Matching explainer animation"></canvas>
   <div class="ctl">
     <button id="play">▶ play</button>
     <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
@@ -36,6 +41,7 @@
     <audio id="snd" src="ep10-audio.mp3" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
+  <nav class="links" id="links" aria-label="season" hidden></nav>
 </div>
 <script src="ep10-assets.js"></script>
 <script>
@@ -370,7 +376,7 @@ SC.push({ dur: 46, chapter: 'roads', title: 'The simplest road', sub: 'A straigh
       if (t > 8) { const tp = t < 24 ? tt : (t - 24) % 4 / 4, p = onRoad(PAIR.z, PAIR.x, tp), pa = oneA * eout(prog(t, 8, 0.6)); marble(m.X(p[0]), m.Y(p[1]), 8, P.amber, pa);
         text(`xₜ   t = ${tp.toFixed(2)}`, m.X(p[0]) + 16, m.Y(p[1]) + 30, { font: F.mono, size: 18, color: P.amber, a: pa });
         const va = oneA * eout(prog(t, 16, 0.8)); if (va > 0) { const u = [PAIR.x[0] - PAIR.z[0], PAIR.x[1] - PAIR.z[1]]; arrow(m.X(p[0]), m.Y(p[1]), m.X(p[0] + u[0] * 0.3), m.Y(p[1] + u[1] * 0.3), P.sage, 4, va);
-          text('x − z', m.X(p[0] + u[0] * 0.3) + 10, m.Y(p[1] + u[1] * 0.3) - 12, { font: F.mono, size: 20, color: P.sage, a: va }); } } }
+          text('x − z', m.X(p[0] + u[0] * 0.15) + 14, m.Y(p[1] + u[1] * 0.15) + 30, { font: F.mono, size: 20, color: P.sage, a: va }); } } }
     // six hundred random roads
     const ma = eout(prog(t, 32.5, 1.2));
     if (ma > 0) clipTo(m, () => RG.x0.forEach((z, k) => { const u = eout(prog(t, 33 + (k % 60) * 0.05, 0.9)); if (u <= 0) return; const x = RG.x1[k];
@@ -412,8 +418,8 @@ SC.push({ dur: 54, chapter: 'crossings', title: 'When roads cross', sub: 'One pl
       const nv = eout(prog(t, 41, 0.8)); if (nv > 0) { arrow(C[0], C[1], C[0] + FAN.net[0] * sc * Z, C[1] - FAN.net[1] * sc * Z, P.plum, 3, nv); }
       if (av > 0) { text('sage: the average of the fan', 1540, 790, { font: F.mono, size: 17, color: P.sage, a: av }); text('(both drawn 3× longer)', 1540, 850, { font: F.mono, size: 15, color: P.dust, a: av }); }
       if (nv > 0) text(`plum: the network, vθ(x, ½)`, 1540, 818, { font: F.mono, size: 17, color: P.plum, a: nv });
-      const ca = eout(prog(t, 24, 0.8)); if (ca > 0) { M('min[a_|θ]  [kB|E] ‖ [m|v][m_|θ]([d|x][d_|t], t) − ([d|x] − [n|z]) ‖²', 1066, 360, 26, { a: ca * (1 - ease(prog(t, 47, 0.8))) }); }
-      const ra = eout(prog(t, 47, 0.8)); if (ra > 0) M('[m|v]([d|x], t) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x] ]', 1066, 360, 28, { a: ra }); }
+      const ca = eout(prog(t, 24, 0.8)); if (ca > 0) { M('min[a_|θ]  [kB|E] ‖ [m|v][m_|θ]([d|x][d_|t], t) − ([d|x] − [n|z]) ‖²', 1066, 360, 26, { a: ca * (1 - ease(prog(t, 46.5, 0.5))) }); }          // out, then the next formula in: never both at once
+      const ra = eout(prog(t, 47.05, 0.7)); if (ra > 0) M('[m|v]([d|x], t) = [kB|E][ [d|x] − [n|z] | [d|x][d_|t] = [d|x] ]', 1066, 360, 28, { a: ra }); }
   } });
 
 // 04 — the averaged wind still delivers the data
@@ -573,10 +579,10 @@ SC.push({ dur: 56, chapter: 'reflow', title: 'Straighten the roads', sub: 'Reflo
   caps: [[1, 8, 'The roads bend because random pairs cross. So find better pairs: run the trained wind, and note where each noise point lands.'],
          [8, 16, 'These new pairs never cross: they came from a flow, and flow lines cannot cross. Now train again, on these pairs.'],
          [16, 24, 'Straight roads between pairs that never cross leave nothing to average. The new wind blows in straight lines.'],
-         [24, 32, `Measured as straight distance over distance travelled: ${RG.ratio1.toFixed(3)} before, ${RG.ratio2.toFixed(3)} after. Almost perfectly straight.`],
+         [24, 32, `Measured as straight distance over distance travelled: ${RG.ratio1.toFixed(3)} before, ${RG.ratio2.toFixed(3)} after: straight to three decimal places.`],
          [32, 40, 'And now a single step: the whole ring, from one call to the network. Before, one step fell into the middle.'],
          [40, 48, `On digits, one step goes from FID ${J.fm1.FID.toFixed(0)} to ${J.rf1.FID.toFixed(0)}. The price: with many steps, reflow levels off near ${J.rf16.FID.toFixed(0)}.`],
-         [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or distil it, and generators take one step or a few.']],
+         [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or train a student network to copy it in one jump: one-step generators.']],
   draw(t) {
     const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))));
     const ca = eout(prog(t, 1.5, 1)) * (1 - ease(prog(t, 15.5, 1)));
@@ -688,7 +694,7 @@ SC.push({ dur: 46, chapter: 'next', title: 'Which one?', sub: 'Generating is eas
          [32, 39, 'Compare what the wind does with the request and without it, then push further in that direction. How far is a dial.'],
          [39, 45.6, 'Next episode: guidance. Steering the flow toward what we ask for.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const phase = t < 16 ? 0 : t < 24 ? 1 : 2, PP = [HPN, HP2, HP6][t < 16 ? 0 : t < 20 ? 1 : 2], t0 = t < 16 ? 1.5 : t < 20 ? 16.3 : 20.3, f = (PP.S - 1) * ease(prog(t, t0, 3.2)), want = t < 16 ? -1 : t < 20 ? 2 : 6;
     clipTo(m, () => { for (let k = 0; k < 8; k++) { const b = BLOB(k); ring(m.X(b[0]), m.Y(b[1]), 26, BLOBCOL[k], a0 * (want === k ? 1 : 0.35), want === k ? 3 : 1.5); text(String(k + 1), m.X(b[0] * 1.35), m.Y(b[1] * 1.35) + 6, { font: F.mono, size: 18, color: BLOBCOL[k], align: 'center', a: a0 * (want === k || want < 0 ? 1 : 0.4) }); }
@@ -744,19 +750,19 @@ function progressBar(T, idx) {
     text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
-function render(T) {
+function render(T, poster = false) {
   T = clamp(T, 0, DURATION - 1e-3);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
   ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  captions(s, t);
+  if (!poster) captions(s, t);
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(T, i);
+  progressBar(poster ? 0 : T, i);
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -769,8 +775,13 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
-function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+// before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
+const POSTER_T = SC[0].dur - 2.5;
+let started = false;
+function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
@@ -794,10 +805,11 @@ function loop(ts) { if (!playing) return;
   if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+cv.addEventListener('click', () => toggle());
+function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
@@ -805,6 +817,51 @@ window.renderAt = T => render(T);
   ON_READY.forEach(f => f());
   draw(); window.READY = true;
 })();
+
+// ── links to the season hub, this episode's playground and code, and its neighbours (labs/season.js)
+// season.js — the season's table of contents, shared by the hub, every episode page (inlined by src/build.py) and
+// every playground. GM.href() links pages to each other: relative files when opened from this folder, and the
+// published Claude artifacts (the `url` fields) when viewed online, where the other files are not next door.
+window.GM = (function () {
+  const eps = [
+    { n: 1, title: 'Generative Modelling', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', labName: 'Density Lab', code: 'density.py' },
+    { n: 2, title: 'Autoregressive Generation', page: 'ep02-autoregressive.html', lab: 'ep02-ar-playground.html', labName: 'Autoregressive Playground', code: 'ar_counting.py' },
+    { n: 3, title: 'Autoencoders & VAEs', page: 'ep03-autoencoders-vae.html', lab: 'ep03-vae-playground.html', labName: 'Latent Space Playground', code: 'vae.py' },
+    { n: 4, title: 'Grading the Imagination', page: 'ep04-evaluation.html', lab: 'ep04-metric-lab.html', labName: 'Metric Lab', code: 'evals.py' },
+    { n: 5, title: 'GANs', page: 'ep05-gans.html', lab: 'ep05-gan-arena.html', labName: 'GAN Arena', code: 'gan.py' },
+    { n: 6, title: 'Normalizing Flows', page: 'ep06-flows.html', lab: 'ep06-flow-lab.html', labName: 'Flow Lab', code: 'flow.py' },
+    { n: 7, title: 'Energy-Based Models', page: 'ep07-energy.html', lab: 'ep07-ebm-lab.html', labName: 'Energy Lab', code: 'ebm.py' },
+    { n: 8, title: 'Score Matching & Langevin', page: 'ep08-score.html', lab: 'ep08-score-lab.html', labName: 'Score Lab', code: 'score.py' },
+    { n: 9, title: 'Diffusion Models', page: 'ep09-diffusion.html', lab: 'ep09-diffusion-lab.html', labName: 'Diffusion Lab', code: 'diffusion.py' },
+    { n: 10, title: 'Flow Matching', page: 'ep10-flow-matching.html', lab: 'ep10-flow-lab.html', labName: 'Flow Matching Lab', code: 'flow_matching.py' },
+    { n: 11, title: 'Guidance', page: 'ep11-guidance.html', lab: 'ep11-guidance-lab.html', labName: 'Guidance Lab', code: 'guidance.py' },
+  ];
+  // published artifacts (claude.ai), filled in as they are published
+  const URL = {
+    hub: null,
+    ep: { 1: 'https://claude.ai/artifact/JpqRF6pKvGRi8cK3cPsfZP', 2: 'https://claude.ai/artifact/3Dif6UYkDxky2pavqoqwvM', 3: 'https://claude.ai/artifact/EE1JD2Qq7PzuJWvpZBFLKi',
+          4: 'https://claude.ai/artifact/CPUcuRDmkKUVm4jHXkqx4q', 5: 'https://claude.ai/artifact/9LbD4PaxKsHCW7q6wM9uSY', 6: 'https://claude.ai/artifact/P3MyVYi2RyGTMNkwZvnHX8',
+          7: 'https://claude.ai/artifact/RBYTbCT4qpnViT2rrP1WSK', 8: 'https://claude.ai/artifact/5NC1JR7LE3kz6N3B3diM3P', 9: 'https://claude.ai/artifact/TkYw57ufRvnqXUbibDUvzD',
+          10: 'https://claude.ai/artifact/8c8CcQLFogi2LmZELP3nCj', 11: 'https://claude.ai/artifact/HQ2ebzwJmVfQ9ksAf6EG1U' },
+    lab: {},
+  };
+  const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
+  function href(kind, n, base) {
+    const e = eps[n - 1];
+    if (local) return kind === 'hub' ? base + 'index.html' : kind === 'ep' ? base + 'episodes/' + e.page : kind === 'lab' ? base + 'labs/' + e.lab : base + '../code/' + e.code;
+    return kind === 'hub' ? URL.hub : kind === 'ep' ? URL.ep[n] || null : kind === 'lab' ? URL.lab[n] || null : null;
+  }
+  // a small row of links; skips any that have no destination here
+  function nav(el, items) {
+    el.innerHTML = items.filter(([, h]) => h).map(([label, h, cls]) => `<a href="${h}"${local ? '' : ' target="_top"'} class="${cls || ''}">${label}</a>`).join('');
+    el.hidden = !el.innerHTML;
+  }
+  return { eps, URL, local, href, nav };
+})();
+(() => { const n = 10, e = GM.eps[n - 1], h = (k, i) => GM.href(k, i, "../");
+  GM.nav(document.getElementById('links'), [n > 1 && [`◂ ep ${String(n - 1).padStart(2, '0')} · ${GM.eps[n - 2].title}`, h('ep', n - 1)], ['season hub', h('hub')],
+    [`▶ playground · ${e.labName}`, h('lab', n), 'lab'], [`code · ${e.code}`, h('code', n)], n < GM.eps.length && [`ep ${String(n + 1).padStart(2, '0')} · ${GM.eps[n].title} ▸`, h('ep', n + 1), 'next']].filter(Boolean)); })();
 </script>
 </body>
 </html>

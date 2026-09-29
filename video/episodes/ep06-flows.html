@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Normalizing Flows</title>
+<title>Ep 06 · Normalizing Flows</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
   html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
   .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
-  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); cursor:pointer; }
   .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
   button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--terracotta); }
@@ -20,14 +20,19 @@
   .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
   .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
-  body.capture .ctl, body.capture .chapters { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .links a { color:var(--stone); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; }
+  .links a:hover { color:var(--chalk); border-color:var(--terracotta); }
+  .links a.lab { color:#d4a853; border-color:rgba(212,168,83,.45); }
+  .links a.next { margin-left:auto; }
+  body.capture .ctl, body.capture .chapters, body.capture .links { display:none; }
   body.capture .wrap { padding:0; max-width:none; }
   body.capture canvas { width:1920px; border-radius:0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="c" width="1920" height="1080" aria-label="Normalizing Flows explainer animation"></canvas>
+  <canvas id="c" width="1920" height="1080" aria-label="Ep 06 · Normalizing Flows explainer animation"></canvas>
   <div class="ctl">
     <button id="play">▶ play</button>
     <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
@@ -36,6 +41,7 @@
     <audio id="snd" src="ep06-audio.mp3" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
+  <nav class="links" id="links" aria-label="season" hidden></nav>
 </div>
 <script src="ep06-assets.js"></script>
 <script>
@@ -242,7 +248,7 @@ function stageAt(stages, f) { const n = stages.length, fi = clamp(f, 0, n - 1), 
 function drawPts(m, stages, f, col, a, r = 2.6, colFn = null) { const [S0, S1, u] = stageAt(stages, f); for (let k = 0; k < S0.length; k++) { const x = lerp(S0[k][0], S1[k][0], u), y = lerp(S0[k][1], S1[k][1], u); if (Math.abs(x) < RR && Math.abs(y) < RR) dot(m.X(x), m.Y(y), r, colFn ? colFn(f) : col, a); } }
 function drawGrid(m, f, a, col = P.borderLight) { const G = A.grid, [S0, S1, u] = stageAt(G.stages, f); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 1.2;
   for (let l = 0; l < G.n; l++) { ctx.beginPath(); for (let k = 0; k < G.m; k++) { const i = l * G.m + k, x = lerp(S0[i][0], S1[i][0], u), y = lerp(S0[i][1], S1[i][1], u); k ? ctx.lineTo(m.X(x), m.Y(y)) : ctx.moveTo(m.X(x), m.Y(y)); } ctx.stroke(); } setA(1); }
-const EX = A.example, sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+const EX = A.example, sgn = v => (v >= 0 ? '+ ' : '− ') + Math.abs(v).toFixed(2), num = v => (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
 
 // ─────────────────────────────────────────────────────────────
 //  SCENES
@@ -514,7 +520,7 @@ SC.push({ dur: 56, chapter: 'coupling', title: 'The coupling trick', sub: 'A fle
 SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likelihood', sub: 'No judge. No bound. The real thing.',
   caps: [[1, 8, 'Training is pure episode 1: maximum likelihood. No judge like the GAN, no lower bound like the VAE — the exact quantity.'],
          [8, 16, "Push a data point through all the layers to get its z. Its log-probability is the bell curve's score for z, plus every layer's log-stretch."],
-         [16, 24, `A point on the moons: ${EX.on.logN.toFixed(2)} ${sgn(EX.on.logdet)} = ${EX.on.logp.toFixed(2)}. A point out in the void: ${EX.off.logN.toFixed(2)} ${sgn(EX.off.logdet)} = ${EX.off.logp.toFixed(2)}.`],
+         [16, 24, `A point on the moons: ${num(EX.on.logN)} ${sgn(EX.on.logdet)} = ${num(EX.on.logp)}. A point out in the void: ${num(EX.off.logN)} ${sgn(EX.off.logdet)} = ${num(EX.off.logp)}.`],
          [24, 32, 'Average −log p over the data, differentiate through every layer, and take a step. This is the real training curve.'],
          [32, 40, `On held-out points the flow scores ${A.nll.toFixed(2)} nats per point; the best single bell curve manages ${A.gauss.toFixed(2)}. Exact numbers, not estimates.`],
          [40, 47.6, "Why “normalizing”? Because the trained flow turns the data into a normal distribution."]],
@@ -528,13 +534,13 @@ SC.push({ dur: 48, chapter: 'likelihood', title: 'Training: exact maximum likeli
     text(t < 40 ? (ff < K - 0.01 ? 'pushing x through the layers…' : 'every point now has its z') : 'data  →  f  →  a normal distribution', 140, 424, { font: F.mono, size: 16, color: P.chalk, a: pa });
     if (pa > 0) [['on', P.sage], ['off', P.rose]].forEach(([k, col]) => { const e = EX[k], u = ease(ff / K), px = lerp(e.x[0], e.z[0], u), py = lerp(e.x[1], e.z[1], u);
       const lim = RR - 0.25, cx = clamp(px, -lim, lim), cy = clamp(py, -lim, lim), out = cx !== px || cy !== py;
-      glow(m.X(cx), m.Y(cy), 7, col, pa); if (out) { arrow(m.X(cx) - 34, m.Y(cy), m.X(cx) - 4, m.Y(cy), col, 2.5, pa); text('z far out in the tails →', m.X(cx) - 40, m.Y(cy) - 16, { font: F.mono, size: 15, color: col, align: 'right', a: pa }); } });
+      glow(m.X(cx), m.Y(cy), 7, col, pa); if (out) { arrow(m.X(cx) - 34, m.Y(cy), m.X(cx) - 4, m.Y(cy), col, 2.5, pa); text('z far out in the tails →', m.X(cx) - 40, m.Y(cy) + 30, { font: F.mono, size: 15, color: col, align: 'right', a: pa }); } });
     const ea = eout(prog(t, 16, 0.8));
     [['on', 'on the moons', P.sage], ['off', 'out in the void', P.rose]].forEach(([k, nm, col], i) => { const x = 680, y = 390 + i * 270, e = EX[k], a = ea * eout(prog(t, 16 + i * 1.5, 0.8));
       card(x, y, 420, 250, col, a); label(nm, x + 30, y + 42, a, col);
       M(`[d|x] = (${e.x[0].toFixed(2)}, ${e.x[1].toFixed(2)})  →  [n|z] = (${e.z[0].toFixed(1)}, ${e.z[1].toFixed(1)})`, x + 30, y + 90, 17, { a });
-      M(`log N([n|z]) = ${e.logN.toFixed(2)}`, x + 30, y + 136, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 174, 22, { a });
-      M(`log [p|p]([d|x]) = ${e.logp.toFixed(2)}`, x + 30, y + 222, 24, { a }); });
+      M(`log N([n|z]) = ${num(e.logN)}`, x + 30, y + 136, 22, { a }); M(`[kB|Σ] [a|s] = ${sgn(e.logdet)}`, x + 30, y + 174, 22, { a });
+      M(`log [p|p]([d|x]) = ${num(e.logp)}`, x + 30, y + 222, 24, { a }); });
     const ca = eout(prog(t, 24, 0.8));
     if (ca > 0) { const x0 = 1170, y0 = 800, w = 640, h = 330, H = A.hist, mx = Math.max(...H.slice(2)), mn = Math.min(...H);
       card(x0 - 30, 390, w + 60, 520, P.plum, ca); text('training −log p (nats per point, real run)', x0, 432, { font: F.mono, size: 16, color: P.dust, a: ca });
@@ -674,7 +680,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
     const sh = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 7.5, 1)));
     if (sh > 0) [['every layer invertible', -1], ['every determinant cheap', 0], ['no tearing', 1]].forEach(([s0, k], i) => { const x = 960 + k * 60, y = 520 + k * 90 + (t > 7.5 ? (t - 7.5) * 90 * (1 + i * 0.3) : 0);
       pill(x, y, '⛓  ' + s0, P.rose, sh * eout(prog(t, 1.5 + i * 0.8, 0.6)), { size: 26, align: 'center' }); });
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const x0 = 160, base = 640, sx = 150, X = x => x0 + (x + 3.3) * sx, Yv = e => base - 30 - (e + 0.5) * 55, a0 = eout(prog(t, 8, 1));
     // energy landscape
     if (a0 > 0) { setA(a0 * 0.15); ctx.fillStyle = P.plum; ctx.beginPath(); ctx.moveTo(X(-3.3), base); for (let i = 0; i <= 200; i++) { const x = -3.3 + 6.6 * i / 200; ctx.lineTo(X(x), Math.min(base, Yv(Efn(x)))); } ctx.lineTo(X(3.3), base); ctx.fill();
@@ -736,19 +742,19 @@ function progressBar(T, idx) {
     text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
-function render(T) {
+function render(T, poster = false) {
   T = clamp(T, 0, DURATION - 1e-3);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
   ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  captions(s, t);
+  if (!poster) captions(s, t);
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(T, i);
+  progressBar(poster ? 0 : T, i);
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -761,8 +767,13 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
-function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+// before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
+const POSTER_T = SC[0].dur - 2.5;
+let started = false;
+function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
@@ -786,10 +797,11 @@ function loop(ts) { if (!playing) return;
   if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+cv.addEventListener('click', () => toggle());
+function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
@@ -797,6 +809,51 @@ window.renderAt = T => render(T);
   ON_READY.forEach(f => f());
   draw(); window.READY = true;
 })();
+
+// ── links to the season hub, this episode's playground and code, and its neighbours (labs/season.js)
+// season.js — the season's table of contents, shared by the hub, every episode page (inlined by src/build.py) and
+// every playground. GM.href() links pages to each other: relative files when opened from this folder, and the
+// published Claude artifacts (the `url` fields) when viewed online, where the other files are not next door.
+window.GM = (function () {
+  const eps = [
+    { n: 1, title: 'Generative Modelling', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', labName: 'Density Lab', code: 'density.py' },
+    { n: 2, title: 'Autoregressive Generation', page: 'ep02-autoregressive.html', lab: 'ep02-ar-playground.html', labName: 'Autoregressive Playground', code: 'ar_counting.py' },
+    { n: 3, title: 'Autoencoders & VAEs', page: 'ep03-autoencoders-vae.html', lab: 'ep03-vae-playground.html', labName: 'Latent Space Playground', code: 'vae.py' },
+    { n: 4, title: 'Grading the Imagination', page: 'ep04-evaluation.html', lab: 'ep04-metric-lab.html', labName: 'Metric Lab', code: 'evals.py' },
+    { n: 5, title: 'GANs', page: 'ep05-gans.html', lab: 'ep05-gan-arena.html', labName: 'GAN Arena', code: 'gan.py' },
+    { n: 6, title: 'Normalizing Flows', page: 'ep06-flows.html', lab: 'ep06-flow-lab.html', labName: 'Flow Lab', code: 'flow.py' },
+    { n: 7, title: 'Energy-Based Models', page: 'ep07-energy.html', lab: 'ep07-ebm-lab.html', labName: 'Energy Lab', code: 'ebm.py' },
+    { n: 8, title: 'Score Matching & Langevin', page: 'ep08-score.html', lab: 'ep08-score-lab.html', labName: 'Score Lab', code: 'score.py' },
+    { n: 9, title: 'Diffusion Models', page: 'ep09-diffusion.html', lab: 'ep09-diffusion-lab.html', labName: 'Diffusion Lab', code: 'diffusion.py' },
+    { n: 10, title: 'Flow Matching', page: 'ep10-flow-matching.html', lab: 'ep10-flow-lab.html', labName: 'Flow Matching Lab', code: 'flow_matching.py' },
+    { n: 11, title: 'Guidance', page: 'ep11-guidance.html', lab: 'ep11-guidance-lab.html', labName: 'Guidance Lab', code: 'guidance.py' },
+  ];
+  // published artifacts (claude.ai), filled in as they are published
+  const URL = {
+    hub: null,
+    ep: { 1: 'https://claude.ai/artifact/JpqRF6pKvGRi8cK3cPsfZP', 2: 'https://claude.ai/artifact/3Dif6UYkDxky2pavqoqwvM', 3: 'https://claude.ai/artifact/EE1JD2Qq7PzuJWvpZBFLKi',
+          4: 'https://claude.ai/artifact/CPUcuRDmkKUVm4jHXkqx4q', 5: 'https://claude.ai/artifact/9LbD4PaxKsHCW7q6wM9uSY', 6: 'https://claude.ai/artifact/P3MyVYi2RyGTMNkwZvnHX8',
+          7: 'https://claude.ai/artifact/RBYTbCT4qpnViT2rrP1WSK', 8: 'https://claude.ai/artifact/5NC1JR7LE3kz6N3B3diM3P', 9: 'https://claude.ai/artifact/TkYw57ufRvnqXUbibDUvzD',
+          10: 'https://claude.ai/artifact/8c8CcQLFogi2LmZELP3nCj', 11: 'https://claude.ai/artifact/HQ2ebzwJmVfQ9ksAf6EG1U' },
+    lab: {},
+  };
+  const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
+  function href(kind, n, base) {
+    const e = eps[n - 1];
+    if (local) return kind === 'hub' ? base + 'index.html' : kind === 'ep' ? base + 'episodes/' + e.page : kind === 'lab' ? base + 'labs/' + e.lab : base + '../code/' + e.code;
+    return kind === 'hub' ? URL.hub : kind === 'ep' ? URL.ep[n] || null : kind === 'lab' ? URL.lab[n] || null : null;
+  }
+  // a small row of links; skips any that have no destination here
+  function nav(el, items) {
+    el.innerHTML = items.filter(([, h]) => h).map(([label, h, cls]) => `<a href="${h}"${local ? '' : ' target="_top"'} class="${cls || ''}">${label}</a>`).join('');
+    el.hidden = !el.innerHTML;
+  }
+  return { eps, URL, local, href, nav };
+})();
+(() => { const n = 6, e = GM.eps[n - 1], h = (k, i) => GM.href(k, i, "../");
+  GM.nav(document.getElementById('links'), [n > 1 && [`◂ ep ${String(n - 1).padStart(2, '0')} · ${GM.eps[n - 2].title}`, h('ep', n - 1)], ['season hub', h('hub')],
+    [`▶ playground · ${e.labName}`, h('lab', n), 'lab'], [`code · ${e.code}`, h('code', n)], n < GM.eps.length && [`ep ${String(n + 1).padStart(2, '0')} · ${GM.eps[n].title} ▸`, h('ep', n + 1), 'next']].filter(Boolean)); })();
 </script>
 </body>
 </html>

@@ -17,7 +17,7 @@
   #probe b { color:var(--chalk); font-weight:400; }
   ul { padding-left:18px; } li { margin:4px 0; }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -168,12 +168,12 @@ LabKit.init({ id: 'ep07',
   steps: ['<strong>Watch the landscape get sculpted</strong>: energy is pushed down under the data and up under the model’s fantasies (pink marbles).', '<strong>Click anywhere</strong> to drop a handful of amber marbles. They roll downhill and jiggle, exactly like the sampler.', '<strong>Turn the knobs</strong> and do the missions: switch off the jiggle, test the ridges, sculpt a spiral.'],
   legend: [['var(--plum)', 'high energy (ridges)'], ['var(--ink)', 'low energy / density'], ['var(--rose)', 'fantasies (the model’s samples)'], ['var(--amber)', 'your marbles'], ['var(--terracotta)', 'data']],
   missions: [
-    { id: 'drop', title: 'Drop a handful of marbles', hint: 'Click or tap anywhere on the landscape.', check: () => LabKit.flags.dropped },
-    { id: 'collapse', title: 'Collapse them: roll downhill with no jiggle', hint: 'Drag <b>jiggle</b> to 0, then drop marbles. Plain gradient descent squeezes them all into one point at the bottom of a valley.', check: () => drops && dropJig === 0 && dropFrames > 120 && dropSpread() < 0.04 },
-    { id: 'sample', title: 'Sample properly: jiggle on, marbles fill a valley', hint: 'Set <b>jiggle</b> back to 1 and drop marbles again. They spread out to the shape of e^−E.', check: () => drops && dropJig >= 0.95 && dropFrames > 90 && dropSpread() > 0.06 && dropSpread() < 1.2 },
-    { id: 'score', title: 'Sculpt the 8 blobs below 1.75 nats', hint: 'On <b>8 blobs</b>, let it train for a minute or two (raise speed). The −log p under the picture is exact: Z is summed over a grid.', check: () => dataKind === 'ring' && step > 300 && nllVal !== null && nllVal < 1.75 },
-    { id: 'stuck', title: 'Test the ridges: drop marbles on one blob and watch for 10 s', hint: 'On <b>8 blobs</b>, with the jiggle on, drop marbles right on one blob. Where the ridges are low they spill into the neighbouring valleys; where they are high they stay trapped. Try it early in training and again later. Marbles that can’t cross ridges are why the episode’s sampler misjudged the valleys: the mixing problem.', check: () => dataKind === 'ring' && step > 600 && drops && dropJig >= 0.95 && dropFrames > 600 },
-    { id: 'spiral', title: 'See the spiral’s density', hint: 'Pick <b>spiral</b>, train a while, then choose <b>density e^−E / Z</b>.', check: () => dataKind === 'spiral' && view === 'dens' && step > 1200 },
+    { id: 'drop', title: 'Drop a handful of marbles', hint: 'Click or tap anywhere on the landscape.', learn: "Each marble follows −∇E plus a small random kick: Langevin sampling. It never needs Z, only the slope.", check: () => LabKit.flags.dropped },
+    { id: 'collapse', title: 'Collapse them: roll downhill with no jiggle', hint: 'Drag <b>jiggle</b> to 0, then drop marbles. Plain gradient descent squeezes them all into one point at the bottom of a valley.', learn: "Without the jiggle this is plain gradient descent: every marble ends at a valley floor. That is optimisation, not sampling.", check: () => drops && dropJig === 0 && dropFrames > 120 && dropSpread() < 0.04 },
+    { id: 'sample', title: 'Sample properly: jiggle on, marbles fill a valley', hint: 'Set <b>jiggle</b> back to 1 and drop marbles again. They spread out to the shape of e^−E.', learn: "With a √(2η) kick the marbles spread out into the valley's shape, e^−E. The kick is what turns a minimiser into a sampler.", check: () => drops && dropJig >= 0.95 && dropFrames > 90 && dropSpread() > 0.06 && dropSpread() < 1.2 },
+    { id: 'score', title: 'Sculpt the 8 blobs below 1.75 nats', hint: 'On <b>8 blobs</b>, let it train for a minute or two (raise speed). The −log p under the picture is exact: Z is summed over a grid.', learn: "In 2-D we can sum Z over a grid, so this −log p is exact. In high dimensions it cannot be computed, which is the EBM's biggest catch.", check: () => dataKind === 'ring' && step > 300 && nllVal !== null && nllVal < 1.75 },
+    { id: 'stuck', title: 'Test the ridges: drop marbles on one blob and watch for 10 s', hint: 'On <b>8 blobs</b>, with the jiggle on, drop marbles right on one blob. Where the ridges are low they spill into the neighbouring valleys; where they are high they stay trapped. Try it early in training and again later. Marbles that can’t cross ridges are why the episode’s sampler misjudged the valleys: the mixing problem.', learn: "Marbles rarely climb high ridges, so short chains never compare one valley with another. That mixing problem is why the episode's valleys ended up unequal.", check: () => dataKind === 'ring' && step > 600 && drops && dropJig >= 0.95 && dropFrames > 600 },
+    { id: 'spiral', title: 'See the spiral’s density', hint: 'Pick <b>spiral</b>, train a while, then choose <b>density e^−E / Z</b>.', learn: "Any network can be an energy, so any shape is allowed, even a spiral; e^−E / Z turns the landscape into a density.", check: () => dataKind === 'spiral' && view === 'dens' && step > 1200 },
   ] });
 </script>
 </body>

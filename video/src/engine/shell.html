@@ -11,7 +11,7 @@
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
   html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
   .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
-  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); cursor:pointer; }
   .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
   button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--terracotta); }
@@ -20,7 +20,12 @@
   .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
   .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
-  body.capture .ctl, body.capture .chapters { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .links a { color:var(--stone); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; }
+  .links a:hover { color:var(--chalk); border-color:var(--terracotta); }
+  .links a.lab { color:#d4a853; border-color:rgba(212,168,83,.45); }
+  .links a.next { margin-left:auto; }
+  body.capture .ctl, body.capture .chapters, body.capture .links { display:none; }
   body.capture .wrap { padding:0; max-width:none; }
   body.capture canvas { width:1920px; border-radius:0; }
 </style>
@@ -36,6 +41,7 @@
     <audio id="snd" src="{{AUDIO}}" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
+  <nav class="links" id="links" aria-label="season" hidden></nav>
 </div>
 {{SCRIPTS}}
 <script>

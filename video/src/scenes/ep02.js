@@ -110,7 +110,7 @@ SC.push({ dur: 24, chapter: 'intro',
          [20, 23.6, "Let's find out — and then build one ourselves."]],
   draw(t) {
     const n = Math.min(OPEN_TEXT.length, Math.floor(Math.max(0, t - 0.8) * 3.4));
-    const up = ease(prog(t, 15, 1.6)), dim = lerp(1, 0.22, up);
+    const up = ease(prog(t, 14.2, 1.3)), dim = lerp(1, 0.18, up);          // clear of the title before it arrives
     const y = lerp(560, 300, up), size = 60; ctx.font = `400 ${size}px ${F.mono}`;
     const cw = ctx.measureText('M').width, x0 = 960 - OPEN_TEXT.length * cw / 2;
     for (let i = 0; i < n; i++) text(OPEN_TEXT[i], x0 + i * cw, y, { font: F.mono, size, color: P.terracotta, a: dim });
@@ -485,7 +485,10 @@ SC.push({ dur: 56, chapter: 'neural net', title: 'Replace the table with a funct
       const vr = Math.max(...vs.map(p => Math.hypot(p[0] - vcx, p[1] - vcy))) * s + 40;
       const ca = eout(prog(t, 9, 1)); setA(ca * 0.08); ctx.fillStyle = P.sage; ctx.beginPath(); ctx.arc(cx + vcx * s, cy - vcy * s, vr, 0, TAU); ctx.fill(); setA(1); ring(cx + vcx * s, cy - vcy * s, vr, P.sage, ca * 0.8, 2);
       text('vowels', cx + vcx * s, cy - vcy * s - vr - 14, { font: F.serif, italic: true, size: 28, color: P.sage, align: 'center', a: ca });
-      EMB.forEach(([ex, ey], j) => { const a = eout(prog(t, 1.5 + j * 0.08, 0.5)); const X = cx + ex * s, Y = cy - ey * s; glow(X, Y, 6, P.terracotta, a); text(VOC[j] === '.' ? '·' : VOC[j], X + 12, Y - 10, { font: F.mono, size: 26, color: P.chalk, a }); });
+      const LBL = memo('emblbl', () => { const put = []; return EMB.map(([ex, ey]) => { const X = cx + ex * s, Y = cy - ey * s;   // place each letter where it hits no earlier one
+        const o = [[12, -10], [12, 26], [-30, -10], [-30, 26], [0, -22], [0, 40]].find(([dx, dy]) => put.every(([px, py]) => Math.abs(X + dx - px) > 20 || Math.abs(Y + dy - py) > 24)) || [12, -10];
+        put.push([X + o[0], Y + o[1]]); return o; }); });
+      EMB.forEach(([ex, ey], j) => { const a = eout(prog(t, 1.5 + j * 0.08, 0.5)); const X = cx + ex * s, Y = cy - ey * s; glow(X, Y, 6, P.terracotta, a); text(VOC[j] === '.' ? '·' : VOC[j], X + LBL[j][0], Y + LBL[j][1], { font: F.mono, size: 26, color: P.chalk, a }); });
       card(1260, 280, 560, 220, P.terracotta, eout(prog(t, 3, 0.8))); label('embedding', 1296, 326, eout(prog(t, 3, 0.8)));
       M('[d|e]([d|c]) ∈ ℝ[d^|d]', 1296, 410, 44, { a: eout(prog(t, 3, 0.8)) });
       text('one learned vector per letter', 1296, 462, { size: 24, color: P.stone, a: eout(prog(t, 3, 0.8)) });

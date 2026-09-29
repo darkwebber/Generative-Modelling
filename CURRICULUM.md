@@ -17,9 +17,22 @@ Rules for every season:
 ## Season 1 · Generative modelling (done, 11 episodes)
 
 The question: *how do you turn noise into data?*
+Companion models: one small numpy model per episode, from a counted table of letters to a guided flow on digits.
 
-- It ends at Episode 11 (guidance) with the hook: "we handed it a number; real prompts are sentences. To draw what we
-  say, a machine must first read."
+1. What is generative modelling? Data as points, p(x), maximum likelihood, x = g(z)
+2. Autoregressive generation: the chain rule, counting, a neural next-letter model, temperature
+3. Autoencoders & VAEs: latent space, fuzzy codes on a leash, the ELBO, the reparameterisation trick
+4. Grading the imagination: likelihood, IS, FID, precision & recall, novelty, a learned judge
+5. GANs: the perfect judge, Jensen–Shannon, mode collapse, why a game is not a hill
+6. Normalizing flows: probability as sand, the Jacobian, the determinant, coupling layers
+7. Energy-based models: e^−E / Z, fantasies, Metropolis and Langevin sampling
+8. Score matching & Langevin: the score, why the jiggle is √(2η), denoising score matching, annealing
+9. Diffusion models: destroy slowly, predict the noise, a VAE with a thousand layers, DDIM
+10. Flow matching: straight roads, the averaged wind, reflow, one family of four names
+11. Guidance: p(x | y), Bayes as arrows, classifier and classifier-free guidance, the dial, saying no
+
+It ends with the hook: every request so far was a number, and real prompts are sentences. Its last line, which
+Season 2 opens by quoting: "Before a machine can draw what we say, it must learn to read."
 
 ## Season 2 · Machines that read: sequences and the transformer
 

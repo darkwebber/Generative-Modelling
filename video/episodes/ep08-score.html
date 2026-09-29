@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Score Matching & Langevin</title>
+<title>Ep 08 · Score Matching & Langevin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
   html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
   .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
-  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); cursor:pointer; }
   .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
   button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--terracotta); }
@@ -20,14 +20,19 @@
   .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
   .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
-  body.capture .ctl, body.capture .chapters { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .links a { color:var(--stone); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; }
+  .links a:hover { color:var(--chalk); border-color:var(--terracotta); }
+  .links a.lab { color:#d4a853; border-color:rgba(212,168,83,.45); }
+  .links a.next { margin-left:auto; }
+  body.capture .ctl, body.capture .chapters, body.capture .links { display:none; }
   body.capture .wrap { padding:0; max-width:none; }
   body.capture canvas { width:1920px; border-radius:0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="c" width="1920" height="1080" aria-label="Score Matching & Langevin explainer animation"></canvas>
+  <canvas id="c" width="1920" height="1080" aria-label="Ep 08 · Score Matching & Langevin explainer animation"></canvas>
   <div class="ctl">
     <button id="play">▶ play</button>
     <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
@@ -36,6 +41,7 @@
     <audio id="snd" src="ep08-audio.mp3" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
+  <nav class="links" id="links" aria-label="season" hidden></nav>
 </div>
 <script src="ep08-assets.js"></script>
 <script>
@@ -313,7 +319,7 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
          [8, 15, 'At any x, the slope of log p is the score: s(x) = d/dx log p(x). Positive means “more probable to the right”.'],
          [15, 22, 'Draw it as an arrow at every point. The arrows point toward likely data, and grow longer the further out you go.'],
          [22, 29, 'Another reading: s = p′(x) / p(x), how fast p grows as a fraction of itself. A relative slope.'],
-         [29, 36, 'And Z? log p = log p̃ − log Z; Z is constant, so its slope is zero. The score never needs normalising.'],
+         [29, 36, 'And Z? If p = p̃ / Z, then log p = log p̃ − log Z, and a constant has zero slope.'],
          [36, 43, 'For a bell curve, the score is −(x − μ)/σ²: a spring pulling back to the centre, stiffer when the bell is narrow.'],
          [43, 49.6, 'In two dimensions the score is a gradient: an arrow field over the plane. That field is what we want to learn.']],
   draw(t) {
@@ -342,10 +348,10 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
 
 // 02 — why the jiggle is √(2η)
 SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub: 'A pull and a kick, in perfect balance.',
-  caps: [[1, 8, 'Last episode asked: why is the kick exactly √(2η)? Test it on the simplest target: a bell curve with variance 1.'],
+  caps: [[1, 8, 'Last episode asked: why is the kick exactly √(2η)? Test it on the simplest target: the standard bell curve, N(0, 1).'],
          [8, 15, 'Its score is −x: each step shrinks x by (1 − η), then kicks. Three runs: no kick, √(2η), and double.'],
          [15, 24, 'No kick: everything collapses onto the peak. Double kick: the cloud spreads four times too wide. The √(2η) kick lands exactly on the bell.'],
-         [24, 32, 'Why? Track the variance. The pull multiplies it by (1 − η)², losing about 2η per step. The kick adds back exactly 2η. Balance at 1.'],
+         [24, 32, 'Why? Track the variance, the average squared distance from the centre. The pull shrinks it by about 2η per step; the kick adds exactly 2η back.'],
          [32, 40, 'The same balance holds for any p, in any dimension. The arrows push probability uphill; the jiggle spreads it back out.'],
          [40, 48, 'The uphill flow is p·s = p·∇log p = ∇p. The spreading flow is −∇p. They cancel exactly, so p stops changing: it is the stationary distribution.'],
          [48, 57.6, 'So Langevin needs only the score: no energy, no Z. If we can learn the arrows, we can sample.']],
@@ -378,7 +384,7 @@ SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub:
 // 03 — learning arrows we can't see
 SC.push({ dur: 40, chapter: 'the problem', title: 'Learning arrows we can’t see', sub: 'We have samples, not scores.',
   caps: [[1, 8, 'So: learn a network sθ(x) with an arrow at every x, matching the true arrows on average over the data.'],
-         [8, 16, 'Minimise E‖sθ(x) − ∇ₓ log p(x)‖². But the true arrows are exactly what we don’t know. We only have samples.'],
+         [8, 16, 'Minimise the average (E) squared miss, ‖sθ(x) − ∇ₓ log p(x)‖². But the true arrows are exactly what we don’t know: we only have samples.'],
          [16, 24, 'It’s like being asked to copy a map nobody will show you. Two tricks get around it.'],
          [24, 32, 'The first, from Aapo Hyvärinen in 2005, removes the unknown term with calculus. The second, from Pascal Vincent in 2011, uses noise.'],
          [32, 39.6, 'Both give a loss you can compute from samples alone.']],
@@ -435,7 +441,7 @@ SC.push({ dur: 58, chapter: 'denoising', title: 'Trick 2: add noise, point home'
          [15, 23, 'So train the network to point home: minimise ‖sθ(x̃) + ε/σ‖². Multiply through by σ and it simply predicts the noise that was added.'],
          [23, 31, 'But a noisy point could have come from many clean points. The network can’t know which, so it learns the average of all their arrows home.'],
          [31, 39, 'Here is one noisy point, with an arrow to every data point that could have produced it, weighted by how likely. Their average is the bold arrow.'],
-         [39, 47, 'That average is exactly the score of the noisy data, ∇ log pσ. The unknown score, recovered by an ordinary regression.'],
+         [39, 47, 'That average is exactly the score of the noisy data, ∇ log pσ: the unknown score, recovered by plain regression, shrinking a squared miss.'],
          [47, 57.6, 'Flip it around: x̃ + σ²·s(x̃) is the best guess of the clean point. The score is a denoiser. Remember that: it is the key to episode 9.']],
   draw(t) {
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
@@ -520,7 +526,7 @@ SC.push({ dur: 60, chapter: 'many scales', title: 'Noise at many scales', sub: '
   caps: [[1, 8, 'The fix: train the network at many noise levels at once. That’s why it takes σ as an input.'],
          [8, 15, 'At σ = 3 the data blurs into one broad hill. Its arrows reach everywhere, and noisy points cover every region: reliable.'],
          [15, 22, 'Step the noise down and the field sharpens: first a ring, then eight separate valleys.'],
-         [22, 30, 'Annealed Langevin: start particles from noise at the largest σ, take a few Langevin steps, lower σ, and repeat.'],
+         [22, 30, 'Annealed Langevin, named after cooling metal slowly: start from noise at the largest σ, take a few Langevin steps, lower σ, repeat.'],
          [30, 38, 'Big steps while the noise is big, tiny careful steps at the end: the step size shrinks like σ².'],
          [38, 46, 'Early on, the broad arrows move particles toward the data as a whole, carrying the right weights. Later, sharp arrows settle them into place.'],
          [46, 53, 'Like finding a house: first the country, then the city, then the street.'],
@@ -561,7 +567,7 @@ SC.push({ dur: 40, chapter: 'result', title: 'Weights restored', sub: 'The same 
 // 10 — in the wild
 SC.push({ dur: 40, chapter: 'in the wild', title: 'Arrows everywhere', sub: 'From toy blobs to every modern image generator.',
   caps: [[1, 9, 'In 2019, noise-conditional score networks with annealed Langevin produced strikingly good images, competitive with GANs, with no adversary at all.'],
-         [9, 18, 'In 2021, Yang Song and colleagues let the noise level vary continuously: infinitely many σ’s, one stochastic differential equation. Score models and diffusion became one idea.'],
+         [9, 18, 'In 2021, Yang Song and colleagues made the noise level continuous: one equation for noise added gradually, a stochastic differential equation. Score models and diffusion became one idea.'],
          [18, 27, 'Because the score is a denoiser, any good denoiser hides a score: “plug-and-play” priors use one to deblur photos and reconstruct MRI scans.'],
          [27, 34, 'And every image and video diffusion model trains a network that, underneath, is a noise-conditional score network.'],
          [34, 39.6, 'The arrows won.']],
@@ -613,7 +619,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Noise, in slow motion', sub: 'What a
          [31, 38, 'Chain enough tiny denoising steps and static becomes data. That idea, made precise, powers nearly every image generator you have seen.'],
          [38, 47.6, 'Next episode: diffusion models. Noise, run backwards.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const fwd = t < 16, sg = fwd ? 3 * Math.pow(prog(t, 2, 12), 1.6) : 0;
     if (fwd) clipTo(m, () => FWD.forEach(p => marble(m.X(p[0] + sg * p[2]), m.Y(p[1] + sg * p[3]), 3, mixc(P.terracotta, P.rose, clamp(sg / 3)), a0)));
@@ -665,19 +671,19 @@ function progressBar(T, idx) {
     text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
-function render(T) {
+function render(T, poster = false) {
   T = clamp(T, 0, DURATION - 1e-3);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
   ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  captions(s, t);
+  if (!poster) captions(s, t);
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(T, i);
+  progressBar(poster ? 0 : T, i);
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -690,8 +696,13 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
-function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+// before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
+const POSTER_T = SC[0].dur - 2.5;
+let started = false;
+function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
@@ -715,10 +726,11 @@ function loop(ts) { if (!playing) return;
   if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+cv.addEventListener('click', () => toggle());
+function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
@@ -726,6 +738,51 @@ window.renderAt = T => render(T);
   ON_READY.forEach(f => f());
   draw(); window.READY = true;
 })();
+
+// ── links to the season hub, this episode's playground and code, and its neighbours (labs/season.js)
+// season.js — the season's table of contents, shared by the hub, every episode page (inlined by src/build.py) and
+// every playground. GM.href() links pages to each other: relative files when opened from this folder, and the
+// published Claude artifacts (the `url` fields) when viewed online, where the other files are not next door.
+window.GM = (function () {
+  const eps = [
+    { n: 1, title: 'Generative Modelling', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', labName: 'Density Lab', code: 'density.py' },
+    { n: 2, title: 'Autoregressive Generation', page: 'ep02-autoregressive.html', lab: 'ep02-ar-playground.html', labName: 'Autoregressive Playground', code: 'ar_counting.py' },
+    { n: 3, title: 'Autoencoders & VAEs', page: 'ep03-autoencoders-vae.html', lab: 'ep03-vae-playground.html', labName: 'Latent Space Playground', code: 'vae.py' },
+    { n: 4, title: 'Grading the Imagination', page: 'ep04-evaluation.html', lab: 'ep04-metric-lab.html', labName: 'Metric Lab', code: 'evals.py' },
+    { n: 5, title: 'GANs', page: 'ep05-gans.html', lab: 'ep05-gan-arena.html', labName: 'GAN Arena', code: 'gan.py' },
+    { n: 6, title: 'Normalizing Flows', page: 'ep06-flows.html', lab: 'ep06-flow-lab.html', labName: 'Flow Lab', code: 'flow.py' },
+    { n: 7, title: 'Energy-Based Models', page: 'ep07-energy.html', lab: 'ep07-ebm-lab.html', labName: 'Energy Lab', code: 'ebm.py' },
+    { n: 8, title: 'Score Matching & Langevin', page: 'ep08-score.html', lab: 'ep08-score-lab.html', labName: 'Score Lab', code: 'score.py' },
+    { n: 9, title: 'Diffusion Models', page: 'ep09-diffusion.html', lab: 'ep09-diffusion-lab.html', labName: 'Diffusion Lab', code: 'diffusion.py' },
+    { n: 10, title: 'Flow Matching', page: 'ep10-flow-matching.html', lab: 'ep10-flow-lab.html', labName: 'Flow Matching Lab', code: 'flow_matching.py' },
+    { n: 11, title: 'Guidance', page: 'ep11-guidance.html', lab: 'ep11-guidance-lab.html', labName: 'Guidance Lab', code: 'guidance.py' },
+  ];
+  // published artifacts (claude.ai), filled in as they are published
+  const URL = {
+    hub: null,
+    ep: { 1: 'https://claude.ai/artifact/JpqRF6pKvGRi8cK3cPsfZP', 2: 'https://claude.ai/artifact/3Dif6UYkDxky2pavqoqwvM', 3: 'https://claude.ai/artifact/EE1JD2Qq7PzuJWvpZBFLKi',
+          4: 'https://claude.ai/artifact/CPUcuRDmkKUVm4jHXkqx4q', 5: 'https://claude.ai/artifact/9LbD4PaxKsHCW7q6wM9uSY', 6: 'https://claude.ai/artifact/P3MyVYi2RyGTMNkwZvnHX8',
+          7: 'https://claude.ai/artifact/RBYTbCT4qpnViT2rrP1WSK', 8: 'https://claude.ai/artifact/5NC1JR7LE3kz6N3B3diM3P', 9: 'https://claude.ai/artifact/TkYw57ufRvnqXUbibDUvzD',
+          10: 'https://claude.ai/artifact/8c8CcQLFogi2LmZELP3nCj', 11: 'https://claude.ai/artifact/HQ2ebzwJmVfQ9ksAf6EG1U' },
+    lab: {},
+  };
+  const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
+  function href(kind, n, base) {
+    const e = eps[n - 1];
+    if (local) return kind === 'hub' ? base + 'index.html' : kind === 'ep' ? base + 'episodes/' + e.page : kind === 'lab' ? base + 'labs/' + e.lab : base + '../code/' + e.code;
+    return kind === 'hub' ? URL.hub : kind === 'ep' ? URL.ep[n] || null : kind === 'lab' ? URL.lab[n] || null : null;
+  }
+  // a small row of links; skips any that have no destination here
+  function nav(el, items) {
+    el.innerHTML = items.filter(([, h]) => h).map(([label, h, cls]) => `<a href="${h}"${local ? '' : ' target="_top"'} class="${cls || ''}">${label}</a>`).join('');
+    el.hidden = !el.innerHTML;
+  }
+  return { eps, URL, local, href, nav };
+})();
+(() => { const n = 8, e = GM.eps[n - 1], h = (k, i) => GM.href(k, i, "../");
+  GM.nav(document.getElementById('links'), [n > 1 && [`◂ ep ${String(n - 1).padStart(2, '0')} · ${GM.eps[n - 2].title}`, h('ep', n - 1)], ['season hub', h('hub')],
+    [`▶ playground · ${e.labName}`, h('lab', n), 'lab'], [`code · ${e.code}`, h('code', n)], n < GM.eps.length && [`ep ${String(n + 1).padStart(2, '0')} · ${GM.eps[n].title} ▸`, h('ep', n + 1), 'next']].filter(Boolean)); })();
 </script>
 </body>
 </html>

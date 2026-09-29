@@ -322,6 +322,8 @@ video/
   src/new_episode.py      scaffolds the next episode (scenes, soundtrack, build entry)
   episodes/               every page, with its data (epNN-assets.js) and soundtrack (epNN-audio.mp3): open or publish
   labs/                   the playgrounds (epNN-….html) + lab-kit.js / .css (guide, missions, tactile sound, styles)
+  labs/season.js          the season's table of contents: every page links to its neighbours through it — local files,
+                          or the published artifacts' URLs when viewed online (update URL there after publishing)
   index.html, posters/    the season hub
   render.mjs              renders any page to MP4, frame by frame (deterministic) → renders/ (not in git)
 ```
@@ -344,8 +346,10 @@ python src/make.py 10 --render --preview   # + renders/ep10-…-sound.mp4 and a 
 Every episode has a hands-on lab in `labs/`, named after its episode (`ep01-density-lab.html` … `ep11-guidance-lab.html`). They share `lab-kit.js` and `lab-kit.css`:
 
 - a three-step **how to play** guide and a colour legend at the top of each lab;
-- **missions** that check themselves off as you play (each is one idea from the episode, with a hint), a progress pill
-  that follows you down the page, and a small celebration when you finish;
+- **missions** that check themselves off as you play: each says what to do (the title), how (the hint) and, once done,
+  **what you just saw** and why it matters (the `learn` field), with a progress pill that follows you down the page and a
+  small celebration when you finish;
+- links back to the episode, the season hub and the code (from `season.js`);
 - **tactile sound**, synthesised live with WebAudio: slider detents pitched by value, button clicks, plus sounds for each
   lab's own events (dice rattles, glass marbles, judges' stamps, chimes when a GAN finds a mode…); ♪ toggles it;
 - chunkier sliders and buttons that press in, tap ripples on every canvas, and layouts that work on a phone.
@@ -381,8 +385,11 @@ player and the MP4 carry identical audio.
   brightness/pitch follows progress. Data-driven moments read their values from the page itself
   (`src/tools/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
   lands, each mode a GAN finds, each mode-collapse hop.
-- **Player** — the shared page (`src/engine/player.js`) has the ♪ button and keeps the audio locked to the
-  animation clock through play / pause / scrub / chapter jumps (**M** mutes).
+- **Player** — the shared page (`src/engine/player.js`) has the ♪ button. The picture follows the soundtrack's own clock
+  while it plays (so slow devices never drift), falls back to the wall clock if the audio clock stalls, and re-syncs on
+  play / pause / scrub / chapter jumps (**M** mutes). Before the first play it shows the title card with a ▶ button;
+  clicking the picture plays or pauses. Under the chapters, links lead to the previous and next episode, the hub, the
+  playground and the code.
 
 | Episode | Key & colour | Signature sounds |
 |---|---|---|

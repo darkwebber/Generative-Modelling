@@ -30,7 +30,7 @@
   .formula b { color:var(--amber); font-weight:400; }
   @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .knobs { grid-template-columns: 110px 1fr 56px; } }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -197,12 +197,12 @@ LabKit.init({ id: 'ep11',
   steps: ['<strong>Ask</strong>: pick a blob and flow. The request y is just one more input to the network.', '<strong>Turn the dial</strong>: w = 0 ignores the request, w = 1 is plain p(x | y), bigger w insists.', '<strong>Look inside</strong>: the arrows at one point, two overlapping classes, and digits on request. The missions walk you through it.'],
   legend: [['var(--rose)', 'noise'], ['var(--terracotta)', 'samples'], ['var(--plum)', 'the wind with the request'], ['var(--sage)', 'the request’s push'], ['var(--amber)', 'the dial w']],
   missions: [
-    { id: 'ask', title: 'Ask for a blob and flow', hint: 'Pick a number next to <b>ask for</b> and press <b>flow ▶</b>.', check: () => asked >= 1 },
-    { id: 'dial', title: 'Flow the same request at w = 0, 1 and 4', hint: 'Drag <b>guidance w</b> between runs. Watch the spread of the landed points.', check: () => [0, 1, 4].every(v => dialed.has(v)) },
-    { id: 'probe', title: 'Click a point and slide time', hint: 'Click the arrows map and drag <b>time t</b>. The sage push is the classifier the network learned for free.', check: () => probed >= 1 && tSlid >= 5 },
-    { id: 'avoid', title: 'Avoid a neighbour', hint: 'Ask for 3, avoid 2, set w a little above 1 (say 1.25) and flow. Then try w = 2.', check: () => negTried },
-    { id: 'clouds', title: 'Squeeze the overlapping classes', hint: 'Slide the clouds’ <b>guidance w</b> to 0, 1 and 4 or more. Where do the samples go?', check: () => cloudWs.has(0) && cloudWs.has(1) && [...cloudWs].some(v => v >= 4) },
-    { id: 'digits', title: 'Ask for three different digits, one at w ≥ 3', hint: 'Pick a digit, press <b>draw 8 ▶</b>. Then crank w and watch the variety drain away.', check: () => digitAsks.size >= 3 && digitHighW },
+    { id: 'ask', title: 'Ask for a blob and flow', hint: 'Pick a number next to <b>ask for</b> and press <b>flow ▶</b>.', learn: "The request y is just one more input to the network. Asking changes the wind, and the noise flows to what you asked for.", check: () => asked >= 1 },
+    { id: 'dial', title: 'Flow the same request at w = 0, 1 and 4', hint: 'Drag <b>guidance w</b> between runs. Watch the spread of the landed points.', learn: "w = 0 ignores the request, w = 1 samples p(x | y), and larger w insists: tighter, more obvious, less varied.", check: () => [0, 1, 4].every(v => dialed.has(v)) },
+    { id: 'probe', title: 'Click a point and slide time', hint: 'Click the arrows map and drag <b>time t</b>. The sage push is the classifier the network learned for free.', learn: "The sage push is v_y − v∅, the difference between two winds, which works as a classifier's arrow for free. Classifier-free guidance scales it by w.", check: () => probed >= 1 && tSlid >= 5 },
+    { id: 'avoid', title: 'Avoid a neighbour', hint: 'Ask for 3, avoid 2, set w a little above 1 (say 1.25) and flow. Then try w = 2.', learn: "Swap v∅ for the wind toward what you want to avoid, and guidance pushes away from it. Gently it works; too hard and it overshoots.", check: () => negTried },
+    { id: 'clouds', title: 'Squeeze the overlapping classes', hint: 'Slide the clouds’ <b>guidance w</b> to 0, 1 and 4 or more. Where do the samples go?', learn: "Guidance asks for p(x) · p(y | x)^w. Raising w shrinks the ambiguous overlap fastest, so samples retreat to what is unmistakably A.", check: () => cloudWs.has(0) && cloudWs.has(1) && [...cloudWs].some(v => v >= 4) },
+    { id: 'digits', title: 'Ask for three different digits, one at w ≥ 3', hint: 'Pick a digit, press <b>draw 8 ▶</b>. Then crank w and watch the variety drain away.', learn: "At high w every digit obeys but they all look alike: the fidelity-versus-diversity trade-off that episode 4's judges measured.", check: () => digitAsks.size >= 3 && digitHighW },
   ] });
 </script>
 </body>

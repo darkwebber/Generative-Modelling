@@ -119,7 +119,7 @@ SC.push({ dur: 46, chapter: 'asking', title: 'What asking means', sub: 'From p(x
 // 02 — recipe 1: tell the network
 const LBL8 = ['1', '2', '3', '4', '5', '6', '7', '8'];
 SC.push({ dur: 48, chapter: 'tell it', title: 'Recipe 1: tell the network', sub: 'The request becomes one more input.',
-  caps: [[1, 8, 'The most direct idea: tell the network what we want. Give it the request y as one more input, next to x and t.'],
+  caps: [[1, 8, 'The most direct idea: tell the network what we want. The request y becomes one more input, next to x and t.'],
          [8, 15, 'A network reads numbers, so y becomes a one-hot list: eight slots, all zero, with a single one in slot y.'],
          [15, 23, 'Add a ninth slot, ∅, meaning no request. While training, we hide the label one time in ten and light ∅ instead.'],
          [23, 31, 'Everything else is episode 10’s regression, unchanged: a random road from noise to data, a random time, match its velocity.'],
@@ -162,7 +162,7 @@ SC.push({ dur: 46, chapter: 'digits', title: 'Digits on request', sub: 'Ten labe
       digitRow(MN.grid[d], `g${d}_`, 8, x0, y, cell, gap, ra);
       const hl = t > 15 && t < 23 ? 1 : 0; if (hl) { const col = Math.floor((t - 15) / 2.7) % 8; rbox(x0 + col * (cell + gap) - 3, y0 - 6, cell + 6, 10 * (cell + gap) + 6, 8, 'rgba(0,0,0,0)', P.sage, a0 * 0.8); }
       const ma = eout(prog(t, 31, 0.8)); if (ma > 0) MISS[d].forEach((bad, c) => { if (bad) ring(x0 + c * (cell + gap) + cell / 2, y + cell / 2, cell * 0.58, P.rose, ma, 2.5); }); }
-    text('same noise down each column  →', x0, 945, { font: F.mono, size: 15, color: P.dust, a: a0 * eout(prog(t, 8, 0.8)) });
+    text('same noise down each column  →', x0, 236, { font: F.mono, size: 15, color: P.dust, a: a0 * eout(prog(t, 8, 0.8)) });
     const c1 = eout(prog(t, 23.5, 0.8)); if (c1 > 0) { card(830, 250, 1000, 420, P.ink, c1); label('the digit reader agrees with the request', 864, 296, c1, P.ink);
       const pc = J['1'].perClass; pc.forEach((v, d) => { const x = 880 + d * 92, h = 220 * v * eout(prog(t, 24 + d * 0.1, 0.6)); setA(c1); ctx.fillStyle = v > 0.9 ? P.sage : P.amber; ctx.fillRect(x, 610 - h, 56, h); setA(1);
         text(String(d), x + 28, 640, { font: F.mono, size: 18, color: P.ink, align: 'center', a: c1 }); text(pct(v), x + 28, 600 - h, { font: F.mono, size: 14, color: P.stone, align: 'center', a: c1 }); });
@@ -184,7 +184,7 @@ SC.push({ dur: 54, chapter: 'bayes', title: 'Bayes’ rule, as arrows', sub: 'Ta
          [40, 47, 'Add it to the wind with no request, and the wind bends toward blob 3.'],
          [47, 53.6, `Our network trained with labels learned almost the same wind on its own: on average the two arrows differ by ${AGREE}°.`]],
   draw(t) {
-    const m = sq(110, 250, 640, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const m = sq(110, 250, 620, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     clipTo(m, () => DATA8.forEach(([x, y, k]) => dot(m.X(x), m.Y(y), 2.2, BLOBCOL[k], a0 * 0.35))); blobRings(m, a0 * 0.8, t > 32 ? 2 : -1);
     const ha = eout(prog(t, 32, 1)); heatP(m, FF.p, ha);
     const ga = ha * (1 - ease(prog(t, 40, 0.8))); fieldArrows(m, FF.cg, ga, P.sage, 0.1, 2.2);
@@ -209,12 +209,12 @@ const NZ = memo('nz', () => { const r = rng(5), g = () => Math.sqrt(-2 * Math.lo
 const NOISY = memo('noisy', () => { const x = imgs(MN.grid[7], 8)[1]; return [0.2, 0.45, 0.7, 1].map(tt => Uint8Array.from(x, (v, i) => clamp(Math.round((((1 - tt) * NZ[i] + tt * (v / 127.5 - 1)) + 1) * 127.5), 0, 255))); });
 SC.push({ dur: 52, chapter: 'classifier', title: 'Recipe 2: classifier guidance', sub: 'Follow the wind, plus a classifier’s arrow, turned up by w.',
   caps: [[1, 8, 'So here is a second recipe: follow the usual wind, and add the classifier’s arrow. It is called classifier guidance, published in 2021.'],
-         [8, 16, 'One catch. Halfway along a road, a point is still part noise, so the classifier must be trained on noisy points at every t, not only on clean ones.'],
+         [8, 16, 'One catch: halfway along a road a point is still part noise, so the classifier must learn to read noisy points at every t.'],
          [16, 26, 'Another: the flow is written in velocities, the classifier in scores. Episode 10’s formulas translate: a change in score, times (1 − t)/t, is a change in velocity.'],
-         [26, 33, 'Now the dial. Multiply the classifier’s arrow by w. At w = 0 we ignore the request, and the noise goes to every blob.'],
+         [26, 33, 'Now the dial: multiply the classifier’s arrow by w. At w = 0 the request is ignored: noise goes to every blob.'],
          [33, 40, 'At w = 1 it is plain Bayes, exactly the conditional distribution. Everything lands on blob 3.'],
          [40, 47, 'Above 1 we ask for p(x) times p(y | x) to the power w: only the points the classifier is most sure about.'],
-         [47, 51.6, 'It works, but it needs a second network, trained on noise, and its arrows can chase whatever fools the classifier.']],
+         [47, 51.6, 'It works, but needs a second, noise-trained network, and can chase whatever fools it.']],
   draw(t) {
     const m = sq(110, 250, 640, 2.0), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const phase = t < 33 ? 'cg0' : t < 40 ? 'cg1' : 'cg4', t0 = t < 33 ? 26.3 : t < 40 ? 33.3 : 40.3, st = FL[phase], f = t < 26 ? 0 : (st.S - 1) * hopF(t, t0, 3), w = { cg0: 0, cg1: 1, cg4: 4 }[phase];
@@ -242,7 +242,7 @@ SC.push({ dur: 52, chapter: 'CFG', title: 'Recipe 3: no classifier needed', sub:
   caps: [[1, 9, 'Now the idea that put guidance everywhere. Rearrange Bayes’ rule once more, and solve for the classifier’s arrow.'],
          [9, 17, 'It is just a difference: the wind with the request, minus the wind without it. And we already have both.'],
          [17, 24, 'Remember the ∅ slot? Hiding the label one time in ten taught one network both winds: with the request, and without.'],
-         [24, 31, 'At one point: grey is the wind without the request, plum the wind with it. The sage arrow between them is the request’s push.'],
+         [24, 31, 'At one point: grey is the wind without the request, plum the wind with it. The sage arrow between is the push.'],
          [31, 39, 'w = 1 follows that push once and lands on the plum arrow. w = 3 follows it three times. This is classifier-free guidance, from 2021.'],
          [39, 46, 'The price is two network calls per step: one with the request, one with ∅.'],
          [46, 51.6, 'Same formula as classifier guidance. The classifier is still there, hiding inside the difference.']],
@@ -317,8 +317,8 @@ const SWW = ['0', '1', '2', '4', '8'];
 SC.push({ dur: 54, chapter: 'the price', title: 'The price of listening', sub: 'Same noise, one request, the dial turned up; and episode 4’s judges.',
   caps: [[1, 8, 'Same eight noise images, all asking for a 7, with the dial at 0, 1, 2, 4 and 8.'],
          [8, 16, 'At 0, whatever digit the noise leads to. At 1, sevens. By 4, bolder, more obvious sevens. At 8, a caricature.'],
-         [16, 24, `Episode 4’s judges, on 2,000 digits per setting. The digit reader agrees with the request ${pct(J['0'].acc)} of the time at w = 0, pure chance; ${pct(J['1'].acc)} at 1, ${pct(J['4'].acc)} at 4.`],
-         [24, 32, `FID, the distance between our digits and real ones (lower is better): ${J['0'].FID.toFixed(1)} at w = 0, best at w = ${JB} with ${J[JB].FID.toFixed(1)}, then ${J['8'].FID.toFixed(1)} at 8.`],
+         [16, 24, `Episode 4’s judges, 2,000 digits per setting. The digit reader agrees with the request: ${pct(J['0'].acc)} at w = 0, pure chance; ${pct(J['1'].acc)} at 1; ${pct(J['4'].acc)} at 4.`],
+         [24, 32, `FID, the distance from real digits (lower is better): ${J['0'].FID.toFixed(1)} at w = 0, best at w = ${JB} with ${J[JB].FID.toFixed(1)}, then ${J['8'].FID.toFixed(1)} at 8.`],
          [32, 40, `Recall, the share of real variety our digits cover, falls from ${pct(J['1'].recall)} at w = 1 to ${pct(J['8'].recall)} at 8. Every 7 drifts toward the typical 7.`],
          [40, 47, 'Remember the title? That was w = 1. At w = 2.5, each letter keeps only the strokes no other letter could claim.'],
          [47, 53.6, 'Small w: faithful but loose. Large w: obedient but samey. That trade-off is why every generator hands you this dial.']],
@@ -343,7 +343,7 @@ SC.push({ dur: 54, chapter: 'the price', title: 'The price of listening', sub: '
       const g = eout(prog(t, t0 + 0.3, 2)); setA(a); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); JW.forEach((w, k) => { const p = [X(w), Y(J[w][key])]; if (k / (JW.length - 1) > g + 1e-6) return; k ? ctx.lineTo(...p) : ctx.moveTo(...p); }); ctx.stroke(); setA(1);
       JW.forEach((w, k) => { if (k / (JW.length - 1) > g + 1e-6) return; dot(X(w), Y(J[w][key]), 5, col, a); });
       [0, 1, 4, 8].forEach(w => { if (J[w] && g > 0.95) text(fmt(J[w][key]), X(w), Y(J[w][key]) - 12, { font: F.mono, size: 13, color: P.stone, align: 'center', a }); });
-      if (key === 'FID' && g > 0.95) { ring(X(JB), Y(J[JB].FID), 11, P.amber, a, 2); text(`best: w = ${JB}`, X(JB) + 16, Y(J[JB].FID) + 28, { font: F.mono, size: 14, color: P.amber, a }); } });
+      if (key === 'FID' && g > 0.95) { ring(X(JB), Y(J[JB].FID), 11, P.amber, a, 2); text(`best: w = ${JB}`, X(JB) + 14, Y(J[JB].FID) - 18, { font: F.mono, size: 14, color: P.amber, a }); } });
   } });
 
 // 09 — saying no: negative requests
@@ -353,17 +353,17 @@ const DIST2 = k => { const b2 = BLOB(1), pts = ON3(k); return pts.reduce((s, p) 
 const NEGS = memo('negs', () => ({ n: DIST2('negn'), g: DIST2('neg'), on: ON3('neg').length / FL.neg.n, on2: ON3('neg2').length / FL.neg2.n }));
 SC.push({ dur: 40, chapter: 'saying no', title: 'Saying no', sub: 'Swap the no-request wind for a wind to avoid.',
   caps: [[1, 8, 'One more trick hides in the formula. Replace the wind with no request by the wind for something we do not want.'],
-         [8, 16, 'Start from the wind toward what to avoid, then push from it toward the request. At w = 1 the avoided wind cancels out; above 1 it pushes away.'],
+         [8, 16, 'Start from the wind toward what we avoid; push from it toward the request. At w = 1 the avoided wind drops out; above 1, it repels.'],
          [16, 24, `Ask the blobs for 3 while avoiding 2, at w = 1.25. ${pct(NEGS.on)} still land on blob 3, but on its far side, away from 2.`],
          [24, 31, `Turn it up to 2 and it overshoots: pushed so hard from blob 2 that ${NEGS.on2 < 0.05 ? 'every point flies' : 'most points fly'} right past blob 3.`],
          [31, 39.6, 'Image generators call this the negative prompt: ask for a portrait, and push away from “blurry”. Used gently, it works.']],
   draw(t) {
-    const m = sq(110, 250, 640, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
+    const m = sq(110, 250, 620, 1.6), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const k = t < 16 ? 'negn' : t < 24 ? 'neg' : 'neg2', st = FL[k], f = (st.S - 1) * hopF(t, t < 16 ? 2 : t < 24 ? 16.3 : 24.3, 3);
     blobRings(m, a0, 2); if (t > 16) { const b = BLOB(1); ring(m.X(b[0]), m.Y(b[1]), 34, P.rose, a0, 3, [6, 5]); text('avoid', m.X(b[0]) + 40, m.Y(b[1]) - 10, { font: F.mono, size: 16, color: P.rose, a: a0 }); }
     flowDots(m, st, f, a0, 3);
     M(t < 16 ? 'ask [p|3],  [a|w] = 1.25' : t < 24 ? 'ask [p|3],  avoid [n|2],  [a|w] = 1.25' : 'ask [p|3],  avoid [n|2],  [a|w] = 2', m.x0, m.y0 + m.S + 34, 24, { a: a0 });
-    if (t > 19 && t < 24) text(`average distance from blob 2: ${NEGS.n.toFixed(2)} → ${NEGS.g.toFixed(2)}`, m.x0, m.y0 + m.S + 62, { font: F.mono, size: 14, color: P.dust, a: eout(prog(t, 19, 0.8)) });
+    if (t > 19 && t < 24) text(`average distance from blob 2: ${NEGS.n.toFixed(2)} → ${NEGS.g.toFixed(2)}`, m.x0, m.y0 + m.S + 56, { font: F.mono, size: 14, color: P.dust, a: eout(prog(t, 19, 0.8)) });
     const c1 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 250, P.rose, c1); label('a negative request', 864, 296, c1, P.rose);
     M('[m|v] = [m|v][m_|neg] + [a|w] · ( [m|v][m_|y] − [m|v][m_|neg] )', 864, 364, 32, { a: eout(prog(t, 8, 0.8)) });
     M('[a|w] = 1:   [m|v] = [m|v][m_|y]      the negative cancels out', 864, 436, 22, { a: eout(prog(t, 11, 0.8)) });
@@ -445,7 +445,7 @@ SC.push({ dur: 31, chapter: 'prompts', title: 'Every request was a number', sub:
 
 // 13 — the end of Season 1, and the hook into Season 2
 SC.push({ dur: 31, chapter: 'next',
-  caps: [[0.5, 8, 'That closes Season 1. We asked what it means to learn p(x), and found eleven ways to draw from it, and to ask.'],
+  caps: [[0.5, 8, 'That closes Season 1. We asked what it means to learn p(x), built machine after machine to draw from it, and learned to ask.'],
          [8, 16, 'Season 2: machines that read. How a network turns text into meaning, and learns to predict the next word.'],
          [16, 23, 'It starts where every sentence starts: with tokens.'],
          [23.5, 30.6, 'Before a machine can draw what we say, it must learn to read.']],

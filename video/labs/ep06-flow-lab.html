@@ -17,7 +17,7 @@
   #probe b { color:var(--chalk); font-weight:400; }
   ul { padding-left:18px; } li { margin:4px 0; }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -179,12 +179,12 @@ LabKit.init({ id: 'ep06',
   steps: ['<strong>Watch it train</strong>: the blue glow is the flow’s exact density p(x), sharpening onto the data.', '<strong>Switch views</strong> under the picture: samples, the warped grid, or the layers one by one. <strong>Click anywhere</strong> for an exact log p(x).', '<strong>Do the missions</strong>: each one shows what a flow can, and can’t, do.'],
   legend: [['var(--ink)', 'density p(x)'], ['var(--terracotta)', 'samples / data'], ['var(--rose)', 'noise z'], ['var(--plum)', 'training −log p'], ['var(--amber)', 'your probe']],
   missions: [
-    { id: 'beat', title: 'Train until the flow beats the best bell curve', hint: 'Just wait on <b>two moons</b>. The purple curve drops below the dashed line.', check: () => ema !== null && ema < gBase - 0.3 },
-    { id: 'probe', title: 'Probe two worlds: log p above −1.5, and below −10', hint: 'Click right on the data, then far out in the empty corners. Same model, astronomically different likelihoods.', check: () => probeHi && probeLo },
-    { id: 'layers', title: 'Scrub the data all the way into noise', hint: 'Choose <b>layer by layer</b>, then drag the slider from one end to the other.', check: () => view === 'layers' && scrubMin <= 0.05 && scrubMax >= 0.95 },
-    { id: 'bridges', title: 'Find the bridges between the 8 blobs', hint: 'Pick <b>8 blobs</b>, train a while, then switch to <b>samples</b>. Rubber stretches but can’t tear, so some samples sit on thin bridges.', check: () => dataKind === 'ring' && view === 'samp' && step > 1500 },
-    { id: 'shallow', title: 'Too shallow: train a 1-layer flow', hint: 'Drag <b>coupling layers</b> to 1. One coupling can only bend one coordinate: watch it fail.', check: () => flow.nets.length === 1 && step > 600 },
-    { id: 'spiral', title: 'Warp the grid around a spiral', hint: 'Pick <b>spiral</b>, train for a while, then choose <b>warped grid</b>.', check: () => dataKind === 'spiral' && view === 'grid' && step > 1500 },
+    { id: 'beat', title: 'Train until the flow beats the best bell curve', hint: 'Just wait on <b>two moons</b>. The purple curve drops below the dashed line.', learn: "A flow's likelihood is exact, so it can be compared fairly with a bell curve. Lower −log p on held-out data means a better density.", check: () => ema !== null && ema < gBase - 0.3 },
+    { id: 'probe', title: 'Probe two worlds: log p above −1.5, and below −10', hint: 'Click right on the data, then far out in the empty corners. Same model, astronomically different likelihoods.', learn: "log p(x) = log N(z) + the layers' log-stretches, exact at any point. Off the data, z lands far in the tails and the probability is astronomically small.", check: () => probeHi && probeLo },
+    { id: 'layers', title: 'Scrub the data all the way into noise', hint: 'Choose <b>layer by layer</b>, then drag the slider from one end to the other.', learn: "Each coupling layer is a gentle, invertible bend. Stacked, they turn the moons into a round bell curve: that is the “normalizing”.", check: () => view === 'layers' && scrubMin <= 0.05 && scrubMax >= 0.95 },
+    { id: 'bridges', title: 'Find the bridges between the 8 blobs', hint: 'Pick <b>8 blobs</b>, train a while, then switch to <b>samples</b>. Rubber stretches but can’t tear, so some samples sit on thin bridges.', learn: "A continuous, invertible map is rubber: it stretches but never tears. One connected blob of noise cannot become eight islands, so bridges remain.", check: () => dataKind === 'ring' && view === 'samp' && step > 1500 },
+    { id: 'shallow', title: 'Too shallow: train a 1-layer flow', hint: 'Drag <b>coupling layers</b> to 1. One coupling can only bend one coordinate: watch it fail.', learn: "One coupling moves one coordinate, based on the other. Depth, alternating which half moves, is what lets a flow bend far enough.", check: () => flow.nets.length === 1 && step > 600 },
+    { id: 'spiral', title: 'Warp the grid around a spiral', hint: 'Pick <b>spiral</b>, train for a while, then choose <b>warped grid</b>.', learn: "The grid shows where space was stretched and squeezed. Squeezed cells are dense and stretched cells thin: the determinant, drawn.", check: () => dataKind === 'spiral' && view === 'grid' && step > 1500 },
   ] });
 </script>
 </body>

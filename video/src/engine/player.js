@@ -30,19 +30,19 @@ function progressBar(T, idx) {
     text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
-function render(T) {
+function render(T, poster = false) {
   T = clamp(T, 0, DURATION - 1e-3);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
   ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  captions(s, t);
+  if (!poster) captions(s, t);
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(T, i);
+  progressBar(poster ? 0 : T, i);
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -55,8 +55,13 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
-function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+// before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
+const POSTER_T = SC[0].dur - 2.5;
+let started = false;
+function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
@@ -80,10 +85,11 @@ function loop(ts) { if (!playing) return;
   if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+cv.addEventListener('click', () => toggle());
+function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {

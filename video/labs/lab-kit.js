@@ -2,8 +2,8 @@
 // tactile sound (synthesised with WebAudio, nothing to download), chunkier controls, tap ripples,
 // tooltips and phone-friendly layout.
 //
-//   LabKit.init({ id: 'ep02', steps: ['…', '…', '…'], legend: [['var(--terracotta)', 'data'], …],
-//                 missions: [{ id, title, hint, check: () => bool }, …] });
+//   LabKit.init({ id: 'ep02', steps: ['…', '…', '…'], legend: [['var(--terracotta)', 'data'], …],   (id → links via season.js)
+//                 missions: [{ id, title, hint, learn, check: () => bool }, …] });   learn: shown once done — what it showed, and why
 //   LabKit.sfx.pop(u) / chime(u) / thunk() / rattle() / clack(u) / roll(level) / …   (u in 0..1 → pitch)
 //   LabKit.flag('name'), LabKit.flags.name, LabKit.count('name') — for mission checks
 (function () {
@@ -56,7 +56,7 @@
       const l = Math.max(0, Math.min(1, level)); rollNode.g.gain.setTargetAtTime(0.06 * l, c.currentTime, 0.05); rollNode.fl.frequency.setTargetAtTime(250 + 1400 * l, c.currentTime, 0.05); },
   };
   K.note = note;
-  K.haptic = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* not available */ } };
+  K.haptic = ms => { try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(ms); } catch (e) { /* not available */ } };
 
   // ── styles ────────────────────────────────────────────────
   const css = `
@@ -99,6 +99,13 @@
   .lk-m .lk-h { grid-column: 2 / 4; font-size: 13px; color: var(--dust); line-height: 1.45; display: none; }
   .lk-m.show .lk-h { display: block; }
   .lk-m .lk-hb { background: none; border: 1px solid var(--border); box-shadow: none; color: var(--dust); font-family: var(--mono); font-size: 10.5px; padding: 1px 7px; border-radius: 10px; }
+  .lk-m .lk-l { grid-column: 2 / 4; font-size: 13.5px; color: var(--stone); line-height: 1.5; display: none; border-left: 2px solid var(--sage); padding: 2px 0 2px 10px; margin-top: 4px; }
+  .lk-m .lk-l i { display: block; font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--sage); margin-bottom: 2px; }
+  .lk-m.done .lk-l { display: block; }
+  .lk-toast .lk-tl { display: block; margin-top: 6px; color: var(--stone); font-size: 13px; line-height: 1.45; max-width: 460px; }
+  .lk-nav { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; font-family: var(--mono); font-size: 12.5px; }
+  .lk-nav a { color: var(--stone); text-decoration: none; border-bottom: 1px solid var(--border); padding-bottom: 1px; }
+  .lk-nav a:hover { color: var(--chalk); border-color: var(--amber); }
   .lk-m.done { background: color-mix(in srgb, var(--sage) 9%, transparent); border-color: color-mix(in srgb, var(--sage) 30%, transparent); }
   .lk-m.done .lk-dot { background: var(--sage); border-color: var(--sage); }
   .lk-m.done .lk-dot::after { content: "✓"; font-weight: 700; }
@@ -144,7 +151,7 @@
   let fx = null, parts = [];
   function burst(x, y, n = 36) {
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    if (!fx) { fx = document.createElement('canvas'); fx.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:55'; document.body.appendChild(fx); }
+    if (!fx) { fx = document.createElement('canvas'); fx.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:55;background:transparent;border:0;border-radius:0;margin:0;padding:0';   /* explicit styles: immune to a lab's own canvas rules */ document.body.appendChild(fx); }
     fx.width = innerWidth; fx.height = innerHeight; const cols = ['#c4654a', '#7a9e7e', '#6889b1', '#d4a853', '#b5707e', '#8b7bb5'];
     for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 6; parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4, life: 1, c: cols[i % cols.length], r: 2 + Math.random() * 3 }); }
     if (parts.length === n) requestAnimationFrame(tick);
@@ -157,11 +164,16 @@
   // ── toast ─────────────────────────────────────────────────
   let toastEl = null, toastT = null;
   K.toast = (msg, head = 'mission complete') => { if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'lk-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
-    toastEl.innerHTML = `<small>${head}</small>${msg}`; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 2800); };
+    toastEl.innerHTML = `<small>${head}</small>${msg}`; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), /lk-tl/.test(msg) ? 6500 : 2800); };
 
   // ── init: guide, legend, missions ─────────────────────────
   K.init = function (cfg) {
     const anchor = document.querySelector(cfg.anchor || '.sub') || document.querySelector('h1');
+    // links back to the episode this playground belongs to, the season hub and the code (labs/season.js)
+    const n = +String(cfg.id || '').replace(/\D/g, ''), G = window.GM, h1 = document.querySelector('h1');
+    if (G && n && h1) { const e = G.eps[n - 1], nav = document.createElement('nav'); nav.className = 'lk-nav'; nav.setAttribute('aria-label', 'season');
+      G.nav(nav, [[`◂ episode ${String(n).padStart(2, '0')} · ${e.title}`, G.href('ep', n, '../')], ['season hub', G.href('hub', n, '../')], [`code · ${e.code}`, G.href('code', n, '../')]]);
+      if (!nav.hidden) h1.before(nav); }
     const sb = document.createElement('button'); sb.className = 'lk-sound lk-quiet'; sb.title = 'sound on / off';
     const lab = () => { sb.textContent = soundOn ? '♪ sound on' : '♪ sound off'; }; lab();
     sb.onclick = () => { soundOn = !soundOn; LS.set('labkit.sound', soundOn); lab(); if (soundOn) K.sfx.chime(0.7); else if (rollNode) rollNode.g.gain.value = 0; };
@@ -171,7 +183,7 @@
     if (cfg.steps) html += `<div class="lk-guide">${cfg.steps.map((s, i) => `<div class="lk-step"><b>${i + 1}</b><span>${s}</span></div>`).join('')}</div>`;
     if (cfg.legend) html += `<div class="lk-legend">${cfg.legend.map(([c, s]) => `<span><i style="background:${c};color:${c}"></i>${s}</span>`).join('')}</div>`;
     const M = cfg.missions || [], key = `labkit.${cfg.id}.done`; let done = new Set(LS.get(key, []));
-    if (M.length) html += `<section class="lk-missions" id="lk-missions" aria-label="missions"><div class="lk-mhead"><span class="lk-title">missions</span><span class="lk-count"></span><span class="lk-track"><i></i></span><button class="lk-reset lk-quiet" type="button">reset missions</button></div><div class="lk-list">${M.map(m => `<div class="lk-m" data-id="${m.id}"><span class="lk-dot"></span><span class="lk-t">${m.title}</span><button class="lk-hb" type="button">hint</button><span class="lk-h">${m.hint}</span></div>`).join('')}</div></section>`;
+    if (M.length) html += `<section class="lk-missions" id="lk-missions" aria-label="missions"><div class="lk-mhead"><span class="lk-title">missions</span><span class="lk-count"></span><span class="lk-track"><i></i></span><button class="lk-reset lk-quiet" type="button">reset missions</button></div><div class="lk-list">${M.map(m => `<div class="lk-m" data-id="${m.id}"><span class="lk-dot"></span><span class="lk-t">${m.title}</span><button class="lk-hb" type="button">hint</button><span class="lk-h">${m.hint}</span>${m.learn ? `<span class="lk-l"><i>what you just saw</i>${m.learn}</span>` : ''}</div>`).join('')}</div></section>`;
     const wrap = document.createElement('div'); wrap.innerHTML = html; const mEl = wrap.querySelector('#lk-missions'); if (mEl) mEl.remove(); anchor.after(...wrap.childNodes);
     const foot = document.querySelector(cfg.missionsBefore || 'footer'); if (mEl) { if (foot) foot.before(mEl); else anchor.parentElement.appendChild(mEl); mEl.style.marginTop = '22px'; }
     if (!M.length) return;
@@ -192,7 +204,8 @@
         done.add(m.id); LS.set(key, [...done]); render();
         const el = box.querySelector(`[data-id="${m.id}"]`); el.classList.remove('just'); void el.offsetWidth; el.classList.add('just');
         const all = done.size === M.length;
-        K.toast(all ? `${m.title.replace(/<[^>]+>/g, '')}<br><span style="color:var(--sage)">All ${M.length} missions done. You’ve got this episode.</span>` : m.title.replace(/<[^>]+>/g, ''));
+        const why = m.learn ? `<span class="lk-tl">${m.learn}</span>` : '';
+        K.toast(all ? `${m.title.replace(/<[^>]+>/g, '')}${why}<br><span style="color:var(--sage)">All ${M.length} missions done. You’ve got this episode.</span>` : m.title.replace(/<[^>]+>/g, '') + why);
         if (all) K.sfx.success(); else { K.sfx.chime(0.72); K.sfx.chime(0.86, 0, 0.1); }
         K.haptic([10, 40, 10]);
         const r = (boxVisible ? el : pill).getBoundingClientRect(); burst(r.left + 24, r.top + r.height / 2, all ? 90 : 34);

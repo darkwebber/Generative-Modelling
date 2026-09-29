@@ -29,7 +29,7 @@
   .blobs button { min-width:38px; }
   @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .knobs { grid-template-columns: 110px 1fr 56px; } }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -190,12 +190,12 @@ LabKit.init({ id: 'ep10',
   steps: ['<strong>Flow</strong>: noise points follow the learned wind, one Euler step at a time. Fewer steps = bigger strides.', '<strong>Break it</strong>: one step with round 1 lands everything in the middle. <strong>Fix it</strong> with the reflowed model.', '<strong>Explore</strong> the wind, ask for a blob, and make digits in a handful of steps. The missions walk you through it.'],
   legend: [['var(--rose)', 'noise z'], ['var(--terracotta)', 'data x'], ['var(--sage)', 'the wind vθ, roads'], ['var(--amber)', 'steps & knobs']],
   missions: [
-    { id: 'flow', title: 'Flow 500 noise points onto the ring', hint: 'Press <b>flow ▶</b>. Each tick is one call to the network.', check: () => lastRun !== null },
-    { id: 'one', title: 'One step, round 1: watch it collapse', hint: 'Drag <b>Euler steps</b> to 1 with <b>round 1</b> selected and flow. Every point jumps along the first arrow, toward the average of the data.', check: () => oneCollapse },
-    { id: 'reflow', title: 'One step, after reflow: the whole ring', hint: 'Choose <b>after reflow</b>, keep 1 step, and flow. Straight roads: one step is enough.', check: () => oneReflow },
-    { id: 'wind', title: 'Scrub the wind through time and drop a probe', hint: 'Drag <b>time t</b> across and click the wind map to trace a road with both models.', check: () => winds >= 6 && probes.length > 0 },
-    { id: 'ask', title: 'Ask for a blob, then turn up the guidance', hint: 'Pick a blob number, then set <b>guidance w</b> to 2 or more and pick again. That dial is episode 11.', check: () => asked >= 2 && guided },
-    { id: 'digits', title: 'Make digits in 8 steps or fewer', hint: 'Set <b>Euler steps</b> to 8 or fewer in the digits panel and press <b>flow 16 digits</b>. Try <b>view: x̂</b> during a run.', check: () => fewDigits },
+    { id: 'flow', title: 'Flow 500 noise points onto the ring', hint: 'Press <b>flow ▶</b>. Each tick is one call to the network.', learn: "Each tick is one Euler step along the learned wind, x ← x + Δt·v(x, t), carrying noise onto the data.", check: () => lastRun !== null },
+    { id: 'one', title: 'One step, round 1: watch it collapse', hint: 'Drag <b>Euler steps</b> to 1 with <b>round 1</b> selected and flow. Every point jumps along the first arrow, toward the average of the data.', learn: "Round 1's roads curve: early on every road heads for the middle. One big step follows only the first arrow, so everything lands on the average.", check: () => oneCollapse },
+    { id: 'reflow', title: 'One step, after reflow: the whole ring', hint: 'Choose <b>after reflow</b>, keep 1 step, and flow. Straight roads: one step is enough.', learn: "Reflow trains on pairs whose roads never cross, so the roads come out straight and a single step lands. Straight roads mean few steps.", check: () => oneReflow },
+    { id: 'wind', title: 'Scrub the wind through time and drop a probe', hint: 'Drag <b>time t</b> across and click the wind map to trace a road with both models.', learn: "The wind changes with time: early it points at the middle, later at each blob. Compare how straight the probe's road is before and after reflow.", check: () => winds >= 6 && probes.length > 0 },
+    { id: 'ask', title: 'Ask for a blob, then turn up the guidance', hint: 'Pick a blob number, then set <b>guidance w</b> to 2 or more and pick again. That dial is episode 11.', learn: "A request is one more input, v(x, t, y), and turning up w pushes harder toward it. That dial is episode 11's guidance.", check: () => asked >= 2 && guided },
+    { id: 'digits', title: 'Make digits in 8 steps or fewer', hint: 'Set <b>Euler steps</b> to 8 or fewer in the digits panel and press <b>flow 16 digits</b>. Try <b>view: x̂</b> during a run.', learn: "The same recipe in 784 dimensions: a handful of steps gives readable digits, and x̂ shows where the wind is heading.", check: () => fewDigits },
   ] });
 </script>
 </body>

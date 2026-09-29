@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Energy-Based Models</title>
+<title>Ep 07 · Energy-Based Models</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; }
   html, body { margin:0; background:var(--canvas); color:var(--stone); font-family:'Karla',sans-serif; }
   .wrap { max-width:1280px; margin:0 auto; padding:16px; box-sizing:border-box; }
-  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:var(--canvas); cursor:pointer; }
   .ctl { display:flex; gap:12px; align-items:center; margin-top:12px; }
   button { background:var(--surface); color:var(--chalk); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--terracotta); }
@@ -20,14 +20,19 @@
   .chapters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .chapters button { font-size:11px; padding:4px 10px; border-radius:20px; color:var(--stone); }
   .chapters button.on { color:var(--terracotta); border-color:var(--terracotta); }
-  body.capture .ctl, body.capture .chapters { display:none; }
+  .links { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:12.5px; }
+  .links a { color:var(--stone); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; }
+  .links a:hover { color:var(--chalk); border-color:var(--terracotta); }
+  .links a.lab { color:#d4a853; border-color:rgba(212,168,83,.45); }
+  .links a.next { margin-left:auto; }
+  body.capture .ctl, body.capture .chapters, body.capture .links { display:none; }
   body.capture .wrap { padding:0; max-width:none; }
   body.capture canvas { width:1920px; border-radius:0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="c" width="1920" height="1080" aria-label="Energy-Based Models explainer animation"></canvas>
+  <canvas id="c" width="1920" height="1080" aria-label="Ep 07 · Energy-Based Models explainer animation"></canvas>
   <div class="ctl">
     <button id="play">▶ play</button>
     <input id="scrub" type="range" min="0" max="1000" step="0.1" value="0" aria-label="timeline">
@@ -36,6 +41,7 @@
     <audio id="snd" src="ep07-audio.mp3" preload="auto"></audio>
   </div>
   <div class="chapters" id="chapters"></div>
+  <nav class="links" id="links" aria-label="season" hidden></nav>
 </div>
 <script src="ep07-assets.js"></script>
 <script>
@@ -334,7 +340,7 @@ SC.push({ dur: 42, chapter: 'energy', title: 'One number per point', sub: 'The l
          [9, 17, 'An energy-based model promises almost nothing. Take any network, any architecture, and have it output one number: the energy, E(x).'],
          [17, 25, 'Low energy means “this looks like data”. High energy means “this doesn’t”. That is the whole model: a landscape over every possible x.'],
          [25, 33, `Probe the real trained landscape, measured from its lowest point: on a blob, ${PB.blob.toFixed(1)}. Between two blobs, ${PB.between.toFixed(1)}. Out in the corner, ${PB.corner.toFixed(1)}.`],
-         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is easier than drawing one. That is the hard part.']],
+         [33, 41.6, 'It is a judge, not an artist — like the critics of episodes 4 and 5. Scoring a drawing is easy; making one is the hard part.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8));
     // the promises every earlier family had to make
@@ -456,11 +462,11 @@ SC.push({ dur: 56, chapter: 'push & pull', title: 'Learning: push down, pull up'
     const x0 = 110, a0 = eout(prog(t, 0.6, 0.8)), fade = 1 - ease(prog(t, 35.5, 1));
     const rows = [[1, 'log [p|p][k_|θ]([d|x]) = −[m|E][k_|θ]([d|x]) − log [a|Z][k_|θ]'], [8, '∇[k_|θ] log [p|p][k_|θ]([d|x]) = −∇[k_|θ][m|E][k_|θ]([d|x]) − ∇[k_|θ] log [a|Z][k_|θ]'],
       [15, '∇[k_|θ] log [a|Z] = (1/[a|Z]) ∇[k_|θ][a|Z] = (1/[a|Z]) [pB|∫] ∇[k_|θ] e[m^|−E(x′)] d[n|x′]'], [22, '             = [pB|∫] (e[m^|−E(x′)] / [a|Z]) · (−∇_θ[m|E](x′)) d[n|x′]'], [29, '             = − [kB|E][k_|x′∼pθ] [ ∇[k_|θ][m|E]([n|x′]) ]']];
-    let hx0 = 0, hw = 0;
+    let hx0 = 0, hw = 0, rowEnd = 0;
     rows.forEach(([t0, s], i) => { const ai = a0 * fade * eout(prog(t, t0, 0.8)), y = 320 + i * 82;
       if (i !== 3) return M(s, x0, y, 28, { a: ai });
-      let x = x0; x += M('             = [pB|∫] ', x, y, 28, { a: ai }); hx0 = x; hw = M('(e[m^|−E(x′)] / [a|Z])', x, y, 28, { a: ai }); M(' · (−∇[k_|θ][m|E](x′)) d[n|x′]', x + hw, y, 28, { a: ai }); });
-    const ha = eout(prog(t, 23.5, 0.6)) * fade; if (ha > 0) { rbox(hx0 - 8, 320 + 3 * 82 - 38, hw + 16, 58, 12, rgba(P.ink, 0.12), P.ink, ha, 2); pill(hx0 + hw / 2, 320 + 3 * 82 + 52, '= pθ(x′): the model’s own distribution', P.ink, ha, { size: 20, align: 'center' }); }
+      let x = x0; x += M('             = [pB|∫] ', x, y, 28, { a: ai }); hx0 = x; hw = M('(e[m^|−E(x′)] / [a|Z])', x, y, 28, { a: ai }); rowEnd = x + hw + M(' · (−∇[k_|θ][m|E](x′)) d[n|x′]', x + hw, y, 28, { a: ai }); });
+    const ha = eout(prog(t, 23.5, 0.6)) * fade; if (ha > 0) { rbox(hx0 - 8, 320 + 3 * 82 - 38, hw + 16, 58, 12, rgba(P.ink, 0.12), P.ink, ha, 2); pill(rowEnd + 28, 320 + 3 * 82 - 9, '← = pθ(x′): the model’s own distribution', P.ink, ha, { size: 20 }); }
     const la = eout(prog(t, 30.5, 0.6)) * fade; if (la > 0) text('an average over the model’s own samples: its “fantasies”', x0, 720, { font: F.serif, italic: true, size: 28, color: P.sage, a: la });
     // the result
     const ra = eout(prog(t, 36, 0.9));
@@ -532,11 +538,11 @@ SC.push({ dur: 54, chapter: 'metropolis', title: 'Sampling with ratios', sub: 'P
     axes1(X0, X1, 560, a0); curve(Efn, -3.3, 3.3, X, Y, P.plum, 4, a0, 240, [P.plum, 0.1], 560);
     const kf = kAt(t), k = Math.floor(kf);
     // histogram of visited states vs e^−E/Z
-    const ha = eout(prog(t, 30, 1)), NB = 44, bw = 6.6 / NB, hb = 910, sc = 230 / (Math.exp(-Efn(-2.1)) / Z1);
+    const ha = eout(prog(t, 30, 1)), NB = 44, bw = 6.6 / NB, hb = 885, sc = 230 / (Math.exp(-Efn(-2.1)) / Z1);
     if (ha > 0 && k > 0) { const cnt = new Array(NB).fill(0), kk = Math.min(k, MET.length); for (let i = 1; i <= kk; i++) cnt[clamp(Math.floor((metState(i) + 3.3) / bw), 0, NB - 1)]++;
       cnt.forEach((c, i) => { const h = Math.min(300, c / kk / bw * sc); setA(ha * 0.55); ctx.fillStyle = P.amber; ctx.fillRect(X(-3.3 + i * bw) + 1, hb - h, X(-3.3 + bw) - X(-3.3) - 2, h); setA(1); });
       curve(x => Math.exp(-Efn(x)) / Z1, -3.3, 3.3, X, v => hb - v * sc, P.ink, 3, ha, 200); line(X0, hb, X1, hb, P.borderLight, 1.5, ha);
-      text(`visited positions (${Math.min(k, MET.length)} steps)   ·   line: e^−E / Z`, X0, hb + 34, { font: F.mono, size: 16, color: P.dust, a: ha }); }
+      text(`visited positions (${Math.min(k, MET.length)} steps)   ·   line: e^−E / Z`, X0, hb + 26, { font: F.mono, size: 16, color: P.dust, a: ha }); }
     // the marble and the proposal
     if (t >= mT0 - 1) { const cur = metState(k), ma = eout(prog(t, mT0 - 1, 0.6));
       if (k < MSLOW && t >= mT0) { const [x, prop, dE, u, acc] = MET[k], ph = kf - k;
@@ -597,7 +603,7 @@ SC.push({ dur: 56, chapter: 'langevin', title: 'Use the slope', sub: 'Roll downh
 const NS = A.train.length - 1, trF = t => NS * ease(prog(t, 6, 38));
 SC.push({ dur: 56, chapter: 'training', title: 'Sculpting in 2-D, for real', sub: 'Contrastive divergence: Langevin fantasies from a replay buffer.',
   caps: [[1, 8, 'Now for real, in two dimensions: a small network sculpting a landscape for the eight blobs that troubled the flow.'],
-         [8, 16, `Every step: take a batch of fantasies from a buffer, let them roll for ${A.k} Langevin steps, then push down on data and up on fantasies.`],
+         [8, 16, `Every step: take fantasies saved from earlier steps (a replay buffer), roll them ${A.k} Langevin steps, then push down on data, up on fantasies.`],
          [16, 24, 'At first the fantasies are scattered everywhere, so the ground rises everywhere else. Eight valleys begin to open.'],
          [24, 32, 'Fantasies that wander between the blobs raise ridges there. Watch them grow into walls.'],
          [32, 40, 'The two energies chase each other: once fantasies sit as low as the data, the pushes cancel.'],
@@ -665,7 +671,7 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
     SH.forEach((s, j) => { const x = 2 * Math.cos(j * Math.PI / 4), y = 2 * Math.sin(j * Math.PI / 4), ai = sa * eout(prog(t, 1.8 + j * 0.25, 0.5)), col = s > 0.14 ? P.amber : s < 0.11 ? P.rose : P.sage;
       pill(m.X(x * 1.33), m.Y(y * 1.33) + 8, `${(s * 100).toFixed(1)}%`, col, ai, { align: 'center', size: 18 }); });
     // one long chain
-    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 32, 1)));
+    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));        // gone before the next cards land
     if (ca > 0) { const f = chT(t), n = Math.floor(f); setA(ca * 0.55); ctx.strokeStyle = P.amber; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = Math.max(0, n - 400); i <= n; i++) { const p = CH[i]; i > Math.max(0, n - 400) ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1);
       const p = CH[n], q = CH[Math.min(CH.length - 1, n + 1)], u = f - n; marble(m.X(lerp(p[0], q[0], u)), m.Y(lerp(p[1], q[1], u)), 8, P.terracotta, ca);
       card(850, 250, 980, 200, P.amber, ca); label('one marble, one long run', 884, 296, ca, P.amber);
@@ -674,7 +680,7 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
       text('valleys visited: ' + new Set(CH.slice(0, n + 1).filter(p => Math.hypot(...p) > 1.4).map(secOf)).size + ' of 8', 884, 410, { font: F.mono, size: 18, color: P.stone, a: ca }); }
     const ma = eout(prog(t, 8, 0.8)) * (1 - ease(prog(t, 12.8, 1)));
     if (ma > 0) { card(850, 250, 980, 300, P.rose, ma); label('why training didn’t notice', 884, 296, ma, P.rose); para('Short chains start from noise, roll into the nearest valley and stay. Every valley gets its fantasies, so each one looks “right” — but no fantasy ever compares two valleys.', 884, 350, 900, { size: 26, a: ma }); }
-    const xa = eout(prog(t, 24, 0.8)) * (1 - ease(prog(t, 32, 1)));
+    const xa = eout(prog(t, 24, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));
     if (xa > 0) { card(850, 480, 980, 180, P.plum, xa); label('mixing', 884, 526, xa, P.plum); para('Crossing a ridge of height ΔE takes about e^ΔE tries. High walls = marbles trapped.', 884, 576, 900, { size: 26, a: xa }); }
     // the other catches
     const k2 = eout(prog(t, 32, 0.8));
@@ -740,7 +746,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Only the slope?', sub: 'Where Z quie
          [30, 38, 'So why sculpt a landscape at all? What if a network learned the arrows directly — no energy, no Z, no fantasies?'],
          [38, 47.6, 'Next episode: score matching — and why slope plus jiggle lands on exactly the right distribution. Follow the arrows.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = square(110, 250, 660), a0 = eout(prog(t, 0.6, 0.8)); landscape(m, A.E, a0 * (1 - 0.55 * ease(prog(t, 23, 2))));
     // the score field
     const sa = eout(prog(t, 23, 1.5));
@@ -798,19 +804,19 @@ function progressBar(T, idx) {
     text(`${String(j).padStart(2, '0')} ${s.chapter}`.toUpperCase(), x + 6, y + 26, { font: F.mono, size: EPISODE.chapterLabel?.[0] ?? 11, color: j === idx ? P.terracotta : P.dust, ls: EPISODE.chapterLabel?.[1] ?? 0.5 }); });
 }
 function sceneAt(T) { const i = SC.findIndex(s => T < s.start + s.dur); return i < 0 ? SC.length - 1 : i; }
-function render(T) {
+function render(T, poster = false) {
   T = clamp(T, 0, DURATION - 1e-3);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; GA = 1;
   ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H);
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  captions(s, t);
+  if (!poster) captions(s, t);
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(T, i);
+  progressBar(poster ? 0 : T, i);
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -823,8 +829,13 @@ if (capture) document.body.classList.add('capture');
 let now = 0, playing = false, lastTs = null;
 const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
-function draw() { render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
+SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+// before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
+const POSTER_T = SC[0].dur - 2.5;
+let started = false;
+function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
 const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
@@ -848,10 +859,11 @@ function loop(ts) { if (!playing) return;
   if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-function toggle() { if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
+cv.addEventListener('click', () => toggle());
+function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
 playBtn.onclick = toggle;
-scrub.oninput = () => { now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') { now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === 'ArrowLeft') { now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
@@ -859,6 +871,51 @@ window.renderAt = T => render(T);
   ON_READY.forEach(f => f());
   draw(); window.READY = true;
 })();
+
+// ── links to the season hub, this episode's playground and code, and its neighbours (labs/season.js)
+// season.js — the season's table of contents, shared by the hub, every episode page (inlined by src/build.py) and
+// every playground. GM.href() links pages to each other: relative files when opened from this folder, and the
+// published Claude artifacts (the `url` fields) when viewed online, where the other files are not next door.
+window.GM = (function () {
+  const eps = [
+    { n: 1, title: 'Generative Modelling', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', labName: 'Density Lab', code: 'density.py' },
+    { n: 2, title: 'Autoregressive Generation', page: 'ep02-autoregressive.html', lab: 'ep02-ar-playground.html', labName: 'Autoregressive Playground', code: 'ar_counting.py' },
+    { n: 3, title: 'Autoencoders & VAEs', page: 'ep03-autoencoders-vae.html', lab: 'ep03-vae-playground.html', labName: 'Latent Space Playground', code: 'vae.py' },
+    { n: 4, title: 'Grading the Imagination', page: 'ep04-evaluation.html', lab: 'ep04-metric-lab.html', labName: 'Metric Lab', code: 'evals.py' },
+    { n: 5, title: 'GANs', page: 'ep05-gans.html', lab: 'ep05-gan-arena.html', labName: 'GAN Arena', code: 'gan.py' },
+    { n: 6, title: 'Normalizing Flows', page: 'ep06-flows.html', lab: 'ep06-flow-lab.html', labName: 'Flow Lab', code: 'flow.py' },
+    { n: 7, title: 'Energy-Based Models', page: 'ep07-energy.html', lab: 'ep07-ebm-lab.html', labName: 'Energy Lab', code: 'ebm.py' },
+    { n: 8, title: 'Score Matching & Langevin', page: 'ep08-score.html', lab: 'ep08-score-lab.html', labName: 'Score Lab', code: 'score.py' },
+    { n: 9, title: 'Diffusion Models', page: 'ep09-diffusion.html', lab: 'ep09-diffusion-lab.html', labName: 'Diffusion Lab', code: 'diffusion.py' },
+    { n: 10, title: 'Flow Matching', page: 'ep10-flow-matching.html', lab: 'ep10-flow-lab.html', labName: 'Flow Matching Lab', code: 'flow_matching.py' },
+    { n: 11, title: 'Guidance', page: 'ep11-guidance.html', lab: 'ep11-guidance-lab.html', labName: 'Guidance Lab', code: 'guidance.py' },
+  ];
+  // published artifacts (claude.ai), filled in as they are published
+  const URL = {
+    hub: null,
+    ep: { 1: 'https://claude.ai/artifact/JpqRF6pKvGRi8cK3cPsfZP', 2: 'https://claude.ai/artifact/3Dif6UYkDxky2pavqoqwvM', 3: 'https://claude.ai/artifact/EE1JD2Qq7PzuJWvpZBFLKi',
+          4: 'https://claude.ai/artifact/CPUcuRDmkKUVm4jHXkqx4q', 5: 'https://claude.ai/artifact/9LbD4PaxKsHCW7q6wM9uSY', 6: 'https://claude.ai/artifact/P3MyVYi2RyGTMNkwZvnHX8',
+          7: 'https://claude.ai/artifact/RBYTbCT4qpnViT2rrP1WSK', 8: 'https://claude.ai/artifact/5NC1JR7LE3kz6N3B3diM3P', 9: 'https://claude.ai/artifact/TkYw57ufRvnqXUbibDUvzD',
+          10: 'https://claude.ai/artifact/8c8CcQLFogi2LmZELP3nCj', 11: 'https://claude.ai/artifact/HQ2ebzwJmVfQ9ksAf6EG1U' },
+    lab: {},
+  };
+  const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
+  function href(kind, n, base) {
+    const e = eps[n - 1];
+    if (local) return kind === 'hub' ? base + 'index.html' : kind === 'ep' ? base + 'episodes/' + e.page : kind === 'lab' ? base + 'labs/' + e.lab : base + '../code/' + e.code;
+    return kind === 'hub' ? URL.hub : kind === 'ep' ? URL.ep[n] || null : kind === 'lab' ? URL.lab[n] || null : null;
+  }
+  // a small row of links; skips any that have no destination here
+  function nav(el, items) {
+    el.innerHTML = items.filter(([, h]) => h).map(([label, h, cls]) => `<a href="${h}"${local ? '' : ' target="_top"'} class="${cls || ''}">${label}</a>`).join('');
+    el.hidden = !el.innerHTML;
+  }
+  return { eps, URL, local, href, nav };
+})();
+(() => { const n = 7, e = GM.eps[n - 1], h = (k, i) => GM.href(k, i, "../");
+  GM.nav(document.getElementById('links'), [n > 1 && [`◂ ep ${String(n - 1).padStart(2, '0')} · ${GM.eps[n - 2].title}`, h('ep', n - 1)], ['season hub', h('hub')],
+    [`▶ playground · ${e.labName}`, h('lab', n), 'lab'], [`code · ${e.code}`, h('code', n)], n < GM.eps.length && [`ep ${String(n + 1).padStart(2, '0')} · ${GM.eps[n].title} ▸`, h('ep', n + 1), 'next']].filter(Boolean)); })();
 </script>
 </body>
 </html>

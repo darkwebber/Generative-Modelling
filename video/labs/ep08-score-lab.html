@@ -27,7 +27,7 @@
   .ladder span.on { color:var(--canvas); background:var(--amber); border-color:var(--amber); }
   .share { font-family:var(--mono); font-size:22px; color:var(--chalk); }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -159,13 +159,13 @@ LabKit.init({ id: 'ep08',
   steps: ['<strong>Watch the arrows learn</strong>: sage arrows are the network’s score at the σ you pick. It learns by pointing noisy points back home.', '<strong>Slide σ</strong> from 3 (blurry, reaching everywhere) to 0.05 (sharp, only near the data). <strong>Click</strong> to drop particles that follow the arrows.', '<strong>Sample</strong> with plain or annealed Langevin, and do the missions to find out why annealing matters.'],
   legend: [['var(--terracotta)', 'data'], ['var(--sage)', 'learned score s_θ(x, σ)'], ['var(--amber)', 'true score · your particles'], ['var(--chalk)', 'sampled particles'], ['var(--plum)', 'training loss']],
   missions: [
-    { id: 'train', title: 'Train until the loss settles below 1.2', hint: 'Just let it run. It never reaches 0: a noisy point could have come from many clean points.', check: () => ema !== null && step > 300 && ema < 1.2 },
-    { id: 'range', title: 'See the arrows at σ = 3 and at σ = 0.05', hint: 'Drag the σ slider all the way left, then all the way right. Big σ: gentle arrows everywhere. Small σ: sharp arrows near each blob.', check: () => visited.has(0) && visited.has(9) },
-    { id: 'ann', title: 'Sample with annealed Langevin', hint: 'Press <b>sample: annealed</b>. Listen: a chime for each rung of the σ ladder.', check: () => lastMode === 'ann' && !sampler && lastShare !== null },
-    { id: 'bug', title: 'Catch the weights bug on the 80/20 blobs', hint: 'Choose <b>80/20 blobs</b>, let it train for a bit, then press <b>sample: plain</b>. The left blob should get 80%, but plain Langevin splits roughly 50/50.', check: () => kind === 'two' && lastMode === 'plain' && !sampler && lastShare > 0.3 && lastShare < 0.7 },
-    { id: 'fix', title: 'Fix it: annealed gets the 80/20 split right', hint: 'Same data, press <b>sample: annealed</b>. The broad early arrows see both blobs and pull toward the big one.', check: () => kind === 'two' && lastMode === 'ann' && !sampler && lastShare > 0.7 },
-    { id: 'truth', title: 'Check the learned arrows against the true ones', hint: 'On <b>8 blobs</b> or <b>80/20</b>, turn <b>true arrows</b> on (amber) and compare at σ = 0.05: great near the data, off in the empty space between.', check: () => showTruth && GMM[kind] && lvl() >= 8 },
-    { id: 'desert', title: 'Drop particles in the desert at small σ', hint: 'With σ at 0.08 or 0.05, click far from any blob. The arrows out there were never trained: watch where the particles go.', check: () => desert },
+    { id: 'train', title: 'Train until the loss settles below 1.2', hint: 'Just let it run. It never reaches 0: a noisy point could have come from many clean points.', learn: "The loss cannot reach zero: a noisy point could have come from many clean ones, so the best arrow is their average. That average is the score.", check: () => ema !== null && step > 300 && ema < 1.2 },
+    { id: 'range', title: 'See the arrows at σ = 3 and at σ = 0.05', hint: 'Drag the σ slider all the way left, then all the way right. Big σ: gentle arrows everywhere. Small σ: sharp arrows near each blob.', learn: "Big σ: blurry, but arrows everywhere. Small σ: sharp, but only near the data. Annealing uses both, in that order.", check: () => visited.has(0) && visited.has(9) },
+    { id: 'ann', title: 'Sample with annealed Langevin', hint: 'Press <b>sample: annealed</b>. Listen: a chime for each rung of the σ ladder.', learn: "Start at the biggest σ, take a few Langevin steps, lower σ, repeat: country, then city, then street.", check: () => lastMode === 'ann' && !sampler && lastShare !== null },
+    { id: 'bug', title: 'Catch the weights bug on the 80/20 blobs', hint: 'Choose <b>80/20 blobs</b>, let it train for a bit, then press <b>sample: plain</b>. The left blob should get 80%, but plain Langevin splits roughly 50/50.', learn: "Close to each blob the arrows look the same whether it holds 80% or 20%. The weights only show far away, where small-σ arrows were never trained.", check: () => kind === 'two' && lastMode === 'plain' && !sampler && lastShare > 0.3 && lastShare < 0.7 },
+    { id: 'fix', title: 'Fix it: annealed gets the 80/20 split right', hint: 'Same data, press <b>sample: annealed</b>. The broad early arrows see both blobs and pull toward the big one.', learn: "The broad early arrows see both blobs at once and pull harder toward the big one, so the weights are settled before the detail arrives.", check: () => kind === 'two' && lastMode === 'ann' && !sampler && lastShare > 0.7 },
+    { id: 'truth', title: 'Check the learned arrows against the true ones', hint: 'On <b>8 blobs</b> or <b>80/20</b>, turn <b>true arrows</b> on (amber) and compare at σ = 0.05: great near the data, off in the empty space between.', learn: "Near the data the learned arrows match the exact score; between blobs they drift. A network only learns where its training points land.", check: () => showTruth && GMM[kind] && lvl() >= 8 },
+    { id: 'desert', title: 'Drop particles in the desert at small σ', hint: 'With σ at 0.08 or 0.05, click far from any blob. The arrows out there were never trained: watch where the particles go.', learn: "Far from the data at small σ, nothing was ever learned, so particles wander. That is why samplers start at a large σ.", check: () => desert },
   ] });
 </script>
 </body>

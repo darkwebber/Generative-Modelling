@@ -74,7 +74,7 @@ SC.push({ dur: 36, chapter: 'intro',
 // 01 — destroy slowly: the forward process
 const tF1 = t => 999 * ease(prog(t, 2, 20));
 SC.push({ dur: 56, chapter: 'forward', title: 'Destroy it slowly', sub: 'The forward process: a thousand pinches of noise.',
-  caps: [[1, 8, 'First, the easy direction: destroying data. Take the eight blobs and add a pinch of Gaussian noise. Then another. A thousand times.'],
+  caps: [[1, 8, 'First, the easy direction: destroying data. Add a pinch of Gaussian (bell-curve) noise to the eight blobs. Then another. A thousand times.'],
          [8, 16, 'Each step shrinks every point a tiny bit toward the centre and adds a small kick: xₜ = √(1 − βₜ)·xₜ₋₁ + √βₜ·ε.'],
          [16, 24, 'Why shrink? Episode 8’s balance again: shrinking removes variance, the kick adds it back, and the cloud settles at exactly N(0, I). Static with a known shape.'],
          [24, 32, 'Gaussians add up: a thousand small kicks make one big kick. So we can jump straight to any step: xₜ = √ᾱₜ·x₀ + √(1 − ᾱₜ)·ε.'],
@@ -131,8 +131,8 @@ SC.push({ dur: 54, chapter: 'training', title: 'One regression, a thousand noise
          [8, 16, 'Draw fresh noise ε and jump straight to xₜ = √ᾱₜ·x₀ + √(1 − ᾱₜ)·ε. One line, no loop.'],
          [16, 24, 'Show the network xₜ and t, and ask it to predict ε: the noise that was added. The loss is ‖ε − εθ(xₜ, t)‖².'],
          [24, 32, 'That is episode 8’s denoising score matching, with one network for all thousand noise levels. The predicted noise is the score, rescaled: εθ = −√(1 − ᾱₜ)·sθ.'],
-         [32, 40, 'Knowing the noise means knowing the clean image: x̂₀ = (xₜ − √(1 − ᾱₜ)·εθ)/√ᾱₜ. A denoiser, exactly as Tweedie promised.'],
-         [40, 47, 'Our network: two layers of 1,024, t fed into each, 30,000 steps on MNIST. It guesses x̂₀ and reads the noise off it.'],
+         [32, 40, 'Knowing the noise means knowing the clean image: x̂₀ = (xₜ − √(1 − ᾱₜ)·εθ)/√ᾱₜ. A denoiser, exactly as episode 8 promised.'],
+         [40, 47, 'Our network: two layers of 1,024, trained 30,000 steps on 60,000 handwritten digits. It guesses x̂₀, then reads the noise off it.'],
          [47, 53.6, 'Ho, Jain and Abbeel, 2020: “Denoising Diffusion Probabilistic Models”. This one loss is why they work.']],
   draw(t) {
     const a0 = eout(prog(t, 0.6, 0.8)), cyc = Math.floor(clamp(t - 1, 0, 60) / 7) % TRAIN_T.length, tt = TRAIN_T[cyc], u = ((t - 1) % 7) / 7;
@@ -304,7 +304,7 @@ const CODE = [
 ];
 SC.push({ dur: 32, chapter: 'build it', title: 'Build it yourself', sub: 'The forward process, training and sampling, in fifteen lines.',
   caps: [[1, 9, 'The whole method fits on a screen: a noise schedule, a regression onto the noise, and a loop that runs it backwards. Full code is linked below.'],
-         [9, 18, 'Train it on the eight blobs in a minute, or on MNIST in about fifteen minutes. Then swap the sampler for DDIM and count how few steps you need.'],
+         [9, 18, 'Train it on the eight blobs in a minute, or on the digits in about fifteen minutes. Then swap the sampler for DDIM and count how few steps you need.'],
          [18, 31.6, 'Recap: destroy data slowly with Gaussian noise; learn to predict that noise at every level; run the chain backwards from static.']],
   draw(t) {
     playPill('ep09-diffusion-lab.html', 9, t);
@@ -325,7 +325,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Curved roads', sub: 'Why so many ste
          [32, 39, 'Continuous flows from episode 6, diffusion from today, and straight roads all meet in one idea.'],
          [39, 47.6, 'Next episode: flow matching. The straight way from noise to data.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;
     const m = square(110, 250, 640, 2.4), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const grow = NP * ease(prog(t, 1, 7));
     clipTo(m, () => PATHS[0].forEach((_, k) => { if (k % 2) return; setA(a0 * 0.75); ctx.strokeStyle = mixc(P.rose, P.terracotta, 0.5); ctx.lineWidth = 1.4; ctx.beginPath();
@@ -333,7 +333,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Curved roads', sub: 'Why so many ste
       const e = PATHS[Math.min(NP, Math.floor(grow))][k]; dot(m.X(e[0]), m.Y(e[1]), 2.6, P.terracotta, a0);
       const sa = eout(prog(t, 16, 1)); if (sa > 0) { const p0 = PATHS[0][k], p1 = PATHS[NP][k]; line(m.X(p0[0]), m.Y(p0[1]), m.X(p0[0] + (p1[0] - p0[0]) * sa), m.Y(p0[1] + (p1[1] - p0[1]) * sa), P.sage, 1.6, sa * 0.9, [5, 4]); } }));
     text('rose: the roads DDIM took · sage dashed: straight lines', 110, 925, { font: F.mono, size: 16, color: P.dust, a: a0 });
-    GA = 1 - ease(prog(t, 38.5, 1));                                  // the cards leave completely for the end card
+    GA = 1 - ease(prog(t, 37.9, 0.7));                                  // the cards leave completely for the end card
     const c1 = eout(prog(t, 8, 0.8)); card(830, 250, 1000, 170, P.rose, c1); label('curved roads', 864, 296, c1, P.rose); para('A big step along a curve flies off it, so we take many small steps.', 864, 350, 920, { size: 26, a: c1 });
     const c2 = eout(prog(t, 16, 0.8)); card(830, 440, 1000, 190, P.sage, c2); label('straight roads', 864, 486, c2, P.sage);
     M('[d|x][d_|t] = (1 − t)·[n|noise] + t·[d|data]       velocity: [d|data] − [n|noise]', 864, 550, 26, { a: c2 }); text('one big step would do', 864, 600, { font: F.mono, size: 16, color: P.dust, a: c2 });

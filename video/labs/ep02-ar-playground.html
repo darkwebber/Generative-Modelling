@@ -52,7 +52,7 @@
   .math { font-family:var(--mono); font-size:14px; background:color-mix(in srgb, var(--canvas) 70%, transparent); border:1px solid var(--border); border-left:2px solid color-mix(in srgb, var(--ink) 60%, transparent); border-radius:10px; padding:10px 14px; margin-top:10px; overflow-x:auto; white-space:nowrap; }
   .stat { font-family:var(--mono); color:var(--chalk); font-size:22px; }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -256,13 +256,13 @@ LabKit.init({ id: 'ep02',
   steps: ['<strong>Step</strong> the generation loop: the model shows p(next letter | context), then a dice pointer picks one.', '<strong>Turn the knobs</strong>: more context k = more memory; temperature τ = boldness.', '<strong>Do the missions</strong> below. Each one is a real idea from the episode.'],
   legend: [['var(--terracotta)', 'letters / data'], ['var(--ink)', 'p(next letter)'], ['var(--rose)', 'the dice (u)'], ['var(--amber)', 'counts & knobs'], ['var(--plum)', 'surprise −log p']],
   missions: [
-    { id: 'gen', title: 'Generate a name, one dice roll at a time', hint: 'Press <b>step ▸</b> in panel 3 until the model picks “end”.', check: () => LabKit.flags.finished },
-    { id: 'force', title: 'Overrule the dice: force a letter', hint: 'Click any bar in panel 3. The context changes, so the next distribution changes too.', check: () => LabKit.flags.forced },
-    { id: 'copy', title: 'Catch the model copying its training data', hint: 'Set context k to 5, then <b>generate 20</b>. Grey names are memorised copies.', check: () => LabKit.flags.copies8 },
-    { id: 'cold', title: 'Freeze it: make the model boring', hint: 'Drag τ down to 0.3 or less and <b>generate 20</b>. Low temperature always picks the likeliest letter.', check: () => LabKit.flags.cold },
-    { id: 'surp', title: 'Shock the model: surprise above 30', hint: 'Type something un-name-like in panel 5, like “xqzzyv”. Each odd letter adds surprise.', check: () => LabKit.flags.surprise },
-    { id: 'own', title: 'Teach it a new language', hint: 'Paste your own words into panel 2 (cities, Pokémon, anything) and press <b>train on this</b>.', check: () => LabKit.flags.own },
-    { id: 'pair', title: 'Find the most common letter pair', hint: 'Hover the brightest cell in the count table (panel 6).', check: () => LabKit.flags.maxpair },
+    { id: 'gen', title: 'Generate a name, one dice roll at a time', hint: 'Press <b>step ▸</b> in panel 3 until the model picks “end”.', learn: "That is the autoregressive loop: a distribution over the next letter, one dice roll, append, repeat. Chatbots run exactly this loop, over tokens.", check: () => LabKit.flags.finished },
+    { id: 'force', title: 'Overrule the dice: force a letter', hint: 'Click any bar in panel 3. The context changes, so the next distribution changes too.', learn: "The next distribution depends only on the context. Change the past and the future's probabilities change with it: p(xₜ | x<ₜ).", check: () => LabKit.flags.forced },
+    { id: 'copy', title: 'Catch the model copying its training data', hint: 'Set context k to 5, then <b>generate 20</b>. Grey names are memorised copies.', learn: "With a long context most rows of the table were seen once, so the model can only replay them. Counting memorises; it cannot generalise to contexts it never saw.", check: () => LabKit.flags.copies8 },
+    { id: 'cold', title: 'Freeze it: make the model boring', hint: 'Drag τ down to 0.3 or less and <b>generate 20</b>. Low temperature always picks the likeliest letter.', learn: "Temperature divides the logits before the softmax. Cold sharpens the distribution until the favourite always wins: safe, repetitive output.", check: () => LabKit.flags.cold },
+    { id: 'surp', title: 'Shock the model: surprise above 30', hint: 'Type something un-name-like in panel 5, like “xqzzyv”. Each odd letter adds surprise.', learn: "Surprise is −log p. Letters the model finds unlikely cost a lot, and their sum over a word is the loss that training shrinks: maximum likelihood.", check: () => LabKit.flags.surprise },
+    { id: 'own', title: 'Teach it a new language', hint: 'Paste your own words into panel 2 (cities, Pokémon, anything) and press <b>train on this</b>.', learn: "Nothing in the model is about names. Count different data and it writes like that data: the model is the statistics of what it was shown.", check: () => LabKit.flags.own },
+    { id: 'pair', title: 'Find the most common letter pair', hint: 'Hover the brightest cell in the count table (panel 6).', learn: "The brightest cell is the most frequent pair. Normalise its row and you have p(next | letter): the whole bigram model is this one table.", check: () => LabKit.flags.maxpair },
   ] });
 </script>
 </body>

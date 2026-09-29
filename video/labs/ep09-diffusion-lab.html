@@ -30,7 +30,7 @@
   .cap { font-family:var(--mono); font-size:12px; color:var(--dust); text-align:center; margin-top:6px; }
   canvas#morph { width:100%; aspect-ratio: 8 / 1; border-radius:10px; border:1px solid var(--border); background:var(--surface); margin-top:10px; }
 </style>
-<script src="lab-kit.js"></script>
+<script src="season.js"></script><script src="lab-kit.js"></script>
 </head>
 <body>
 <main>
@@ -150,12 +150,12 @@ LabKit.init({ id: 'ep09',
   steps: ['<strong>Generate</strong>: sixteen squares of pure static become digits, one denoising step at a time.', '<strong>Switch the view</strong> to x̂₀ to see what the network believes mid-way, and try fewer DDIM steps.', '<strong>Morph</strong> between noise images and <strong>redraw a scribble</strong>. The missions walk you through it.'],
   legend: [['var(--terracotta)', 'pixels'], ['var(--rose)', 'noise'], ['var(--amber)', 'steps & knobs'], ['var(--sage)', 'the network’s guess x̂₀']],
   missions: [
-    { id: 'gen', title: 'Generate 16 digits from static', hint: 'Press <b>generate 16 digits</b>.', check: () => lastRun !== null },
-    { id: 'x0', title: 'Watch it think: view x̂₀ during a run', hint: 'Press <b>view: x_t</b> to switch to x̂₀, then generate. Early guesses are blurry averages; the digit is decided long before the details.', check: () => sawX0 },
-    { id: 'few', title: 'Go fast: 10 DDIM steps or fewer', hint: 'Drag <b>DDIM steps</b> down to 10 and generate. How few can you go before the digits break?', check: () => lowSteps },
-    { id: 'ddpm', title: 'Run the full 1000-step DDPM', hint: 'Choose <b>DDPM</b> and generate. It takes 1000 network calls per digit (give it half a minute or so), and each step adds a little fresh noise.', check: () => lastRun && lastRun.mode === 'ddpm' },
-    { id: 'morph', title: 'Morph between two noise images', hint: 'Drag the <b>mix</b> slider in the morph panel back and forth.', check: () => morphs >= 6 },
-    { id: 'sde', title: 'Let the network redraw your scribble', hint: 'Draw something rough in the black box, choose a noise level, then press <b>noise &amp; redraw</b>. Try t = 300 and t = 800.', check: () => sdeDone >= 2 },
+    { id: 'gen', title: 'Generate 16 digits from static', hint: 'Press <b>generate 16 digits</b>.', learn: "Each step predicts the noise, removes a little of it, and adds a little fresh noise back. A thousand tiny denoising steps turn static into digits.", check: () => lastRun !== null },
+    { id: 'x0', title: 'Watch it think: view x̂₀ during a run', hint: 'Press <b>view: x_t</b> to switch to x̂₀, then generate. Early guesses are blurry averages; the digit is decided long before the details.', learn: "x̂₀ is the network's current guess of the finished image. It commits to a digit early; strokes and details come last.", check: () => sawX0 },
+    { id: 'few', title: 'Go fast: 10 DDIM steps or fewer', hint: 'Drag <b>DDIM steps</b> down to 10 and generate. How few can you go before the digits break?', learn: "DDIM jumps between noise levels using x̂₀, with no fresh noise. The path is smooth, so big jumps mostly work, until they break.", check: () => lowSteps },
+    { id: 'ddpm', title: 'Run the full 1000-step DDPM', hint: 'Choose <b>DDPM</b> and generate. It takes 1000 network calls per digit (give it half a minute or so), and each step adds a little fresh noise.', learn: "DDPM adds fresh noise at every step: slower, but a true sampler, so one noise image can end as many different digits.", check: () => lastRun && lastRun.mode === 'ddpm' },
+    { id: 'morph', title: 'Morph between two noise images', hint: 'Drag the <b>mix</b> slider in the morph panel back and forth.', learn: "In DDIM each noise image maps to exactly one digit, so the noise acts as a latent code, like the VAE's z. Slide between two and the digit slides too.", check: () => morphs >= 6 },
+    { id: 'sde', title: 'Let the network redraw your scribble', hint: 'Draw something rough in the black box, choose a noise level, then press <b>noise &amp; redraw</b>. Try t = 300 and t = 800.', learn: "Noise your scribble up to step t, then denoise: small t keeps your strokes, large t keeps only the idea. That is how diffusion edits images.", check: () => sdeDone >= 2 },
   ] });
 </script>
 </body>

@@ -297,7 +297,7 @@ SC.push({ dur: 44, chapter: 'generative', title: 'Generative models learn where 
          [14, 21, "Now that faraway point gets p(x) ≈ 0. The model knows it isn't a plausible cat."],
          [21, 29, 'And here is the magic: sample from p(x), and brand-new points appear that look like they belong.'],
          [29, 36, "That's generation. New images, sentences, sounds — all are samples from a learned p(x)."],
-         [36, 43.6, "Bonus: with Bayes' rule, a model of p(x | y) gives p(y | x) for free. The landscape contains the border, not the reverse."]],
+         [36, 43.6, "Bonus: a one-line formula, Bayes' rule, flips p(x | y) into p(y | x). The landscape contains the border, not the reverse."]],
   draw(t) {
     const pl = mk(640, 600, 225);
     drawHeat(pl, 0.95 * ease(prog(t, 4.5, 5)));
@@ -312,7 +312,7 @@ SC.push({ dur: 44, chapter: 'generative', title: 'Generative models learn where 
     }
     // new samples
     KDE_SAMPLES.forEach((s, i) => { const u = prog(t, 21.5 + i * 0.17, 0.6); if (u <= 0) return; const X = pl.X(s.x), Y = pl.Y(s.y); ring(X, Y, 10 + 18 * eout(u), P.chalk, 0.7 * (1 - u), 2); glow(X, Y, 6.5 * pop(u), P.terracotta, 1); ring(X, Y, 10, P.chalk, 0.55 * clamp(u * 2), 1.5); });
-    tag(420, 232, P.chalk, 'new samples', eout(prog(t, 22, 0.6)));
+    tag(520, 232, P.chalk, 'new samples', eout(prog(t, 22, 0.6)));
     // right column
     const c1 = eout(prog(t, 7, 0.8));
     card(1250, 250, 580, 230, P.ink, c1); label('the generative question', 1284, 296, c1);
@@ -384,7 +384,7 @@ SC.push({ dur: 50, chapter: 'likelihood', title: 'Learning p(x): make the data l
          [20, 27, 'Multiply those heights together — in practice, add their logs. Bigger means the model finds the data more plausible.'],
          [27, 34, 'Too wide spreads probability thin. Too narrow misses points entirely. The best setting balances both.'],
          [34, 42, 'This is maximum likelihood: choose θ that makes the data we actually observed as probable as possible.'],
-         [42, 49.6, 'Deep generative models do exactly this — just with millions of knobs, tuned by gradient descent.']],
+         [42, 49.6, 'Deep models do exactly this with millions of knobs, nudging each one in whichever direction improves the score, over and over: gradient descent.']],
   K: [[0, -1.6, .55], [16, -1.6, .55], [22, MU5, .55], [25, MU5, .55], [28, MU5, 1.7], [30, MU5, 1.7], [33, MU5, .3], [35, MU5, .3], [38.5, MU5, SD5]],
   params(t) { const K = this.K; for (let i = 0; i < K.length - 1; i++) { if (t < K[i + 1][0]) { const u = ease((t - K[i][0]) / (K[i + 1][0] - K[i][0])); return [lerp(K[i][1], K[i + 1][1], u), lerp(K[i][2], K[i + 1][2], u)]; } } return [K[K.length - 1][1], K[K.length - 1][2]]; },
   draw(t) {
@@ -583,7 +583,7 @@ SC.push({ dur: 56, chapter: 'season map', title: 'The route: a map of the season
   } });
 
 // 09 — finale
-SC.push({ dur: 30, chapter: 'big picture', title: 'Noise in, meaning out', sub: 'The whole idea, in two dimensions you can see.',
+SC.push({ dur: 30, chapter: 'big idea', title: 'Noise in, meaning out', sub: 'The whole idea, in two dimensions you can see.',
   caps: [[1, 7, 'Put it all together, in two dimensions you can actually see.'],
          [7, 15, 'Start with pure noise. A trained network g moves every point to where data lives.'],
          [15, 22, 'The result: fresh samples from pθ(x) — close to the real data distribution.'],

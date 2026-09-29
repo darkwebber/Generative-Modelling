@@ -214,7 +214,9 @@ SC.push({ dur: 44, chapter: 'the holes', title: 'The trouble: holes in the map',
     AE_RAND.forEach(([u, v], i) => {
       const z1 = lerp(BAE[0], BAE[1], u), z2 = lerp(BAE[2], BAE[3], v), a = eout(prog(t, 1.5 + i * 0.7, 0.5));
       if (a <= 0) return;
-      glow(m.X(z1), m.Y(z2), 7, P.chalk, a); text(String.fromCharCode(65 + i), m.X(z1) + 12, m.Y(z2) - 10, { font: F.mono, size: 20, color: P.chalk, a });
+      glow(m.X(z1), m.Y(z2), 7, P.chalk, a);
+      const near = AE_RAND.slice(0, i).some(([u2, v2]) => Math.hypot(m.X(lerp(BAE[0], BAE[1], u2)) - m.X(z1), m.Y(lerp(BAE[2], BAE[3], v2)) - m.Y(z2)) < 40);   // a close earlier point: label on the other side
+      text(String.fromCharCode(65 + i), m.X(z1) + (near ? -26 : 12), m.Y(z2) + (near ? 26 : -10), { font: F.mono, size: 20, color: P.chalk, a });
       const x = 1110 + (i % 4) * 180, y = 280 + Math.floor(i / 4) * 230;
       drawImg(decImg('ae', z1, z2), x, y, 160, a, { frame: true }); text(String.fromCharCode(65 + i), x + 8, y + 26, { font: F.mono, size: 20, color: P.chalk, a });
     });
@@ -273,10 +275,10 @@ SC.push({ dur: 58, chapter: 'the math', title: 'The math of the VAE', sub: 'Two 
   caps: [[1, 8, 'Here is the whole VAE objective in one line. Two terms, each with a job.'],
          [8, 15, "Term one, reconstruction: sample z from the image's cloud, decode it, and measure how badly we rebuilt x."],
          [15, 23, 'Term two, the leash: the KL divergence — how far the cloud N(μ, σ²) is from the standard bell curve.'],
-         [23, 31, 'For Gaussians it has a closed form. μ² pulls the centre home; σ² − log σ² − 1 is smallest exactly at σ = 1.'],
+         [23, 31, 'For bell curves it has a short exact formula. μ² pulls the centre home; σ² − log σ² − 1 is smallest exactly at σ = 1.'],
          [31, 38, 'Why? Episode 1 says maximise log p(x). But p(x) = ∫ p(x | z) p(z) dz — any code might have drawn x.'],
          [38, 46, 'That integral is intractable. So the VAE maximises a floor beneath it: the Evidence Lower BOund, or ELBO.'],
-         [46, 57.6, `Push the floor up and log p(x) must rise too. Our trained VAE: about ${LAST_VAE.test_recon.toFixed(0)} nats of reconstruction plus ${LAST_VAE.test_kl.toFixed(1)} nats of leash, per image.`]],
+         [46, 57.6, `Push the floor up and log p(x) must rise too. Our trained VAE: ${LAST_VAE.test_recon.toFixed(0)} for reconstruction plus ${LAST_VAE.test_kl.toFixed(1)} for the leash, per image, in nats: units of −log p, with natural logs.`]],
   draw(t) {
     const up = ease(prog(t, 30.5, 1)), fy = lerp(380, 300, up), fs = lerp(40, 32, up);
     const a0 = eout(prog(t, 0.6, 0.8));
@@ -326,7 +328,7 @@ SC.push({ dur: 38, chapter: 'reparam', title: 'The reparameterisation trick', su
          [8, 15, "But in the middle sits a random draw — and you can't take the derivative of a dice roll."],
          [15, 23, 'The trick: roll a standard die ε ~ N(0, 1) off to the side, then compute z = μ + σ · ε.'],
          [23, 30, 'Same distribution for z — but now z is a plain function of μ and σ: ∂z/∂μ = 1 and ∂z/∂σ = ε.'],
-         [30, 37.6, 'The randomness becomes just another input, the gradients flow, and ordinary backprop trains the whole thing.']],
+         [30, 37.6, 'The randomness becomes just another input. Now the chain rule carries gradients backwards through every layer, which is backpropagation, and trains it all.']],
   draw(t) {
     const y = 520, a0 = eout(prog(t, 0.6, 0.8)), B = ease(prog(t, 15, 2));
     const node = (x, w, label2, col, a, big = false) => { rbox(x - w / 2, y - 45, w, 90, 16, rgba(col, 0.1), rgba(col, 0.75), a, 2); M(label2, x, y + 10, big ? 30 : 26, { align: 'center', a }); };
@@ -459,7 +461,7 @@ SC.push({ dur: 50, chapter: 'next', title: 'A puzzle', sub: 'Three models. Sixte
          [36, 42, 'How do you grade a machine whose whole job is to make something new?'],
          [42, 49.6, 'Next episode: evaluation — likelihood, FID, precision and recall, human judges — and exactly how each one can lie to you.']],
   draw(t) {
-    const dimAll = 1 - 0.8 * ease(prog(t, 35.5, 1));
+    const dimAll = 1 - 0.94 * ease(prog(t, 35.4, 0.7));          // the scene clears just before the closing line lands
     const panels = [['A', i => decImg('vae', VAE_SAMPLES[i][0] * 0.9, VAE_SAMPLES[i][1] * 0.9)], ['B', i => rawImg('train', i, TRAIN)], ['C', i => rawImg('ones', i, ONES)]];
     panels.forEach(([nm, get], p) => {
       const x = 130 + p * 580, y = 250, a = eout(prog(t, 1 + p * 0.5, 0.8)) * dimAll; if (a <= 0) return;

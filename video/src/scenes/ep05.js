@@ -38,7 +38,7 @@ const SC = [];
 
 // 00 — cold open
 SC.push({ dur: 24, chapter: 'intro',
-  caps: [[0.6, 6, 'Watch this network learn to draw digits, one training epoch at a time.'],
+  caps: [[0.6, 6, 'Watch this network learn to draw digits, one epoch, one pass over the data, at a time.'],
          [6, 12, 'Here is the twist: it has never seen a digit. Not one pixel of real data ever reaches it.'],
          [12, 18, 'All it ever gets is criticism — from a judge who has.'],
          [18, 23.6, 'This is a GAN: a generative adversarial network.']],
@@ -122,7 +122,7 @@ SC.push({ dur: 46, chapter: 'the judge', title: "The judge's perfect strategy", 
 // 03 — what the generator really minimises
 SC.push({ dur: 46, chapter: 'the target', title: 'What the forger is really minimising', sub: 'Plug the perfect judge back in.',
   caps: [[1, 8, 'Now plug the perfect judge back into the game. What is the generator really minimising?'],
-         [8, 16, 'A little algebra: compare each distribution with m, the average of the two. Two KL divergences appear — episode 1’s measure of mismatch.'],
+         [8, 16, 'A little algebra: compare each distribution with m, the average of the two. Two KL divergences appear: episode 3’s measure of mismatch.'],
          [16, 24, 'Their average is the Jensen–Shannon divergence. So the game’s value is −log 4, plus twice the JSD between data and generator.'],
          [24, 32, "JSD is zero exactly when the generator's distribution equals the data's. That is the only way for G to win."],
          [32, 39, 'Watch: as pg slides onto pdata, the divergence melts to zero and the perfect judge flattens to one half everywhere.'],
@@ -196,7 +196,7 @@ SC.push({ dur: 52, chapter: 'training', title: 'Watch a real GAN train', sub: 'E
 
 // 06 — digits
 const GS = SC5, VS = R4.vae;
-SC.push({ dur: 48, chapter: 'digits', title: 'The same game on handwritten digits', sub: `Two small MLPs, ${EPOCHS} passes over MNIST, backprop by hand.`,
+SC.push({ dur: 48, chapter: 'digits', title: 'The same game on handwritten digits', sub: `Two small networks, ${EPOCHS} passes over 60,000 handwritten digits, backprop by hand.`,
   caps: [[1, 8, `Same recipe on handwritten digits: two small networks, ${EPOCHS} passes over the data.`],
          [8, 15, 'Epoch by epoch, noise becomes strokes, and strokes become digits.'],
          [15, 23, 'Next to our VAE from episode 3, the difference jumps out: crisp strokes, no averaging. The judge punishes blur instantly.'],
@@ -342,7 +342,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'The question a GAN cannot answer', s
          [31, 38, 'Then we could track the stretching exactly, compute p(x) for any image, and train by plain maximum likelihood. No judge needed.'],
          [38, 47.6, 'Generators that run both ways, and bend space exactly: next episode, normalizing flows.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1));
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7));          // the scene clears just before the closing line lands
     GA = dimAll;
     const a0 = eout(prog(t, 0.6, 0.8));
     rbox(150, 300, 250, 150, 20, rgba(P.plum, 0.12), rgba(P.plum, 0.75), a0, 2.5); text('G', 275, 395, { font: F.serif, size: 60, color: P.chalk, align: 'center', a: a0 });

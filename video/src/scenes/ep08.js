@@ -80,7 +80,7 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
          [8, 15, 'At any x, the slope of log p is the score: s(x) = d/dx log p(x). Positive means “more probable to the right”.'],
          [15, 22, 'Draw it as an arrow at every point. The arrows point toward likely data, and grow longer the further out you go.'],
          [22, 29, 'Another reading: s = p′(x) / p(x), how fast p grows as a fraction of itself. A relative slope.'],
-         [29, 36, 'And Z? log p = log p̃ − log Z; Z is constant, so its slope is zero. The score never needs normalising.'],
+         [29, 36, 'And Z? If p = p̃ / Z, then log p = log p̃ − log Z, and a constant has zero slope.'],
          [36, 43, 'For a bell curve, the score is −(x − μ)/σ²: a spring pulling back to the centre, stiffer when the bell is narrow.'],
          [43, 49.6, 'In two dimensions the score is a gradient: an arrow field over the plane. That field is what we want to learn.']],
   draw(t) {
@@ -109,10 +109,10 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
 
 // 02 — why the jiggle is √(2η)
 SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub: 'A pull and a kick, in perfect balance.',
-  caps: [[1, 8, 'Last episode asked: why is the kick exactly √(2η)? Test it on the simplest target: a bell curve with variance 1.'],
+  caps: [[1, 8, 'Last episode asked: why is the kick exactly √(2η)? Test it on the simplest target: the standard bell curve, N(0, 1).'],
          [8, 15, 'Its score is −x: each step shrinks x by (1 − η), then kicks. Three runs: no kick, √(2η), and double.'],
          [15, 24, 'No kick: everything collapses onto the peak. Double kick: the cloud spreads four times too wide. The √(2η) kick lands exactly on the bell.'],
-         [24, 32, 'Why? Track the variance. The pull multiplies it by (1 − η)², losing about 2η per step. The kick adds back exactly 2η. Balance at 1.'],
+         [24, 32, 'Why? Track the variance, the average squared distance from the centre. The pull shrinks it by about 2η per step; the kick adds exactly 2η back.'],
          [32, 40, 'The same balance holds for any p, in any dimension. The arrows push probability uphill; the jiggle spreads it back out.'],
          [40, 48, 'The uphill flow is p·s = p·∇log p = ∇p. The spreading flow is −∇p. They cancel exactly, so p stops changing: it is the stationary distribution.'],
          [48, 57.6, 'So Langevin needs only the score: no energy, no Z. If we can learn the arrows, we can sample.']],
@@ -145,7 +145,7 @@ SC.push({ dur: 58, chapter: 'balance', title: 'Why the jiggle is √(2η)', sub:
 // 03 — learning arrows we can't see
 SC.push({ dur: 40, chapter: 'the problem', title: 'Learning arrows we can’t see', sub: 'We have samples, not scores.',
   caps: [[1, 8, 'So: learn a network sθ(x) with an arrow at every x, matching the true arrows on average over the data.'],
-         [8, 16, 'Minimise E‖sθ(x) − ∇ₓ log p(x)‖². But the true arrows are exactly what we don’t know. We only have samples.'],
+         [8, 16, 'Minimise the average (E) squared miss, ‖sθ(x) − ∇ₓ log p(x)‖². But the true arrows are exactly what we don’t know: we only have samples.'],
          [16, 24, 'It’s like being asked to copy a map nobody will show you. Two tricks get around it.'],
          [24, 32, 'The first, from Aapo Hyvärinen in 2005, removes the unknown term with calculus. The second, from Pascal Vincent in 2011, uses noise.'],
          [32, 39.6, 'Both give a loss you can compute from samples alone.']],
@@ -202,7 +202,7 @@ SC.push({ dur: 58, chapter: 'denoising', title: 'Trick 2: add noise, point home'
          [15, 23, 'So train the network to point home: minimise ‖sθ(x̃) + ε/σ‖². Multiply through by σ and it simply predicts the noise that was added.'],
          [23, 31, 'But a noisy point could have come from many clean points. The network can’t know which, so it learns the average of all their arrows home.'],
          [31, 39, 'Here is one noisy point, with an arrow to every data point that could have produced it, weighted by how likely. Their average is the bold arrow.'],
-         [39, 47, 'That average is exactly the score of the noisy data, ∇ log pσ. The unknown score, recovered by an ordinary regression.'],
+         [39, 47, 'That average is exactly the score of the noisy data, ∇ log pσ: the unknown score, recovered by plain regression, shrinking a squared miss.'],
          [47, 57.6, 'Flip it around: x̃ + σ²·s(x̃) is the best guess of the clean point. The score is a denoiser. Remember that: it is the key to episode 9.']],
   draw(t) {
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
@@ -287,7 +287,7 @@ SC.push({ dur: 60, chapter: 'many scales', title: 'Noise at many scales', sub: '
   caps: [[1, 8, 'The fix: train the network at many noise levels at once. That’s why it takes σ as an input.'],
          [8, 15, 'At σ = 3 the data blurs into one broad hill. Its arrows reach everywhere, and noisy points cover every region: reliable.'],
          [15, 22, 'Step the noise down and the field sharpens: first a ring, then eight separate valleys.'],
-         [22, 30, 'Annealed Langevin: start particles from noise at the largest σ, take a few Langevin steps, lower σ, and repeat.'],
+         [22, 30, 'Annealed Langevin, named after cooling metal slowly: start from noise at the largest σ, take a few Langevin steps, lower σ, repeat.'],
          [30, 38, 'Big steps while the noise is big, tiny careful steps at the end: the step size shrinks like σ².'],
          [38, 46, 'Early on, the broad arrows move particles toward the data as a whole, carrying the right weights. Later, sharp arrows settle them into place.'],
          [46, 53, 'Like finding a house: first the country, then the city, then the street.'],
@@ -328,7 +328,7 @@ SC.push({ dur: 40, chapter: 'result', title: 'Weights restored', sub: 'The same 
 // 10 — in the wild
 SC.push({ dur: 40, chapter: 'in the wild', title: 'Arrows everywhere', sub: 'From toy blobs to every modern image generator.',
   caps: [[1, 9, 'In 2019, noise-conditional score networks with annealed Langevin produced strikingly good images, competitive with GANs, with no adversary at all.'],
-         [9, 18, 'In 2021, Yang Song and colleagues let the noise level vary continuously: infinitely many σ’s, one stochastic differential equation. Score models and diffusion became one idea.'],
+         [9, 18, 'In 2021, Yang Song and colleagues made the noise level continuous: one equation for noise added gradually, a stochastic differential equation. Score models and diffusion became one idea.'],
          [18, 27, 'Because the score is a denoiser, any good denoiser hides a score: “plug-and-play” priors use one to deblur photos and reconstruct MRI scans.'],
          [27, 34, 'And every image and video diffusion model trains a network that, underneath, is a noise-conditional score network.'],
          [34, 39.6, 'The arrows won.']],
@@ -380,7 +380,7 @@ SC.push({ dur: 48, chapter: 'next', title: 'Noise, in slow motion', sub: 'What a
          [31, 38, 'Chain enough tiny denoising steps and static becomes data. That idea, made precise, powers nearly every image generator you have seen.'],
          [38, 47.6, 'Next episode: diffusion models. Noise, run backwards.']],
   draw(t) {
-    const dimAll = 1 - 0.9 * ease(prog(t, 38.5, 1)); GA = dimAll;
+    const dimAll = 1 - 0.94 * ease(prog(t, 37.9, 0.7)); GA = dimAll;          // the scene clears just before the closing line lands
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0);
     const fwd = t < 16, sg = fwd ? 3 * Math.pow(prog(t, 2, 12), 1.6) : 0;
     if (fwd) clipTo(m, () => FWD.forEach(p => marble(m.X(p[0] + sg * p[2]), m.Y(p[1] + sg * p[3]), 3, mixc(P.terracotta, P.rose, clamp(sg / 3)), a0)));

@@ -102,7 +102,7 @@ SC.push({ dur: 40, chapter: 'good?', title: 'What does “good” even mean?', s
 // 02 — judge 1: likelihood
 SC.push({ dur: 50, chapter: 'likelihood', title: 'Judge 1 · Likelihood', sub: 'How probable does the model find real data it has never seen?',
   caps: [[1, 8, 'Judge one comes from episode 1: likelihood. Show the model real images it has never seen, and ask how probable they are.'],
-         [8, 15, `Our VAE: about ${ELBO.toFixed(0)} nats per image — ${BPD.toFixed(2)} bits per pixel, under its own pixel model. The bits it needs per pixel.`],
+         [8, 15, `Our VAE: about ${ELBO.toFixed(0)} nats per image. Spread over 784 pixels, that is ${BPD.toFixed(2)} bits each: yes-or-no answers per pixel.`],
          [15, 23, "Now the photocopier. Its 'distribution' is just a pile of training images. A brand-new test digit gets probability zero."],
          [23, 30, 'log 0 = −∞: infinitely bad. Likelihood catches the copier instantly — and the one-trick pony too.'],
          [30, 38, 'Why? Likelihood measures coverage. Every real image must get some probability, or you pay without limit.'],
@@ -378,7 +378,7 @@ SC.push({ dur: 46, chapter: 'next', title: 'What if the judge could teach?', sub
          [31, 37, 'The game ends when the judge is stuck at 50%: the perfect score from our two-sample test.'],
          [37, 45.6, 'And our one-trick pony? Its disease has a name — mode collapse — and it will haunt us. Next episode: GANs.']],
   draw(t) {
-    const y = 520, a0 = eout(prog(t, 0.6, 0.8)), dim = 1 - 0.92 * ease(prog(t, 37.5, 1));
+    const y = 520, a0 = eout(prog(t, 0.6, 0.8)), dim = 1 - 0.94 * ease(prog(t, 36.9, 0.7));          // the scene clears just before the closing line lands
     GA = dim;
     rbox(150, y - 90, 260, 180, 20, rgba(P.plum, 0.12), rgba(P.plum, 0.75), a0, 2.5); text('generator', 280, y + 12, { font: F.serif, size: 38, color: P.chalk, align: 'center', a: a0 }); M('[m|G]([n|z])', 280, y + 60, 22, { align: 'center', a: a0 });
     const q = ease(prog(t, 23, 12)); // fakes improve as the arms race goes on

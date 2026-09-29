@@ -22,17 +22,17 @@ ROOT = os.path.dirname(HERE)
 
 # num: (page, <title>, data scripts loaded before the engine, extra EPISODE options)
 EPISODES = {
-    1: ('ep01-generative-modelling.html', 'Generative Modelling Explained', ['ep01-assets.js'], {}),
-    2: ('ep02-autoregressive.html', 'Autoregressive Generation Explained', ['names.js'], {}),
-    3: ('ep03-autoencoders-vae.html', 'Autoencoders and VAEs', ['ep03-assets.js'], {}),
-    4: ('ep04-evaluation.html', 'Evaluating Generative Models', ['ep04-assets.js'], {}),
-    5: ('ep05-gans.html', 'GANs Explained', ['ep04-assets.js', 'ep05-assets.js'], {}),
-    6: ('ep06-flows.html', 'Normalizing Flows', ['ep06-assets.js'], {}),
-    7: ('ep07-energy.html', 'Energy-Based Models', ['ep07-assets.js'], {}),
-    8: ('ep08-score.html', 'Score Matching & Langevin', ['ep08-assets.js'], {}),
-    9: ('ep09-diffusion.html', 'Diffusion Models', ['ep09-assets.js'], {}),
-    10: ('ep10-flow-matching.html', 'Flow Matching', ['ep10-assets.js'], {}),
-    11: ('ep11-guidance.html', 'Guidance', ['ep11-assets.js'], {}),
+    1: ('ep01-generative-modelling.html', 'Ep 01 · Generative Modelling', ['ep01-assets.js'], {}),
+    2: ('ep02-autoregressive.html', 'Ep 02 · Autoregressive Generation', ['names.js'], {}),
+    3: ('ep03-autoencoders-vae.html', 'Ep 03 · Autoencoders & VAEs', ['ep03-assets.js'], {}),
+    4: ('ep04-evaluation.html', 'Ep 04 · Grading the Imagination', ['ep04-assets.js'], {}),
+    5: ('ep05-gans.html', 'Ep 05 · GANs', ['ep04-assets.js', 'ep05-assets.js'], {}),
+    6: ('ep06-flows.html', 'Ep 06 · Normalizing Flows', ['ep06-assets.js'], {}),
+    7: ('ep07-energy.html', 'Ep 07 · Energy-Based Models', ['ep07-assets.js'], {}),
+    8: ('ep08-score.html', 'Ep 08 · Score Matching & Langevin', ['ep08-assets.js'], {}),
+    9: ('ep09-diffusion.html', 'Ep 09 · Diffusion Models', ['ep09-assets.js'], {}),
+    10: ('ep10-flow-matching.html', 'Ep 10 · Flow Matching', ['ep10-assets.js'], {}),
+    11: ('ep11-guidance.html', 'Ep 11 · Guidance', ['ep11-assets.js'], {}),
 }
 ARIA = {1: 'Generative modelling explainer animation', 2: 'Autoregressive generation explainer animation'}
 
@@ -52,6 +52,12 @@ def build(n):
         read('scenes', f'ep{num}.js').rstrip(),
         '',
         read('engine', 'player.js').rstrip(),
+        '',
+        '// ── links to the season hub, this episode\'s playground and code, and its neighbours (labs/season.js)',
+        open(os.path.join(ROOT, 'labs', 'season.js'), encoding='utf-8').read().rstrip(),
+        f'(() => {{ const n = {n}, e = GM.eps[n - 1], h = (k, i) => GM.href(k, i, "../");',
+        "  GM.nav(document.getElementById('links'), [n > 1 && [`◂ ep ${String(n - 1).padStart(2, '0')} · ${GM.eps[n - 2].title}`, h('ep', n - 1)], ['season hub', h('hub')],",
+        "    [`▶ playground · ${e.labName}`, h('lab', n), 'lab'], [`code · ${e.code}`, h('code', n)], n < GM.eps.length && [`ep ${String(n + 1).padStart(2, '0')} · ${GM.eps[n].title} ▸`, h('ep', n + 1), 'next']].filter(Boolean)); })();",
     ])
     doc = read('engine', 'shell.html')
     for k, v in {'{{TITLE}}': title, '{{ARIA}}': ARIA.get(n, f'{title} explainer animation'), '{{AUDIO}}': f'ep{num}-audio.mp3',
