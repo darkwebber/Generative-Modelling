@@ -10,7 +10,7 @@
     "Details: site/README.md"
   ],
   "episodes": {
-    "1":  { "title": "Generative Modelling",       "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "1":  { "title": "Generative Modelling",       "episode": "public",   "playground": "public",   "code": "public" },
     "2":  { "title": "Autoregressive Generation",  "episode": "redacted", "playground": "redacted", "code": "redacted" },
     "3":  { "title": "Autoencoders & VAEs",        "episode": "redacted", "playground": "redacted", "code": "redacted" },
     "4":  { "title": "Grading the Imagination",    "episode": "redacted", "playground": "redacted", "code": "redacted" },
