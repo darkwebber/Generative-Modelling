@@ -106,6 +106,7 @@
   .lk-nav { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; font-family: var(--mono); font-size: 12.5px; }
   .lk-nav a { color: var(--stone); text-decoration: none; border-bottom: 1px solid var(--border); padding-bottom: 1px; }
   .lk-nav a:hover { color: var(--chalk); border-color: var(--amber); }
+  .lk-nav .soon { color: var(--dust); font-style: italic; }
   .lk-m.done { background: color-mix(in srgb, var(--sage) 9%, transparent); border-color: color-mix(in srgb, var(--sage) 30%, transparent); }
   .lk-m.done .lk-dot { background: var(--sage); border-color: var(--sage); }
   .lk-m.done .lk-dot::after { content: "✓"; font-weight: 700; }

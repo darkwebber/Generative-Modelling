@@ -40,6 +40,8 @@ code/
   nn.py                 the shared plumbing: Adam, three network types, toy data, gradient checks
   density.py … diffusion.py   one file per model, every gradient written out by hand
   export/               trains the models shown in each episode and writes their data for the pages
+publish.json            what the website (generative.grasp.how) shows: each part public, redacted or hidden
+site/build.py           builds the public or private website into dist/ for Cloudflare Pages (site/README.md)
 ```
 
 Details: [`video/README.md`](video/README.md) (scenes of every episode, how the pages and soundtracks are built,

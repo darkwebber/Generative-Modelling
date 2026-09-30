@@ -1,0 +1,25 @@
+{
+  "_how": [
+    "What generative.grasp.how shows. Edit, commit and push to main; Cloudflare Pages rebuilds in about a minute.",
+    "Each episode has three parts: the episode (video page), its playground and its code.",
+    "Each part is one of:",
+    "  public    live on the public site",
+    "  redacted  listed as 'coming soon' (title and question only); the page itself is not uploaded",
+    "  hidden    not uploaded and not mentioned anywhere (use this to unpublish)",
+    "The private site (only invited people) always shows everything, with badges saying what the public sees.",
+    "Details: site/README.md"
+  ],
+  "episodes": {
+    "1":  { "title": "Generative Modelling",       "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "2":  { "title": "Autoregressive Generation",  "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "3":  { "title": "Autoencoders & VAEs",        "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "4":  { "title": "Grading the Imagination",    "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "5":  { "title": "GANs",                       "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "6":  { "title": "Normalizing Flows",          "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "7":  { "title": "Energy-Based Models",        "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "8":  { "title": "Score Matching & Langevin",  "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "9":  { "title": "Diffusion Models",           "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "10": { "title": "Flow Matching",              "episode": "redacted", "playground": "redacted", "code": "redacted" },
+    "11": { "title": "Guidance",                   "episode": "redacted", "playground": "redacted", "code": "redacted" }
+  }
+}

@@ -1,6 +1,6 @@
 // season.js — the season's table of contents, shared by the hub, every episode page (inlined by src/build.py) and
-// every playground. GM.href() links pages to each other: relative files when opened from this folder, and the
-// published Claude artifacts (the `url` fields) when viewed online, where the other files are not next door.
+// every playground. GM.href() links pages to each other: relative files when opened from this folder, the website's
+// own pages when site/build.py has built it (SITE below), and otherwise the published Claude artifacts (URL below).
 window.GM = (function () {
   const eps = [
     { n: 1, title: 'Generative Modelling', page: 'ep01-generative-modelling.html', lab: 'ep01-density-lab.html', labName: 'Density Lab', code: 'density.py' },
@@ -27,17 +27,30 @@ window.GM = (function () {
            7: 'https://claude.ai/artifact/9QWRawZm2ETNyQbcPPkai9', 8: 'https://claude.ai/artifact/LpMp41VXM1eX7qtmhUZ9oe', 9: 'https://claude.ai/artifact/XYi8ABXwLBGkW4o9BUr3zF',
            10: 'https://claude.ai/artifact/YaESNgKaqG5KgZF9gddoPv', 11: 'https://claude.ai/artifact/Rw9UJxfeuEXedezAbu7ReN' },
   };
-  const local = /^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname);
+  // site/build.py replaces the next line with what the website shows: { target: 'public' | 'private',
+  // show: {n: {ep, lab, code}} (each 'public' | 'redacted' | 'hidden'), plan: the public site's plan, for private badges }
+  const SITE = null;
+  const local = !SITE && (/^(file:)$/.test(location.protocol) || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname));
+  const framed = !local && !SITE;   // inside a claude.ai artifact frame, links must open in the top window
+  // 'public' | 'redacted' (listed as coming soon, no page) | 'hidden' (not mentioned); always public off the website
+  function state(kind, n) { return !SITE || kind === 'hub' ? 'public' : (SITE.show[n] || {})[kind] || 'hidden'; }
   // kind: 'hub' | 'ep' | 'lab' | 'code';  base: path from this page to the video/ folder ('' or '../')
+  // returns a link, or false for a redacted page (show it as coming soon), or null when there is nothing to show
   function href(kind, n, base) {
     const e = eps[n - 1];
+    if (SITE) {
+      const s = state(kind, n); if (s !== 'public') return s === 'redacted' ? false : null;
+      return kind === 'hub' ? base || './' : kind === 'ep' ? base + 'episodes/' + e.page.replace(/\.html$/, '') : kind === 'lab' ? base + 'labs/' + e.lab.replace(/\.html$/, '') : base + 'code/' + e.code.replace(/\.py$/, '');
+    }
     if (local) return kind === 'hub' ? base + 'index.html' : kind === 'ep' ? base + 'episodes/' + e.page : kind === 'lab' ? base + 'labs/' + e.lab : base + '../code/' + e.code;
     return kind === 'hub' ? URL.hub : kind === 'ep' ? URL.ep[n] || null : kind === 'lab' ? URL.lab[n] || null : null;
   }
-  // a small row of links; skips any that have no destination here
+  // a small row of links; a redacted page shows as 'soon', and any with no destination here are left out
   function nav(el, items) {
-    el.innerHTML = items.filter(([, h]) => h).map(([label, h, cls]) => `<a href="${h}"${local ? '' : ' target="_top"'} class="${cls || ''}">${label}</a>`).join('');
+    el.innerHTML = items.filter(([, h]) => h || h === false).map(([label, h, cls]) => h === false
+      ? `<span class="soon ${cls || ''}" title="coming soon">${label} · soon</span>`
+      : `<a href="${h}"${framed ? ' target="_top"' : ''} class="${cls || ''}">${label}</a>`).join('');
     el.hidden = !el.innerHTML;
   }
-  return { eps, URL, local, href, nav };
+  return { eps, URL, SITE, local, framed, state, href, nav };
 })();

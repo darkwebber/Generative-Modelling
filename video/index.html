@@ -42,11 +42,20 @@
   .meta { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
   .how { margin-top: 36px; }
   .how code { font-family: var(--mono); font-size: 13px; color: var(--chalk); }
+  .links .soon { color: var(--dust); font-style: italic; font-family: var(--mono); font-size: 12.5px; }
+  .private { display: none; margin: 0 0 22px; padding: 10px 14px; border: 1px dashed var(--amber); border-radius: 10px; font-family: var(--mono); font-size: 12px; color: var(--stone); }
+  .private b { color: var(--amber); font-weight: 500; }
+  .plan { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; }
+  .plan span { padding: 2px 7px; border-radius: 99px; border: 1px solid var(--border); color: var(--stone); }
+  .plan .public { border-color: var(--sage); color: var(--sage); }
+  .plan .redacted { border-color: var(--amber); color: var(--amber); }
+  .plan .hidden { border-style: dashed; color: var(--dust); }
   @media (max-width: 700px) { .strip span { display: none; } .strip { margin-bottom: 22px; } }
 </style>
 </head>
 <body>
 <main>
+  <div class="private" id="private"><b>private preview</b> · only invited people can open this copy. The badges on each card show what the public site shows.</div>
   <div class="kicker">a first-principles season</div>
   <h1>Generative Modelling</h1>
   <p class="lede">How machines turn random noise into text, digits and images, built one idea at a time with the maths and code for every model. Each episode ends on the question the next one answers.</p>
@@ -54,8 +63,8 @@
   <nav class="strip" id="strip" aria-label="season map"></nav>
   <section class="eps" id="eps"></section>
   <section class="card how" style="--accent: var(--sage)">
-    <div class="label" style="color: var(--sage)">how to use this folder</div>
-    <p class="hint" style="font-size:14px">Open any episode page to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in the browser with no install. Every model is plain numpy in <code>../code/</code>, with backprop written by hand. To render an MP4: <code>python src/make.py 9 --render</code>. Your progress is saved in this browser only.</p>
+    <div class="label" style="color: var(--sage)" id="how-label">how to use this folder</div>
+    <p class="hint" style="font-size:14px" id="how">Open any episode page to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in the browser with no install. Every model is plain numpy in <code>../code/</code>, with backprop written by hand. To render an MP4: <code>python src/make.py 9 --render</code>. Your progress is saved in this browser only.</p>
   </section>
   <footer>Colours keep one meaning all season: terracotta data · ink distributions · amber knobs · rose noise · plum models · sage insight.</footer>
 </main>
@@ -76,30 +85,38 @@ const EPS = [
 ];
 const SHORT = ['what is p(x)', 'autoregressive', 'VAEs', 'evaluation', 'GANs', 'flows', 'energy', 'score', 'diffusion', 'flow matching', 'guidance'];
 const pad = n => String(n).padStart(2, '0');
-// links go to the files next door, or to the published artifacts when this hub is viewed online (labs/season.js)
-const H = (kind, n) => GM.href(kind, n, ''), TGT = GM.local ? '' : ' target="_top"';
-const A = (kind, n, label, extra = '') => { const h = H(kind, n); return h ? `<a href="${h}"${TGT}${extra}>${label}</a>` : ''; };
+// links go to the files next door, the website's own pages, or the published artifacts (labs/season.js)
+const H = (kind, n) => GM.href(kind, n, ''), TGT = GM.framed ? ' target="_top"' : '';
+const A = (kind, n, label, extra = '') => { const h = H(kind, n); return h ? `<a href="${h}"${TGT}${extra}>${label}</a>` : h === false ? `<span class="soon">${label} · soon</span>` : ''; };
+// on the website, an episode is public, redacted (a coming-soon card) or hidden (left out entirely)
+const SHOWN = EPS.filter(e => GM.state('ep', e.n) !== 'hidden'), live = e => GM.state('ep', e.n) === 'public';
+const PRIVATE = GM.SITE && GM.SITE.target === 'private';
+const plan = e => { const p = GM.SITE.plan[e.n] || {}; return `<div class="plan" title="what the public site shows">${['ep', 'lab', 'code'].map(k =>
+  `<span class="${p[k] || 'hidden'}">${{ ep: 'episode', lab: 'playground', code: 'code' }[k]}: ${p[k] || 'hidden'}</span>`).join('')}</div>`; };
+if (PRIVATE) document.getElementById('private').style.display = 'block';
+if (GM.SITE) { document.getElementById('how-label').textContent = 'how to use this site';
+  document.getElementById('how').innerHTML = 'Open any episode to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in your browser with nothing to install. Every model is plain numpy with backprop written by hand; the <b>code</b> link on each card shows it. Your progress is saved in this browser only.'; }
 let seen = {};
 try { seen = JSON.parse(localStorage.getItem('gm-season-seen') || '{}') || {}; } catch (e) { seen = {}; }
 const save = () => { try { localStorage.setItem('gm-season-seen', JSON.stringify(seen)); } catch (e) {} };
 function render() {
-  const out = EPS.filter(e => e.page), done = out.filter(e => seen[e.n]).length, next = out.find(e => !seen[e.n]);
+  const out = SHOWN.filter(live), done = out.filter(e => seen[e.n]).length, next = out.find(e => !seen[e.n]);
   document.getElementById('count').textContent = `${done} of ${out.length} watched`;
-  document.getElementById('fill').style.width = `${100 * done / out.length}%`;
+  document.getElementById('fill').style.width = `${out.length ? 100 * done / out.length : 0}%`;
   const c = document.getElementById('continue');
-  c.textContent = next ? `▶ ${done ? 'continue with' : 'start with'} episode ${pad(next.n)}` : '✓ season so far: all watched';
-  c.href = next ? (H('ep', next.n) || '#') : '#'; if (next) c.dataset.ep = next.n; if (!GM.local) c.target = '_top';
-  document.getElementById('strip').innerHTML = EPS.map((e, i) =>
-    `<a class="stop ${seen[e.n] ? 'done' : ''} ${next && next.n === e.n ? 'next' : ''}" href="${e.page ? '#ep' + e.n : '#'}"><b></b>${pad(e.n)}<span>${SHORT[i]}</span></a>`).join('');
-  document.getElementById('eps').innerHTML = EPS.map(e => e.page ? `
+  c.textContent = next ? `▶ ${done ? 'continue with' : 'start with'} episode ${pad(next.n)}` : out.length ? '✓ season so far: all watched' : 'first episode coming soon';
+  c.href = next ? (H('ep', next.n) || '#') : '#'; if (next) c.dataset.ep = next.n; if (GM.framed) c.target = '_top';
+  document.getElementById('strip').innerHTML = SHOWN.map(e =>
+    `<a class="stop ${seen[e.n] ? 'done' : ''} ${next && next.n === e.n ? 'next' : ''}" href="#ep${e.n}"><b></b>${pad(e.n)}<span>${SHORT[e.n - 1]}</span></a>`).join('');
+  document.getElementById('eps').innerHTML = SHOWN.map(e => live(e) ? `
     <article class="card ep" id="ep${e.n}" style="--accent: var(${e.col})">
       <a class="poster" href="${H('ep', e.n) || '#'}"${TGT} data-ep="${e.n}"><img src="posters/ep${pad(e.n)}.jpg" alt="Episode ${pad(e.n)} title card" loading="lazy"></a>
       <div class="body"><div class="meta">episode ${pad(e.n)} · ${e.len}</div><h2>${e.name}</h2><p class="q">${e.q}</p>
         <div class="links">${A('ep', e.n, '▶ watch', ` data-ep="${e.n}"`)}${A('lab', e.n, 'playground')}${A('code', e.n, 'code')}
-          <button data-n="${e.n}" class="${seen[e.n] ? 'on' : ''}">${seen[e.n] ? '✓ watched' : 'mark watched'}</button></div></div>
+          <button data-n="${e.n}" class="${seen[e.n] ? 'on' : ''}">${seen[e.n] ? '✓ watched' : 'mark watched'}</button></div>${PRIVATE ? plan(e) : ''}</div>
     </article>` : `
-    <article class="card ep soon" style="--accent: var(${e.col})"><div class="poster">coming next</div>
-      <div class="body"><div class="meta">episode ${pad(e.n)}</div><h2>${e.name}</h2><p class="q">${e.q}</p></div></article>`).join('');
+    <article class="card ep soon" id="ep${e.n}" style="--accent: var(${e.col})"><div class="poster">coming soon</div>
+      <div class="body"><div class="meta">episode ${pad(e.n)}</div><h2>${e.name}</h2><p class="q">${e.q}</p>${H('lab', e.n) || H('code', e.n) ? `<div class="links">${A('lab', e.n, 'playground')}${A('code', e.n, 'code')}</div>` : ''}</div></article>`).join('');
   document.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => { const n = +b.dataset.n; seen[n] = !seen[n]; save(); render(); });
 }
 // opening an episode from here counts as watching it

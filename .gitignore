@@ -4,3 +4,4 @@ node_modules
 __pycache__/
 code/data/
 .probe-*.json
+dist/

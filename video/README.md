@@ -323,7 +323,8 @@ video/
   episodes/               every page, with its data (epNN-assets.js) and soundtrack (epNN-audio.mp3): open or publish
   labs/                   the playgrounds (epNN-….html) + lab-kit.js / .css (guide, missions, tactile sound, styles)
   labs/season.js          the season's table of contents: every page links to its neighbours through it — local files,
-                          or the published artifacts' URLs when viewed online (update URL there after publishing)
+                          the website's own pages when built by ../site/build.py (its SITE line), or the published
+                          artifacts' URLs when viewed on claude.ai (update URL there after publishing)
   index.html, posters/    the season hub
   render.mjs              renders any page to MP4, frame by frame (deterministic) → renders/ (not in git)
 ```
