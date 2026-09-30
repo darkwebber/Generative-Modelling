@@ -5,7 +5,7 @@ Two static sites built from this repo by Cloudflare Pages. No Workers and no Pag
 | site | address | who can open it | what it shows |
 |---|---|---|---|
 | public | `generative.grasp.how` | everyone | only what [`publish.json`](../publish.json) marks public |
-| private | `generative-private.grasp.how` | you and the people you invite (Cloudflare Access) | everything, with badges showing what the public sees |
+| private | `generative-private.pages.dev` (or `generative-private.grasp.how`, see below) | you and the people you invite (Cloudflare Access) | everything, with badges showing what the public sees |
 
 ## Choosing what is public
 
@@ -46,7 +46,9 @@ cd dist && python3 -m http.server 8000   # rough preview; Pages also serves /epi
 
 ## One-time setup in Cloudflare
 
-These steps assume `grasp.how` already uses Cloudflare for its DNS, as `diffusion.grasp.how` does.
+`grasp.how`'s DNS is hosted outside Cloudflare, which works fine for the public site: a CNAME record at your DNS provider points `generative` to the Pages project.
+
+The only limit is that Cloudflare Access can lock a custom domain only if that domain's DNS is on Cloudflare. So the private site lives at its `pages.dev` address, which Access can lock without any DNS changes. If you later move `grasp.how`'s nameservers to Cloudflare (free), you can add `generative-private.grasp.how` as well. Check that every existing record (e.g. `diffusion`, email) is carried over before switching.
 
 ### 1. The public project
 1. Go to **Workers & Pages → Create → Pages → Connect to Git**. Pick the **Pages** option, not Workers, and choose `darkwebber/generative-modelling`. The first time, allow Cloudflare's GitHub app to access the repo.
@@ -56,7 +58,7 @@ These steps assume `grasp.how` already uses Cloudflare for its DNS, as `diffusio
    - Build command: `python3 site/build.py public`
    - Build output directory: `dist`
 3. Save and deploy.
-4. Under **Custom domains**, add `generative.grasp.how`. Cloudflare creates the DNS record itself.
+4. Under **Custom domains**, add `generative.grasp.how` and choose **My DNS provider → Begin CNAME setup**. At your DNS provider, add the record it shows: CNAME `generative` → `generative-grasp.pages.dev`. Then wait for **Active**; this takes minutes to a few hours.
 5. Under **Settings → General**, enable the **access policy for preview deployments**. Every deployment also gets its own address (`<id>.<project>.pages.dev`), and old deployments keep whatever they had when they were built, so this keeps unpublished work out of view.
 
 ### 2. The private project
@@ -64,20 +66,22 @@ These steps assume `grasp.how` already uses Cloudflare for its DNS, as `diffusio
    - Build command: `python3 site/build.py private`
    - Build output directory: `dist`
    - Project name: e.g. `generative-private`. The `pages.dev` address takes this name.
-2. Add the custom domain `generative-private.grasp.how`.
+2. Skip the custom domain while `grasp.how`'s DNS is outside Cloudflare (see above).
 3. Under **Settings → Builds → Branch control**, turn off preview deployments. The private site only needs `main`.
 
 ### 3. Lock the private site (Cloudflare Access, free for up to 50 people)
 1. Go to **Zero Trust → Access → Applications → Add an application → Self-hosted**.
 2. Add every address the private site can be reached at:
-   - `generative-private.grasp.how`
    - `generative-private.pages.dev`, using your project's actual `pages.dev` name
    - `*.generative-private.pages.dev`
+   - `generative-private.grasp.how`, only once `grasp.how` is on Cloudflare DNS
+
+   Enabling the project's **Access policy** (Settings → General) creates this application for you, covering the `*.` address. Edit it to add the plain `generative-private.pages.dev` address too.
 
    Leaving out the `pages.dev` addresses would leave a way round the lock.
 3. Add a policy: **Allow**, *Include → Emails*, followed by your address and the people you invite.
 4. For the login method, use **One-time PIN**: people type their email and get a code, so no accounts are needed. A session length of a month is comfortable.
-5. **To check it works,** open `generative-private.grasp.how` in a private window. You should see the Cloudflare sign-in page, and nothing from the season until you enter a code.
+5. **To check it works,** open `generative-private.pages.dev` in a private window. You should see the Cloudflare sign-in page, and nothing from the season until you enter a code.
 
 **Inviting or removing someone** means editing the email list in that policy. The change takes effect at their next sign-in.
 
