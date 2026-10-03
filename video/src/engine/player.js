@@ -37,12 +37,12 @@ function render(T, poster = false) {
   const i = sceneAt(T), s = SC[i], t = T - s.start;
   ctx.save(); s.draw(t); ctx.restore(); GA = 1;
   if (s.title) header(i, s, t);
-  if (!poster) captions(s, t);
+  if (!poster && capture) captions(s, t);       // in the browser, captions are page text (readable at any size)
   const f = Math.min(clamp(t / 0.7), clamp((s.dur - t) / 0.7));
   if (f < 1) { ctx.globalAlpha = 1 - ease(f); ctx.fillStyle = P.canvas; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (!VIGNETTE) { VIGNETTE = ctx.createRadialGradient(960, 540, 520, 960, 540, 1180); VIGNETTE.addColorStop(0, 'rgba(8,6,5,0)'); VIGNETTE.addColorStop(1, 'rgba(8,6,5,0.55)'); }
   ctx.fillStyle = VIGNETTE; ctx.fillRect(0, 0, W, H);
-  progressBar(poster ? 0 : T, i);
+  if (capture) progressBar(T, i);               // in the browser, the control bar does this job
   if (!GRAIN_PAT) GRAIN_PAT = ctx.createPattern(GRAIN, 'repeat');
   const fr = Math.floor(T * 24), r = rng(fr + 7);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.07; ctx.translate(-Math.floor(r() * 256), -Math.floor(r() * 256));
@@ -50,50 +50,260 @@ function render(T, poster = false) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
 
+
+// ─────────────────────────────────────────────────────────────
+//  Player: controls, captions, full screen, resume, end screen
+// ─────────────────────────────────────────────────────────────
 const capture = new URLSearchParams(location.search).has('capture');
 if (capture) document.body.classList.add('capture');
-let now = 0, playing = false, lastTs = null;
-const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), chapEl = document.getElementById('chapters');
+const $ = id => document.getElementById(id);
+const player = $('player'), stage = $('stage'), tl = $('tl'), fillEl = $('fill'), knob = $('knob'), tip = $('tip'), timeEl = $('time'), chapEl = $('chapters'),
+      chapBtn = $('chap'), menu = $('menu'), capEl = $('cap'), capB = $('capb'), big = $('bigbtn'), playBtn = $('play'), muteBtn = $('mute'), volEl = $('vol'),
+      ccBtn = $('cc'), rateBtn = $('rate'), fsBtn = $('fs'), snd = $('snd');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-SC.forEach((s, j) => { const b = document.createElement('button'); b.textContent = `${String(j).padStart(2, '0')} ${s.chapter}`; b.onclick = () => { started = true; now = s.start; draw(); syncAudio(true); }; chapEl.appendChild(b); });
+const ICON = {
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 5h4v14h-4zM13.5 5h4v14h-4z"/></svg>',
+  replay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>',
+  vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1.2" fill="currentColor"/></svg>',
+  fs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+  unfs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+};
+$('chbtn').innerHTML = ICON.list;
+
+// preferences, remembered in this browser (storage can be blocked: everything works without it)
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const pref = Object.assign({ cc: true, rate: 1, vol: 1, muted: false }, store.get('gm-player', {}));
+const RATES = [0.75, 1, 1.25, 1.5, 2];
+if (!RATES.includes(pref.rate)) pref.rate = 1;
+const savePref = () => store.set('gm-player', pref);
+const POS_KEY = `gm-pos-${EPISODE.num}`;
+
+let now = 0, playing = false, started = false, ended = false, lastTs = null, dragging = false, buffering = false;
+let soundOn = !pref.muted;
 // before the first play, show the title card (the end of the cold open) with a play button instead of a black frame
 const POSTER_T = SC[0].dur - 2.5;
-let started = false;
-function posterOverlay() { ctx.save(); ctx.fillStyle = 'rgba(12,10,9,0.35)'; ctx.fillRect(0, 0, W, H); ctx.beginPath(); ctx.arc(960, 900, 54, 0, TAU); ctx.fillStyle = 'rgba(19,16,14,0.8)'; ctx.fill();
-  ctx.lineWidth = 3; ctx.strokeStyle = P.terracotta; ctx.stroke(); ctx.fillStyle = P.chalk; ctx.beginPath(); ctx.moveTo(944, 874); ctx.lineTo(944, 926); ctx.lineTo(988, 900); ctx.closePath(); ctx.fill(); ctx.restore(); }
-function draw() { if (!started && !playing && now === 0 && !capture) { render(POSTER_T, true); posterOverlay(); } else render(now); scrub.value = (now / DURATION * 1000).toFixed(1); timeEl.textContent = `${fmt(now)} / ${fmt(DURATION)}`; const i = sceneAt(now); [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); }
-const snd = document.getElementById('snd'), sndBtn = document.getElementById('snd-btn'); let soundOn = true;
+let resumeAt = store.get(POS_KEY, 0);
+if (!(resumeAt > 15 && resumeAt < DURATION - 20)) resumeAt = 0;
+
+// ── timeline: chapter ticks, hover/drag preview ──
+SC.forEach((s, j) => { if (j) { const k = document.createElement('i'); k.className = 'tick'; k.style.left = `${100 * s.start / DURATION}%`; tl.querySelector('.track').appendChild(k); } });
+tl.setAttribute('aria-valuemax', Math.round(DURATION));
+const chLabel = j => `${String(j).padStart(2, '0')} ${SC[j].chapter}`;
+const tAt = x => { const r = tl.getBoundingClientRect(); return clamp((x - r.left) / r.width) * DURATION; };
+function showTip(x) { const r = tl.getBoundingClientRect(), T = tAt(x), j = sceneAt(T);
+  tip.innerHTML = `<b>${String(j).padStart(2, '0')}</b> ${SC[j].chapter} · ${fmt(T)}`; tip.classList.add('on');
+  const w = tip.offsetWidth / 2; tip.style.left = `${clamp(x - r.left, w, r.width - w)}px`; }
+tl.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); dragging = true; tl.classList.add('drag'); tl.setPointerCapture(e.pointerId); seekTo(tAt(e.clientX), false); showTip(e.clientX); });
+tl.addEventListener('pointermove', e => { if (dragging) seekTo(tAt(e.clientX), false); if (dragging || e.pointerType === 'mouse') showTip(e.clientX); });
+const endDrag = () => { if (!dragging) return; dragging = false; tl.classList.remove('drag'); tip.classList.remove('on'); lastTs = null; syncAudio(true); poke(); };
+tl.addEventListener('pointerup', endDrag); tl.addEventListener('pointercancel', endDrag);
+tl.addEventListener('pointerleave', () => { if (!dragging) tip.classList.remove('on'); });
+
+// ── chapters: the list under the player and the menu inside it ──
+SC.forEach((s, j) => {
+  const b = document.createElement('button'); b.innerHTML = `${chLabel(j)} <time>${fmt(s.start)}</time>`; b.onclick = () => { seekTo(s.start); if (!playing) toggle(); }; chapEl.appendChild(b);
+  const m = document.createElement('button'); m.setAttribute('role', 'menuitem'); m.innerHTML = `<b>${String(j).padStart(2, '0')}</b><span>${s.chapter}</span><time>${fmt(s.start)}</time>`;
+  m.onclick = () => { seekTo(s.start); closeMenu(); if (!playing) toggle(); }; menu.appendChild(m); });
+const openMenu = () => { player.classList.add('menu-open'); const on = menu.querySelector('.on'); if (on) menu.scrollTop = on.offsetTop - 60; };
+const closeMenu = () => player.classList.remove('menu-open');
+$('chbtn').onclick = chapBtn.onclick = e => { e.stopPropagation(); player.classList.contains('menu-open') ? closeMenu() : openMenu(); poke(); };
+
+// ── what is on screen ──
+let lastScene = -1, lastCap = null, lastBelow = null;
+function capsAt(T) { const s = SC[sceneAt(T)], t = T - s.start; let str = '', al = 0;
+  for (const [a, b, c] of s.caps) if (t >= a && t <= b) { str = c; al = Math.min(clamp((t - a) / 0.35), clamp((b - t) / 0.35)); }
+  return [str, al]; }
+function updateUI() {
+  const p = 100 * now / DURATION;
+  fillEl.style.width = `${p}%`; knob.style.left = `${p}%`;
+  tl.setAttribute('aria-valuenow', Math.round(now)); tl.setAttribute('aria-valuetext', `${fmt(now)} of ${fmt(DURATION)}`);
+  timeEl.innerHTML = `${fmt(now)} <span>/ ${fmt(DURATION)}</span>`;
+  const i = sceneAt(now);
+  if (i !== lastScene) { lastScene = i; chapBtn.textContent = `· ${chLabel(i)}`;
+    [...chapEl.children].forEach((b, j) => b.classList.toggle('on', j === i)); [...menu.children].forEach((b, j) => b.classList.toggle('on', j === i));
+    const b = chapEl.children[i]; if (b && chapEl.scrollWidth > chapEl.clientWidth) chapEl.scrollTo({ left: b.offsetLeft - 16, behavior: started ? 'smooth' : 'auto' }); }
+  const [str, al] = started ? capsAt(now) : ['', 0], below = player.classList.contains('below');
+  if (str !== lastCap || below !== lastBelow) { lastCap = str; lastBelow = below; (below ? capB : capEl).textContent = str; (below ? capEl : capB).textContent = ''; }
+  (below ? capB : capEl).style.opacity = below ? (str ? Math.max(al, 0.25) : 0) : al;
+  setUI();
+}
+function draw() { if (!started && !capture) render(POSTER_T, true); else render(now); updateUI(); }
+
+// ── controls show while paused, after any touch or mouse movement, and while in use; then fade ──
+let lastPoke = 0, overBar = false, touchMode = false;
+const poke = () => { lastPoke = performance.now(); setUI(); };
+function setUI() {
+  const show = started && (!playing || dragging || overBar || player.classList.contains('menu-open') || performance.now() - lastPoke < (touchMode ? 3200 : 2400));
+  const c = player.classList;
+  c.toggle('started', started); c.toggle('playing', playing); c.toggle('show', show); c.toggle('ended', ended); c.toggle('buffering', buffering && playing);
+  c.toggle('idle', started && playing && !show); c.toggle('touch', touchMode); c.toggle('nocc', !pref.cc);
+  const ic = playing ? 'pause' : ended ? 'replay' : 'play';
+  if (playBtn.dataset.ic !== ic) { playBtn.dataset.ic = big.dataset.ic = ic; playBtn.innerHTML = big.innerHTML = ICON[ic]; playBtn.setAttribute('aria-label', `${ic} (k)`); big.setAttribute('aria-label', ic); }
+}
+// keep the controls' fade running while paused too (no animation loop then)
+setInterval(() => { if (!playing) setUI(); }, 400);
+const bar = $('bar');
+bar.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') overBar = true; });
+bar.addEventListener('pointerleave', () => { overBar = false; poke(); });
+bar.addEventListener('pointerdown', e => { touchMode = e.pointerType !== 'mouse'; poke(); e.stopPropagation(); });
+
+// ── clicking and tapping the picture ──
+// mouse: click plays/pauses, double-click is full screen.  touch: tap shows/hides the controls,
+// double-tap the left or right third skips 10 s, double-tap the middle is full screen.
+let clickTimer = null, tapAt = 0, tapX = 0, stageTap = 0;
+stage.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { touchMode = false; poke(); } });
+stage.addEventListener('pointerup', e => {
+  if (e.target.closest('.bar, .menu, .end, .bigbtn, .resume')) return;
+  if (player.classList.contains('menu-open')) { closeMenu(); poke(); return; }
+  if (e.pointerType === 'mouse') { touchMode = false; if (e.button) return;
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; toggleFS(); }
+    else clickTimer = setTimeout(() => { clickTimer = null; toggle(); flash(); }, started ? 220 : 0);
+    return; }
+  touchMode = true; stageTap = performance.now();
+  const t = performance.now(), r = stage.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+  if (!started) { toggle(); return; }
+  if (t - tapAt < 320) { clearTimeout(clickTimer); clickTimer = null; tapAt = 0; if (x < 0.36) skip(-10); else if (x > 0.64) skip(10); else toggleFS(); return; }
+  tapAt = t; tapX = x;
+  clearTimeout(clickTimer); clickTimer = setTimeout(() => { clickTimer = null; const shown = player.classList.contains('show');
+    if (shown && playing) { lastPoke = 0; setUI(); } else poke(); }, 300);
+});
+// a tap that reveals the controls is followed by a click on whatever just appeared under the finger: ignore that one
+big.onclick = e => { e.stopPropagation(); if (performance.now() - stageTap < 450) return; toggle(); };
+function flash() { const f = $('flash'); f.innerHTML = ICON[playing ? 'play' : 'pause']; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+function skip(d) { seekTo(now + d); const f = $(d < 0 ? 'skipl' : 'skipr'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); poke(); }
+
+// ── sound ──
 // Clock: while the soundtrack is really advancing, the picture follows it exactly (the ear notices drift first).
 // If the <audio> clock stalls (some mobile in-app browsers report a frozen currentTime while still sounding) the picture
 // falls back to the wall clock, so it never freezes; the audio is re-seeked only then, and at most every few seconds.
 // Slow frames never slow the clock down: time comes from the audio or the wall, not from counting frames.
 let lastSeek = -1e9, audT = -1, audWall = 0, waitWall = 0;
+snd.volume = pref.vol; snd.playbackRate = pref.rate; volEl.value = pref.vol;
 function audioAlive(ts) { if (!soundOn || capture || snd.paused || snd.seeking) return false;
   const a = snd.currentTime; if (a !== audT) { audT = a; audWall = ts; } return ts - audWall < 500; }
 function seekAudio(t, force) { if (snd.seeking && !force) return; try { snd.currentTime = t; } catch (e) {} lastSeek = performance.now(); audT = -1; audWall = performance.now(); }
-function syncAudio(force) { if (!playing || !soundOn || capture) { if (!snd.paused) snd.pause(); return; }
+function syncAudio(force) { if (!playing || !soundOn || capture || dragging) { if (!snd.paused) snd.pause(); return; }
   if (force) seekAudio(now, true);
   if (snd.paused) snd.play().catch(() => {}); }
-sndBtn.onclick = () => { soundOn = !soundOn; sndBtn.textContent = soundOn ? '♪ sound on' : '♪ sound off'; syncAudio(true); };
-let drawErr = 0;
+function setSound(on) { soundOn = on; pref.muted = !on; savePref(); muteBtn.innerHTML = on && pref.vol > 0 ? ICON.vol : ICON.mute; muteBtn.setAttribute('aria-label', on ? 'mute (m)' : 'unmute (m)'); syncAudio(true); }
+muteBtn.onclick = () => { if (!soundOn && pref.vol === 0) { pref.vol = 1; volEl.value = 1; snd.volume = 1; } setSound(!soundOn); };
+volEl.oninput = () => { pref.vol = +volEl.value; snd.volume = pref.vol; if (pref.vol > 0 && !soundOn) setSound(true); else if (pref.vol === 0 && soundOn) setSound(false); else { savePref(); setSound(soundOn); } };
+setSound(soundOn);
+function setRate(r) { pref.rate = r; savePref(); snd.playbackRate = r; rateBtn.textContent = `${r}×`; }
+rateBtn.onclick = () => { setRate(RATES[(RATES.indexOf(pref.rate) + 1) % RATES.length]); poke(); };
+setRate(pref.rate);
+ccBtn.onclick = () => { pref.cc = !pref.cc; savePref(); ccBtn.setAttribute('aria-pressed', pref.cc); setUI(); poke(); };
+ccBtn.setAttribute('aria-pressed', pref.cc);
+
+// ── playing ──
+let drawErr = 0, lastSave = 0;
 function loop(ts) { if (!playing) return;
   const dt = lastTs == null ? 0 : Math.min(1, Math.max(0, (ts - lastTs) / 1000)); lastTs = ts;
-  if (audioAlive(ts)) { now = audT + (ts - audWall) / 1000; waitWall = 0; }                 // audio clock, smoothed between its updates
-  else if (soundOn && !snd.paused && snd.readyState < 3 && waitWall < 2) waitWall += dt;          // buffering: hold the picture briefly
-  else { now += dt;                                                                              // no usable audio clock: wall clock
+  buffering = false;
+  if (dragging) {}                                                                                      // the finger owns the clock
+  else if (audioAlive(ts)) { now = audT + (ts - audWall) / 1000 * pref.rate; waitWall = 0; }            // audio clock, smoothed between its updates
+  else if (soundOn && !snd.paused && snd.readyState < 3 && waitWall < 2) { waitWall += dt; buffering = waitWall > 0.25; }   // buffering: hold the picture briefly
+  else { now += dt * pref.rate;                                                                          // no usable audio clock: wall clock
     if (soundOn && !snd.paused && Math.abs(snd.currentTime - now) > 0.5 && performance.now() - lastSeek > 4000) seekAudio(now); }
-  if (now >= DURATION) { now = DURATION; playing = false; playBtn.textContent = '▶ play'; }
+  if (now >= DURATION) finish();
+  if (ts - lastSave > 3000) { lastSave = ts; savePos(); }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
   syncAudio(); if (playing) requestAnimationFrame(loop); }
-cv.addEventListener('click', () => toggle());
-function toggle() { started = true; if (now >= DURATION - 0.01) now = 0; playing = !playing; playBtn.textContent = playing ? '❚❚ pause' : '▶ play'; lastTs = null; syncAudio(true); if (playing) requestAnimationFrame(loop); }
-playBtn.onclick = toggle;
-scrub.oninput = () => { started = true; now = scrub.value / 1000 * DURATION; draw(); syncAudio(true); };
-window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === "ArrowRight") { started = true; now = Math.min(DURATION, now + 5); draw(); syncAudio(true); } if (e.code === "ArrowLeft") { started = true; now = Math.max(0, now - 5); draw(); syncAudio(true); } if (e.code === 'KeyM') sndBtn.click(); });
+function savePos() { store.set(POS_KEY, ended || now < 15 ? 0 : Math.round(now)); if (now > 0.9 * DURATION) markWatched(); }
+function markWatched() { const n = +EPISODE.num, seen = store.get('gm-season-seen', {}) || {}; if (!seen[n]) { seen[n] = true; store.set('gm-season-seen', seen); } }
+function finish() { now = DURATION; playing = false; ended = true; markWatched(); store.set(POS_KEY, 0); syncAudio(); draw(); }
+function toggle() {
+  if (!started && resumeAt) now = resumeAt;
+  started = true; closeMenu();
+  if (ended || now >= DURATION - 0.01) { now = 0; ended = false; }
+  playing = !playing; lastTs = null; if (!playing) savePos();
+  syncAudio(true); draw(); if (playing) requestAnimationFrame(loop); poke(); }
+function seekTo(T, audio = true) { started = true; now = clamp(T, 0, DURATION - 0.05); if (ended) ended = false; draw(); if (audio) syncAudio(true); }
+playBtn.onclick = e => { e.stopPropagation(); toggle(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) savePos(); });
+window.addEventListener('pagehide', savePos);
+
+// resume where you left off
+if (resumeAt) { const r = $('resume'); r.classList.add('on'); r.innerHTML = `resumes at ${fmt(resumeAt)}<button type="button">start over</button>`;
+  r.querySelector('button').onclick = e => { e.stopPropagation(); resumeAt = 0; store.set(POS_KEY, 0); toggle(); }; }
+
+// ── full screen: the real thing where the browser allows it, otherwise the player fills the window ──
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const isFS = () => !!fsElement() || player.classList.contains('pseudo');
+function setPseudo(on) { player.classList.toggle('pseudo', on); document.documentElement.classList.toggle('noscroll', on); fit(); }
+async function toggleFS() {
+  if (isFS()) { if (fsElement()) { try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} } else setPseudo(false); return; }
+  const req = player.requestFullscreen || player.webkitRequestFullscreen;
+  try { if (!req) throw new Error('no fullscreen'); await req.call(player); if (!fsElement()) throw new Error('refused');
+        if (touchMode) try { await screen.orientation.lock('landscape'); } catch (e) {} }
+  catch (e) { setPseudo(true); }
+  poke(); }
+fsBtn.onclick = e => { e.stopPropagation(); toggleFS(); };
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { if (!fsElement()) try { screen.orientation.unlock(); } catch (e) {} fit(); }));
+
+// size-dependent layout: caption size (--u = one 1080p pixel), captions under the picture when it is small
+function fit() {
+  const fs = isFS();
+  if (fs) { const w = Math.min(player.clientWidth, player.clientHeight * 16 / 9); stage.style.width = `${w}px`; } else stage.style.width = '';
+  const w = stage.clientWidth; player.style.setProperty('--u', `${w / 1920}px`);
+  player.classList.toggle('below', !fs && w < 600);
+  player.classList.toggle('narrow', w < 560);
+  fsBtn.innerHTML = fs ? ICON.unfs : ICON.fs; fsBtn.setAttribute('aria-label', fs ? 'exit full screen (f)' : 'full screen (f)');
+  updateUI(); }
+window.addEventListener('resize', fit);
+if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(player);
+
+// ── keyboard ──
+window.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  const k = e.key, go = d => { e.preventDefault(); skip(d); };
+  if (k === ' ' || k === 'k') { e.preventDefault(); toggle(); flash(); }
+  else if (k === 'ArrowRight') go(5); else if (k === 'ArrowLeft') go(-5);
+  else if (k === 'l') go(10); else if (k === 'j') go(-10);
+  else if (k === 'f') toggleFS();
+  else if (k === 'm') muteBtn.click();
+  else if (k === 'c') ccBtn.click();
+  else if (k === '>' || k === '.') setRate(RATES[Math.min(RATES.length - 1, RATES.indexOf(pref.rate) + 1)]);
+  else if (k === '<' || k === ',') setRate(RATES[Math.max(0, RATES.indexOf(pref.rate) - 1)]);
+  else if (/^[0-9]$/.test(k)) seekTo(DURATION * +k / 10);
+  else if (k === 'Home') seekTo(0); else if (k === 'End') seekTo(DURATION - 1);
+  else if (k === 'Escape') { if (player.classList.contains('menu-open')) closeMenu(); else if (player.classList.contains('pseudo')) setPseudo(false); }
+  else return;
+  poke();
+});
+
+// ── title, end screen and lock-screen controls (the season table, labs/season.js, is defined after this file) ──
+function season() {
+  const G = window.GM, n = +EPISODE.num, e = G && G.eps[n - 1];
+  if (!e) return;
+  $('info').innerHTML = `<div class="k">episode ${EPISODE.num} · ${fmt(DURATION)}</div><h1>${e.title}</h1><p class="q">${e.q || ''}</p>
+    <p class="keys"><kbd>space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>f</kbd> full screen · <kbd>c</kbd> captions · <kbd>m</kbd> mute · <kbd>&lt;</kbd><kbd>&gt;</kbd> speed</p>`;
+  const nx = G.eps[n], nh = nx && G.href('ep', n + 1, '../'), lh = G.href('lab', n, '../'), tgt = G.framed ? ' target="_top"' : '';
+  const next = !nx ? '<p>That was the last episode of the season.</p>'
+    : nh ? `<a class="primary" href="${nh}"${tgt}>▶ episode ${String(n + 1).padStart(2, '0')} · ${nx.title}</a>`
+    : nh === false ? `<span class="soon">episode ${String(n + 1).padStart(2, '0')} · ${nx.title} · coming soon</span>` : '';
+  $('end-in').innerHTML = `<div class="k">episode ${EPISODE.num} complete</div><h2>${nx ? `Up next: ${nx.q || nx.title}` : e.title}</h2>
+    <p>${lh ? 'Get your hands on it first: everything you just watched is in the playground.' : ''}</p>
+    <div class="acts">${next}${lh ? `<a class="lab" href="${lh}"${tgt}>▶ playground · ${e.labName}</a>` : ''}<button class="act" type="button" id="replay">↺ watch again</button></div>`;
+  $('replay').onclick = e2 => { e2.stopPropagation(); seekTo(0); ended = false; if (!playing) toggle(); };
+  if ('mediaSession' in navigator) try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: `${EPISODE.num} · ${e.title}`, artist: 'Generative Modelling', album: 'Season 1' });
+    const ms = navigator.mediaSession;
+    ms.setActionHandler('play', () => { if (!playing) toggle(); }); ms.setActionHandler('pause', () => { if (playing) toggle(); });
+    ms.setActionHandler('seekbackward', () => skip(-10)); ms.setActionHandler('seekforward', () => skip(10));
+    ms.setActionHandler('seekto', d => seekTo(d.seekTime));
+  } catch (err) {}
+}
+
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
   try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
   ON_READY.forEach(f => f());
-  draw(); window.READY = true;
+  if (!capture) season();
+  fit(); draw(); window.READY = true;
 })();

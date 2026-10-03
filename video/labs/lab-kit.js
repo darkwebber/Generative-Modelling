@@ -124,6 +124,8 @@
   [data-tip]:hover::after, [data-tip]:focus::after, [data-tip].tip-on::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; width: max-content; max-width: min(300px, 80vw); white-space: normal; background: var(--elevated); color: var(--chalk); border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; font-family: var(--sans); font-size: 13px; line-height: 1.45; text-transform: none; letter-spacing: 0; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   canvas { touch-action: none; }
   @media (max-width: 760px) { .lk-guide { grid-template-columns: 1fr; } .lk-list { grid-template-columns: 1fr; } }
+  main .math { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; }   /* long formulas scroll inside their card on a phone */
+  @media (max-width: 860px) { main .grid { grid-template-columns: minmax(0, 1fr) !important; } }   /* each lab sets its own columns; on a phone every lab stacks */
   @media (max-width: 560px) { .knobs { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 48px !important; gap: 10px 10px !important; font-size: 12px !important; } .mix { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 36px !important; } .lk-sound { position: absolute; top: 10px; } .lk-pill { left: 16px; right: 16px; max-width: none; text-align: center; font-size: 11.5px; padding: 7px 12px; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }`;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
