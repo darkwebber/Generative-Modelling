@@ -386,11 +386,22 @@ player and the MP4 carry identical audio.
   brightness/pitch follows progress. Data-driven moments read their values from the page itself
   (`src/tools/probe.mjs`): each generated letter and dice roll, each counted pair, each particle that
   lands, each mode a GAN finds, each mode-collapse hop.
-- **Player** — the shared page (`src/engine/player.js`) has the ♪ button. The picture follows the soundtrack's own clock
-  while it plays (so slow devices never drift), falls back to the wall clock if the audio clock stalls, and re-syncs on
-  play / pause / scrub / chapter jumps (**M** mutes). Before the first play it shows the title card with a ▶ button;
-  clicking the picture plays or pauses. Under the chapters, links lead to the previous and next episode, the hub, the
-  playground and the code.
+- **Player** — the shared page (`src/engine/shell.html` + `src/engine/player.js`), built like a video player around the canvas:
+  - **controls** that fade while playing: play, volume, time, current chapter, captions (CC), speed (0.75–2×), a chapter
+    menu and full screen; the timeline shows chapter marks and previews chapter + time on hover or drag;
+  - **captions are page text**, sized from the picture (one 1080p pixel = `--u`); when the picture is too small to read
+    them on (a phone held upright) they move underneath it;
+  - **full screen** uses the browser's own where allowed (and turns a phone to landscape), otherwise the player fills
+    the window (iPhone, some embeds); a landscape phone fits the picture to the screen's height;
+  - **mouse**: click plays/pauses, double-click is full screen. **touch**: tap shows the controls, double-tap the sides
+    skips 10 s, double-tap the middle is full screen. **keys**: space/K, ←/→ 5 s, J/L 10 s, F, M, C, &lt; &gt; speed, 0–9 jump;
+  - **remembers** where you stopped (resume offer on the title card), your captions/speed/volume, and marks the
+    episode watched on the hub when you reach the end; the end screen offers the next episode, the playground, replay;
+  - **clock**: the picture follows the soundtrack's own clock while it plays (so slow devices never drift), falls back
+    to the wall clock if the audio clock stalls, and shows a spinner while the audio buffers; lock-screen controls via
+    Media Session;
+  - `?capture` (used by `render.mjs`) shows the bare canvas with captions and the progress bar drawn on it, exactly as
+    before, so MP4 renders are unchanged.
 
 | Episode | Key & colour | Signature sounds |
 |---|---|---|

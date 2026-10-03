@@ -42,7 +42,7 @@ def load_plan():
 def season_meta():
     """Episode titles and file names, read from labs/season.js so there is one source of truth."""
     src = open(os.path.join(VIDEO, 'labs', 'season.js'), encoding='utf-8').read()
-    rows = re.findall(r"\{ n: (\d+), title: '([^']*)', page: '([^']*)', lab: '([^']*)', labName: '([^']*)', code: '([^']*)' \}", src)
+    rows = re.findall(r"\{ n: (\d+), title: '([^']*)', page: '([^']*)', lab: '([^']*)', labName: '([^']*)', code: '([^']*)'[^}]*\}", src)
     assert len(rows) == 11, 'could not read the 11 episodes from season.js'
     return {int(n): dict(title=t, page=p, lab=l, labName=ln, code=c) for n, t, p, l, ln, c in rows}
 

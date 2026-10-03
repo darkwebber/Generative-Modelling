@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#13100e">
 <title>Generative Modelling</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,6 +52,23 @@
   .plan .redacted { border-color: var(--amber); color: var(--amber); }
   .plan .hidden { border-style: dashed; color: var(--dust); }
   @media (max-width: 700px) { .strip span { display: none; } .strip { margin-bottom: 22px; } }
+  /* a phone: compact cards, thumbnail beside the title, actions underneath */
+  @media (max-width: 560px) {
+    .eps { gap: 12px; }
+    .ep { display: grid; grid-template-columns: 40% minmax(0, 1fr); column-gap: 12px; padding: 12px; align-items: start; }
+    .ep .body { display: contents; }
+    .ep .poster, .ep.soon .poster { grid-column: 1; grid-row: 1 / span 3; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .ep img { border-bottom: 0; }
+    .ep.soon .poster { font-size: 14px; }
+    .ep .meta, .ep h2, .ep .q { grid-column: 2; }
+    .ep .meta { font-size: 10px; letter-spacing: .08em; }
+    .ep h2 { font-size: 18px; line-height: 1.2; margin-top: 2px; }
+    .ep .q { font-size: 14px; line-height: 1.35; margin: 4px 0 0; }
+    .ep .links, .ep .plan { grid-column: 1 / -1; }
+    .ep .links { padding-top: 12px; margin-top: 0; }
+    .ep .links a, .ep .links button, .ep .links .soon { padding: 8px 10px; }
+    .lede { font-size: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -64,7 +82,7 @@
   <section class="eps" id="eps"></section>
   <section class="card how" style="--accent: var(--sage)">
     <div class="label" style="color: var(--sage)" id="how-label">how to use this folder</div>
-    <p class="hint" style="font-size:14px" id="how">Open any episode page to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in the browser with no install. Every model is plain numpy in <code>../code/</code>, with backprop written by hand. To render an MP4: <code>python src/make.py 9 --render</code>. Your progress is saved in this browser only.</p>
+    <p class="hint" style="font-size:14px" id="how">Open any episode page to watch it: space plays, ←/→ skip 5 s, <b>F</b> is full screen, <b>C</b> captions, <b>M</b> mutes; on a phone, double-tap the sides to skip. Every playground runs in the browser with no install. Every model is plain numpy in <code>../code/</code>, with backprop written by hand. To render an MP4: <code>python src/make.py 9 --render</code>. Your progress is saved in this browser only.</p>
   </section>
   <footer>Colours keep one meaning all season: terracotta data · ink distributions · amber knobs · rose noise · plum models · sage insight.</footer>
 </main>
@@ -95,7 +113,7 @@ const plan = e => { const p = GM.SITE.plan[e.n] || {}; return `<div class="plan"
   `<span class="${p[k] || 'hidden'}">${{ ep: 'episode', lab: 'playground', code: 'code' }[k]}: ${p[k] || 'hidden'}</span>`).join('')}</div>`; };
 if (PRIVATE) document.getElementById('private').style.display = 'block';
 if (GM.SITE) { document.getElementById('how-label').textContent = 'how to use this site';
-  document.getElementById('how').innerHTML = 'Open any episode to watch it: space plays, ←/→ skip 5 s, <b>M</b> mutes. Every playground runs in your browser with nothing to install. Every model is plain numpy with backprop written by hand; the <b>code</b> link on each card shows it. Your progress is saved in this browser only.'; }
+  document.getElementById('how').innerHTML = 'Open any episode to watch it: space plays, ←/→ skip 5 s, <b>F</b> is full screen, <b>C</b> captions, <b>M</b> mutes; on a phone, tap for controls and double-tap the sides to skip. Every playground runs in your browser with nothing to install. Every model is plain numpy with backprop written by hand; the <b>code</b> link on each card shows it. Your progress is saved in this browser only.'; }
 let seen = {};
 try { seen = JSON.parse(localStorage.getItem('gm-season-seen') || '{}') || {}; } catch (e) { seen = {}; }
 const save = () => { try { localStorage.setItem('gm-season-seen', JSON.stringify(seen)); } catch (e) {} };
@@ -113,7 +131,7 @@ function render() {
       <a class="poster" href="${H('ep', e.n) || '#'}"${TGT} data-ep="${e.n}"><img src="posters/ep${pad(e.n)}.jpg" alt="Episode ${pad(e.n)} title card" loading="lazy"></a>
       <div class="body"><div class="meta">episode ${pad(e.n)} · ${e.len}</div><h2>${e.name}</h2><p class="q">${e.q}</p>
         <div class="links">${A('ep', e.n, '▶ watch', ` data-ep="${e.n}"`)}${A('lab', e.n, 'playground')}${A('code', e.n, 'code')}
-          <button data-n="${e.n}" class="${seen[e.n] ? 'on' : ''}">${seen[e.n] ? '✓ watched' : 'mark watched'}</button></div>${PRIVATE ? plan(e) : ''}</div>
+          <button data-n="${e.n}" class="${seen[e.n] ? 'on' : ''}">${seen[e.n] ? '✓ seen' : 'mark seen'}</button></div>${PRIVATE ? plan(e) : ''}</div>
     </article>` : `
     <article class="card ep soon" id="ep${e.n}" style="--accent: var(${e.col})"><div class="poster">coming soon</div>
       <div class="body"><div class="meta">episode ${pad(e.n)}</div><h2>${e.name}</h2><p class="q">${e.q}</p>${H('lab', e.n) || H('code', e.n) ? `<div class="links">${A('lab', e.n, 'playground')}${A('code', e.n, 'code')}</div>` : ''}</div></article>`).join('');
