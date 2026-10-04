@@ -399,8 +399,10 @@ player and the MP4 carry identical audio.
     skips 10 s, double-tap the middle is full screen. **keys**: space/K, ←/→ 5 s, J/L 10 s, F, M, C, &lt; &gt; speed, 0–9 jump;
   - **remembers** where you stopped (resume offer on the title card), your captions/speed/volume, and marks the
     episode watched on the hub when you reach the end; the end screen offers the next episode, the playground, replay;
-  - **clock**: the picture follows the soundtrack's own clock while it plays (so slow devices never drift), falls back
-    to the wall clock if the audio clock stalls, and shows a spinner while the audio buffers; lock-screen controls via
+  - **clock**: the picture follows the soundtrack's own clock while it plays (so slow devices never drift), but only
+    while the two agree, so a soundtrack that failed to jump can never drag the picture back; it falls back to the
+    wall clock if the audio clock stalls; the soundtrack is loaded into memory so any moment can be jumped to whatever
+    the server supports (until then it streams, silent while it can't be lined up), and shows a spinner while the audio buffers; lock-screen controls via
     Media Session;
   - `?capture` (used by `render.mjs`) shows the bare canvas with captions and the progress bar drawn on it, exactly as
     before, so MP4 renders are unchanged.

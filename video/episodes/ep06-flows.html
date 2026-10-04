@@ -208,7 +208,7 @@
   <div class="chlabel">chapters</div>
   <div class="chapters" id="chapters"></div>
   <nav class="links" id="links" aria-label="season" hidden></nav>
-  <audio id="snd" src="ep06-audio.mp3" preload="auto"></audio>
+  <audio id="snd" data-src="ep06-audio.mp3" preload="auto"></audio>
 </div>
 <script src="ep06-assets.js"></script>
 <script>
@@ -1068,10 +1068,24 @@ function skip(d) { seekTo(now + d); const f = $(d < 0 ? 'skipl' : 'skipr'); f.cl
 // Slow frames never slow the clock down: time comes from the audio or the wall, not from counting frames.
 let lastSeek = -1e9, audT = -1, audWall = 0, waitWall = 0;
 snd.volume = pref.vol; snd.playbackRate = pref.rate; volEl.value = pref.vol;
+// load the whole soundtrack into memory, so any moment can be jumped to whatever the server supports. If play comes
+// first, it streams meanwhile from a separate address (so the two downloads never wait on each other) and switches over.
+// Opened as a local file it is seekable as it is.
+const AUDIO = snd.dataset.src, inMemory = !capture && location.protocol !== 'file:' && !!(window.fetch && window.URL && URL.createObjectURL);
+const streamAudio = () => { if (!snd.getAttribute('src')) { snd.src = AUDIO + (inMemory ? '?stream' : ''); snd.playbackRate = pref.rate; } };
+if (inMemory) fetch(AUDIO).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(blob => {
+    snd.src = URL.createObjectURL(blob); snd.playbackRate = pref.rate;
+    snd.addEventListener('loadedmetadata', () => { snd.playbackRate = pref.rate; if (playing && soundOn) { seekAudio(now, true); snd.play().catch(() => {}); } }, { once: true });
+  }).catch(streamAudio);
+else streamAudio();
+// the audio clock is only trusted while it agrees with the picture: a soundtrack that failed to jump (a server without
+// range requests, a stream still loading) must never drag the picture back; the picture keeps its time and re-seeks it
 function audioAlive(ts) { if (!soundOn || capture || snd.paused || snd.seeking) return false;
-  const a = snd.currentTime; if (a !== audT) { audT = a; audWall = ts; } return ts - audWall < 500; }
+  const a = snd.currentTime; if (a !== audT) { audT = a; audWall = ts; }
+  return ts - audWall < 500 && Math.abs(audT + (ts - audWall) / 1000 * pref.rate - now) < 1; }
 function seekAudio(t, force) { if (snd.seeking && !force) return; try { snd.currentTime = t; } catch (e) {} lastSeek = performance.now(); audT = -1; audWall = performance.now(); }
 function syncAudio(force) { if (!playing || !soundOn || capture || dragging) { if (!snd.paused) snd.pause(); return; }
+  streamAudio();                                   // pressed play before the soundtrack finished loading
   if (force) seekAudio(now, true);
   if (snd.paused) snd.play().catch(() => {}); }
 function setSound(on) { soundOn = on; pref.muted = !on; savePref(); muteBtn.innerHTML = on && pref.vol > 0 ? ICON.vol : ICON.mute; muteBtn.setAttribute('aria-label', on ? 'mute (m)' : 'unmute (m)'); syncAudio(true); }
@@ -1094,6 +1108,8 @@ function loop(ts) { if (!playing) return;
   else if (soundOn && !snd.paused && snd.readyState < 3 && waitWall < 2) { waitWall += dt; buffering = waitWall > 0.25; }   // buffering: hold the picture briefly
   else { now += dt * pref.rate;                                                                          // no usable audio clock: wall clock
     if (soundOn && !snd.paused && Math.abs(snd.currentTime - now) > 0.5 && performance.now() - lastSeek > 4000) seekAudio(now); }
+  // sound that can't be lined up with the picture yet (still streaming on a slow connection) stays silent, not wrong
+  if (soundOn && !snd.paused) { const off = Math.abs(snd.currentTime - now) > 1; if (off && performance.now() - lastSeek > 1200) snd.muted = true; else if (!off) snd.muted = false; }
   if (now >= DURATION) finish();
   if (ts - lastSave > 3000) { lastSave = ts; savePos(); }
   try { draw(); } catch (e) { if (drawErr++ < 3) console.error(e); }       // one bad frame must never stop the film
