@@ -60,7 +60,7 @@
   .player.show.started .cap { transform:translateY(calc(-1 * max(64px, var(--u) * 96))); }
   .capb { display:none; min-height:3.2em; padding:10px 16px 0; text-align:center; color:var(--chalk); font-size:15.5px; line-height:1.45; transition:opacity .15s; }
   .player.below .cap { display:none; } .player.below.started .capb { display:block; }
-  .player.narrow .chap, .player.narrow .vol input { display:none; }
+  .player.narrow .chap, .player.narrow .vol input, .player.narrow #hide { display:none; }   /* a phone: tapping the picture hides them */
   .player.narrow .chap + .ib { margin-left:auto; }
   .player.nocc .cap, .player.nocc .capb { display:none; }
 
@@ -197,6 +197,7 @@
           <button class="ib cc" id="cc" aria-label="captions (c)" title="captions (c)"><span>CC</span></button>
           <button class="ib txt" id="rate" aria-label="playback speed" title="speed (&lt; &gt;)">1×</button>
           <button class="ib" id="chbtn" aria-label="chapters" title="chapters"></button>
+          <button class="ib" id="hide" aria-label="hide controls (h)" title="hide controls (h)"></button>
           <button class="ib" id="fs" aria-label="full screen (f)" title="full screen (f)"></button>
         </div>
       </div>

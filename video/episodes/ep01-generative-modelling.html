@@ -60,7 +60,7 @@
   .player.show.started .cap { transform:translateY(calc(-1 * max(64px, var(--u) * 96))); }
   .capb { display:none; min-height:3.2em; padding:10px 16px 0; text-align:center; color:var(--chalk); font-size:15.5px; line-height:1.45; transition:opacity .15s; }
   .player.below .cap { display:none; } .player.below.started .capb { display:block; }
-  .player.narrow .chap, .player.narrow .vol input { display:none; }
+  .player.narrow .chap, .player.narrow .vol input, .player.narrow #hide { display:none; }   /* a phone: tapping the picture hides them */
   .player.narrow .chap + .ib { margin-left:auto; }
   .player.nocc .cap, .player.nocc .capb { display:none; }
 
@@ -197,6 +197,7 @@
           <button class="ib cc" id="cc" aria-label="captions (c)" title="captions (c)"><span>CC</span></button>
           <button class="ib txt" id="rate" aria-label="playback speed" title="speed (&lt; &gt;)">1×</button>
           <button class="ib" id="chbtn" aria-label="chapters" title="chapters"></button>
+          <button class="ib" id="hide" aria-label="hide controls (h)" title="hide controls (h)"></button>
           <button class="ib" id="fs" aria-label="full screen (f)" title="full screen (f)"></button>
         </div>
       </div>
@@ -1169,10 +1170,12 @@ const ICON = {
   vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/></svg>',
   mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1.2" fill="currentColor"/></svg>',
+  hide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12s3.2-6 9-6c1.6 0 3 .4 4.2 1M21 12s-3.2 6-9 6c-1.6 0-3-.4-4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M4 20 20 4"/></svg>',
   fs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
   unfs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
 };
-$('chbtn').innerHTML = ICON.list;
+$('chbtn').innerHTML = ICON.list; $('hide').innerHTML = ICON.hide;
+$('hide').onclick = e => { e.stopPropagation(); hideControls(); };
 
 // preferences, remembered in this browser (storage can be blocked: everything works without it)
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -1235,10 +1238,13 @@ function updateUI() {
 function draw() { if (!started && !capture) render(POSTER_T, true); else render(now); updateUI(); }
 
 // ── controls show while paused, after any touch or mouse movement, and while in use; then fade ──
-let lastPoke = 0, overBar = false, touchMode = false;
-const poke = () => { lastPoke = performance.now(); setUI(); };
+// "hide controls" (button, H, or simply starting playback) clears them at once, even while paused; they come back
+// on a real mouse movement (not the jitter of the click itself), a tap, a key, or pausing
+let lastPoke = 0, overBar = false, touchMode = false, hidden = false, hideX = 0, hideY = 0, mouseX = 0, mouseY = 0;
+const poke = () => { hidden = false; lastPoke = performance.now(); setUI(); };
+function hideControls() { hidden = true; lastPoke = 0; overBar = false; hideX = mouseX; hideY = mouseY; closeMenu(); tip.classList.remove('on'); setUI(); }
 function setUI() {
-  const show = started && (!playing || dragging || overBar || player.classList.contains('menu-open') || performance.now() - lastPoke < (touchMode ? 3200 : 2400));
+  const show = started && !hidden && (!playing || dragging || overBar || player.classList.contains('menu-open') || performance.now() - lastPoke < (touchMode ? 3200 : 2400));
   const c = player.classList;
   c.toggle('started', started); c.toggle('playing', playing); c.toggle('show', show); c.toggle('ended', ended); c.toggle('buffering', buffering && playing);
   c.toggle('idle', started && playing && !show); c.toggle('touch', touchMode); c.toggle('nocc', !pref.cc);
@@ -1248,15 +1254,16 @@ function setUI() {
 // keep the controls' fade running while paused too (no animation loop then)
 setInterval(() => { if (!playing) setUI(); }, 400);
 const bar = $('bar');
-bar.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') overBar = true; });
-bar.addEventListener('pointerleave', () => { overBar = false; poke(); });
+bar.addEventListener('pointerleave', () => { overBar = false; if (!hidden) poke(); });
 bar.addEventListener('pointerdown', e => { touchMode = e.pointerType !== 'mouse'; poke(); e.stopPropagation(); });
 
 // ── clicking and tapping the picture ──
 // mouse: click plays/pauses, double-click is full screen.  touch: tap shows/hides the controls,
 // double-tap the left or right third skips 10 s, double-tap the middle is full screen.
 let clickTimer = null, tapAt = 0, tapX = 0, stageTap = 0;
-stage.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { touchMode = false; poke(); } });
+stage.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; touchMode = false; mouseX = e.clientX; mouseY = e.clientY;
+  if (hidden && Math.hypot(mouseX - hideX, mouseY - hideY) < 12) return;
+  overBar = !!e.target.closest('.bar'); poke(); });
 stage.addEventListener('pointerup', e => {
   if (e.target.closest('.bar, .menu, .end, .bigbtn, .resume')) return;
   if (player.classList.contains('menu-open')) { closeMenu(); poke(); return; }
@@ -1270,7 +1277,7 @@ stage.addEventListener('pointerup', e => {
   if (t - tapAt < 320) { clearTimeout(clickTimer); clickTimer = null; tapAt = 0; if (x < 0.36) skip(-10); else if (x > 0.64) skip(10); else toggleFS(); return; }
   tapAt = t; tapX = x;
   clearTimeout(clickTimer); clickTimer = setTimeout(() => { clickTimer = null; const shown = player.classList.contains('show');
-    if (shown && playing) { lastPoke = 0; setUI(); } else poke(); }, 300);
+    if (shown) hideControls(); else poke(); }, 300);
 });
 // a tap that reveals the controls is followed by a click on whatever just appeared under the finger: ignore that one
 big.onclick = e => { e.stopPropagation(); if (performance.now() - stageTap < 450) return; toggle(); };
@@ -1322,7 +1329,7 @@ function toggle() {
   started = true; closeMenu();
   if (ended || now >= DURATION - 0.01) { now = 0; ended = false; }
   playing = !playing; lastTs = null; if (!playing) savePos();
-  syncAudio(true); draw(); if (playing) requestAnimationFrame(loop); poke(); }
+  syncAudio(true); draw(); if (playing) { requestAnimationFrame(loop); hideControls(); } else poke(); }   // no waiting for the overlay to fade
 function seekTo(T, audio = true) { started = true; now = clamp(T, 0, DURATION - 0.05); if (ended) ended = false; draw(); if (audio) syncAudio(true); }
 playBtn.onclick = e => { e.stopPropagation(); toggle(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden) savePos(); });
@@ -1362,7 +1369,8 @@ if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(player);
 window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   const k = e.key, go = d => { e.preventDefault(); skip(d); };
-  if (k === ' ' || k === 'k') { e.preventDefault(); toggle(); flash(); }
+  if (k === ' ' || k === 'k') { e.preventDefault(); toggle(); flash(); return; }
+  if (k === 'h') { e.preventDefault(); player.classList.contains('show') ? hideControls() : poke(); return; }
   else if (k === 'ArrowRight') go(5); else if (k === 'ArrowLeft') go(-5);
   else if (k === 'l') go(10); else if (k === 'j') go(-10);
   else if (k === 'f') toggleFS();
@@ -1382,7 +1390,7 @@ function season() {
   const G = window.GM, n = +EPISODE.num, e = G && G.eps[n - 1];
   if (!e) return;
   $('info').innerHTML = `<div class="k">episode ${EPISODE.num} · ${fmt(DURATION)}</div><h1>${e.title}</h1><p class="q">${e.q || ''}</p>
-    <p class="keys"><kbd>space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>f</kbd> full screen · <kbd>c</kbd> captions · <kbd>m</kbd> mute · <kbd>&lt;</kbd><kbd>&gt;</kbd> speed</p>`;
+    <p class="keys"><kbd>space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>f</kbd> full screen · <kbd>c</kbd> captions · <kbd>m</kbd> mute · <kbd>h</kbd> hide controls · <kbd>&lt;</kbd><kbd>&gt;</kbd> speed</p>`;
   const nx = G.eps[n], nh = nx && G.href('ep', n + 1, '../'), lh = G.href('lab', n, '../'), tgt = G.framed ? ' target="_top"' : '';
   const next = !nx ? '<p>That was the last episode of the season.</p>'
     : nh ? `<a class="primary" href="${nh}"${tgt}>▶ episode ${String(n + 1).padStart(2, '0')} · ${nx.title}</a>`

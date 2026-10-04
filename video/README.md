@@ -393,6 +393,8 @@ player and the MP4 carry identical audio.
     them on (a phone held upright) they move underneath it;
   - **full screen** uses the browser's own where allowed (and turns a phone to landscape), otherwise the player fills
     the window (iPhone, some embeds); a landscape phone fits the picture to the screen's height;
+  - the overlay clears the moment playback starts, and **hide controls** (button or **H**) clears it at once, even while
+    paused; it returns on a real mouse movement, a tap, or pausing;
   - **mouse**: click plays/pauses, double-click is full screen. **touch**: tap shows the controls, double-tap the sides
     skips 10 s, double-tap the middle is full screen. **keys**: space/K, ←/→ 5 s, J/L 10 s, F, M, C, &lt; &gt; speed, 0–9 jump;
   - **remembers** where you stopped (resume offer on the title card), your captions/speed/volume, and marks the
