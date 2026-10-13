@@ -323,7 +323,7 @@ SC.push({ dur: 44, chapter: 'generative', title: 'Generative models learn where 
     M('[d|x][d_|new] ∼ [p|p]([d|x])', 1284, 626, 46, { a: c2 });
     const c3 = eout(prog(t, 36, 0.8));
     card(1250, 700, 580, 200, P.sage, c3); label("bayes' rule", 1284, 746, c3, P.sage);
-    M('[p|p]([c|y]|[d|x]) = [p|p]([d|x]|[c|y]) [p|p]([c|y]) / [p|p]([d|x])', 1284, 808, 28, { a: c3 });
+    M('[p|p]([c|y]|[d|x]) = [/|[p|p]([d|x]|[c|y]) [p|p]([c|y])¦[p|p]([d|x])]', 1284, 808, 28, { a: c3 });
     text('generative ⇒ discriminative, for free', 1284, 862, { size: 24, color: P.sage, a: c3 });
   } });
 

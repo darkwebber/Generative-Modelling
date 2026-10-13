@@ -86,7 +86,7 @@ SC.push({ dur: 52, chapter: 'sand', title: 'Probability is sand', sub: 'Move it 
     card(1360, 280, 470, 300, P.ink, ma); label('slope = stretch', 1394, 326, ma, P.ink);
     M('d[d|x] = [m|f]′([n|z]) · d[n|z]', 1394, 386, 24, { a: ma });
     M('[p|p]([d|x])·d[d|x] = [p|p]([n|z])·d[n|z]', 1394, 440, 24, { a: eout(prog(t, 30, 0.8)) });
-    M('[p|p]([d|x]) = [p|p]([n|z]) / |[m|f]′([n|z])|', 1394, 496, 24, { a: eout(prog(t, 32, 0.8)) });
+    M('[p|p]([d|x]) = [/|[p|p]([n|z])¦|[m|f]′([n|z])|]', 1394, 496, 24, { a: eout(prog(t, 32, 0.8)) });
     text('needs z = f⁻¹(x): f must be invertible', 1394, 548, { font: F.mono, size: 16, color: P.rose, a: eout(prog(t, 38.5, 0.8)) });
   } });
 
@@ -207,7 +207,7 @@ SC.push({ dur: 50, chapter: 'determinant', title: 'How much area? The determinan
     const sa = eout(prog(t, 37.5, 0.8));
     card(930, 300, 900, 360, P.ink, sa); label('sand is conserved — now in 2-D', 964, 346, sa, P.ink);
     M('[p|p]([d|x]) · |det [a|J]| · area = [p|p]([n|z]) · area', 964, 420, 26, { a: sa });
-    M('[p|p]([d|x]) = [p|p]([n|z]) / |det ∂[d|x]/∂[n|z]|', 964, 500, 32, { a: eout(prog(t, 43, 0.8)) });
+    M('[p|p]([d|x]) = [/|[p|p]([n|z])¦|det ∂[d|x]/∂[n|z]|]', 964, 500, 32, { a: eout(prog(t, 43, 0.8)) });
     M('        = [p|p]([n|z]) · |det ∂[n|z]/∂[d|x]|', 964, 560, 32, { a: eout(prog(t, 45, 0.8)) });
     text('1-D:  p(x) = p(z) / |f′(z)|  — same idea', 964, 626, { font: F.mono, size: 18, color: P.dust, a: eout(prog(t, 45.5, 0.8)) });
   } });
@@ -454,10 +454,10 @@ SC.push({ dur: 48, chapter: 'next', title: 'Throw away the shackles?', sub: 'Wha
       setA(pa * 0.3); ctx.fillStyle = P.ink; ctx.beginPath(); const pb = 930, pmx = Math.exp(-Efn(-2.2)) / Z;
       ctx.moveTo(X(-3.3), pb); for (let i = 0; i <= 200; i++) { const x = -3.3 + 6.6 * i / 200; ctx.lineTo(X(x), pb - Math.exp(-Efn(x)) / Z / pmx * 190); } ctx.lineTo(X(3.3), pb); ctx.fill(); setA(1);
       line(X(-3.3), pb, X(3.3), pb, P.border, 1.5, pa);
-      M('[p|p]([d|x]) = e[m^|−E(x)] / [a|Z]', X(0.2), 790, 24, { a: pa }); }
+      M('[p|p]([d|x]) = [/|e[m^|−E(x)]¦[a|Z]]', X(0.2), 790, 24, { a: pa }); }
     const ma = eout(prog(t, 23, 0.8));
     card(1250, 300, 580, 320, P.ink, ma); label('the boltzmann distribution', 1284, 346, ma, P.ink);
-    M('[p|p]([d|x]) = e[m^|−E(x)] / [a|Z]', 1284, 420, 38, { align: 'left', a: ma });
+    M('[p|p]([d|x]) = [/|e[m^|−E(x)]¦[a|Z]]', 1284, 420, 38, { align: 'left', a: ma });
     M('[a|Z] = [pB|∫] e[m^|−E(x)] d[d|x]   = ?', 1284, 500, 30, { a: eout(prog(t, 31, 0.8)) });
     text('over all 784-pixel images…', 1284, 570, { font: F.mono, size: 18, color: P.rose, a: eout(prog(t, 32, 0.8)) });
     GA = 1;

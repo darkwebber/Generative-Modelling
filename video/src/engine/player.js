@@ -325,7 +325,7 @@ function season() {
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
-  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`), document.fonts.load(`400 40px 'STIX Two Text'`, 'xθ1'), document.fonts.load(`italic 400 40px 'STIX Two Text'`, 'xθσμ'), document.fonts.load(`400 40px 'Noto Sans Math'`, '∈∼ℝ∂∑≈→∇√')]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
   ON_READY.forEach(f => f());
   if (!capture) season();
   fit(); draw(); window.READY = true;

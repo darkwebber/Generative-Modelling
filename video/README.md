@@ -331,6 +331,13 @@ video/
 
 Scenes draw in a fixed 1920×1080 frame: the header sits above y ≈ 200, content in y 240–930, captions at
 y ≈ 972–1014. Captions are plain text (write ₀ ₜ θ, not `_`); on-screen maths goes through `M()`.
+
+**Maths (`M()` in `core.js`)** is typeset, not just coloured: STIX Two Text for letters (single letters and lower-case
+Greek in maths italic; numbers, `log`/`exp`/`det`…, words and upper-case Greek upright), Noto Sans Math for operators
+(∈ ∼ ℝ ∂ ∑ ≈ →). Syntax: `[c|…]` colour (`d` data, `p` distribution, `a` knobs, `n` noise, `m` model, `s` insight,
+`k` dim, `w` chalk); `[c_|…]` / `[c^|…]` sub/superscript (a sub then a sup stack, like ∫ₐᵇ); `[cB|Σ]` big operator;
+`[/|num¦den]` a stacked fraction (num and den are formulas themselves); `₁ ²`-style characters become real scripts and
+accents (x̂, p̃) sit on their letter. `M()` returns the width, so layouts can chain formulas.
 Everything is seeded and time-driven, so any frame can be re-rendered exactly.
 
 ### Adding an episode

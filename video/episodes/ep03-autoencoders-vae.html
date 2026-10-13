@@ -7,7 +7,7 @@
 <title>Ep 03 · Autoencoders & VAEs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Karla:wght@400;600&family=JetBrains+Mono:wght@400&family=STIX+Two+Text:ital@0;1&family=Noto+Sans+Math&display=swap" rel="stylesheet">
 <style>
   :root { --canvas:#13100e; --surface:#1c1816; --elevated:#272220; --border:#3a3432; --chalk:#ede6db; --stone:#a89f97; --dust:#6b6360; --terracotta:#c4654a; --amber:#d4a853;
           --mono:'JetBrains Mono',monospace; --serif:'Newsreader',Georgia,serif; --u:0.6667px; }
@@ -222,7 +222,7 @@ const P = {
   chalk:"#ede6db", stone:"#a89f97", dust:"#6b6360",
   terracotta:"#c4654a", sage:"#7a9e7e", ink:"#6889b1", amber:"#d4a853", clay:"#a0735c", rose:"#b5707e", plum:"#8b7bb5",
 };
-const F = { serif:"'Newsreader', Georgia, serif", sans:"'Karla', sans-serif", mono:"'JetBrains Mono', monospace" };
+const F = { serif:"'Newsreader', Georgia, serif", sans:"'Karla', sans-serif", mono:"'JetBrains Mono', monospace", math:"'STIX Two Text', 'Noto Sans Math', 'Cambria Math', serif" };
 const W = 1920, H = 1080;
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -263,32 +263,112 @@ function para(str, x, y, maxW, o = {}) {
   return lines.length * size * lh;
 }
 const CM = { d:P.terracotta, p:P.ink, a:P.amber, n:P.rose, m:P.plum, s:P.sage, k:P.dust, w:P.chalk, c:P.clay, t:P.stone };
-const MCACHE = new Map();
-function parseM(str) {
-  if (MCACHE.has(str)) return MCACHE.get(str);
-  const out = []; const re = /\[([a-z])([_^B]?)\|([^\]]*)\]/g; let last = 0, m;
-  while ((m = re.exec(str))) {
-    if (m.index > last) out.push([str.slice(last, m.index), P.stone, '']);
-    out.push([m[3], CM[m[1]], m[2] === '_' ? 's' : m[2] === '^' ? 'S' : m[2] === 'B' ? 'b' : '']);
-    last = re.lastIndex;
+// ── maths typesetting ──
+// M('[p|p]([d|x]) = [/|1|[a|Z]] [kB|Σ][k_|i] e[a^|−s]', x, y, size) draws a formula and returns its width.
+//   [c|…]  colour c (CM above);  [c_|…] subscript, [c^|…] superscript, [cB|…] big operator (Σ, ∏, ∫)
+//   [/|num¦den]  stacked fraction (num and den are formulas themselves);  ₁ ² etc. become real scripts
+// Typeset like TeX: single letters and lower-case Greek in maths italic, numbers, functions (log, exp, …),
+// words and upper-case Greek upright; STIX Two for letters, Noto Sans Math for operators (∈ ∼ ℝ ∂ ∑ …).
+const M_FUNC = new Set(['log', 'exp', 'det', 'argmax', 'argmin', 'max', 'min', 'softmax', 'sin', 'cos', 'tanh', 'sigmoid', 'ReLU', 'KL', 'Var', 'Cov', 'sgn', 'sign', 'tr', 'diag', 'lim', 'sup', 'inf', 'mean', 'std', 'clip', 'logit', 'ELBO', 'MSE', 'FID', 'NLL', 'bpd']);
+const M_SUB = { '₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9','₊':'+','₋':'−','₌':'=','₍':'(','₎':')','ₐ':'a','ₑ':'e','ₒ':'o','ₓ':'x','ₕ':'h','ₖ':'k','ₗ':'l','ₘ':'m','ₙ':'n','ₚ':'p','ₛ':'s','ₜ':'t','ᵢ':'i','ⱼ':'j' };
+const M_SUP = { '⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'−','⁼':'=','⁽':'(','⁾':')','ⁿ':'n','ⁱ':'i','ᵀ':'T','ᵈ':'d','ᵏ':'k','ᵗ':'t' };
+const M_SCALE = 1.12;      // STIX has a smaller x-height than the mono face the layouts were drawn with
+function parseMath(str, i = 0, stop = '') {          // → [{t:'run', s, col, mod} | {t:'frac', num, den}]
+  const out = []; let buf = '';
+  const flush = () => { if (buf) { out.push({ t: 'run', s: buf, col: null, mod: '' }); buf = ''; } };
+  while (i < str.length) {
+    const ch = str[i];
+    if (stop && stop.includes(ch)) break;
+    const tok = ch === '[' && /^\[(?:([a-z])([_^B]?)|\/)\|/.exec(str.slice(i, i + 5));
+    if (tok) {
+      flush();
+      if (tok[0] === '[/|') { const n = parseMath(str, i + 3, '¦]'); const d = str[n.i] === '¦' ? parseMath(str, n.i + 1, ']') : { nodes: [], i: n.i };
+        out.push({ t: 'frac', num: n.nodes, den: d.nodes }); i = d.i + 1; continue; }
+      const inner = parseMath(str, i + tok[0].length, ']'), col = CM[tok[1]], mod = tok[2] === '_' ? 's' : tok[2] === '^' ? 'S' : tok[2] === 'B' ? 'b' : '';
+      for (const n of inner.nodes) { if (n.t === 'run') { if (!n.col) n.col = col; if (!n.mod) n.mod = mod; } out.push(n); }
+      i = inner.i + 1; continue;
+    }
+    buf += ch; i++;
   }
-  if (last < str.length) out.push([str.slice(last), P.stone, '']);
-  MCACHE.set(str, out); return out;
+  flush(); return stop ? { nodes: out, i } : out;
+}
+// a run of text → glyph boxes {s, font, sz, dy, col, w, italic}
+function mathGlyphs(run, size, col0) {
+  const col = run.col || col0, base = run.mod === 's' || run.mod === 'S' ? size * 0.7 : run.mod === 'b' ? size * 1.35 : size;
+  const dy0 = run.mod === 's' ? size * 0.24 : run.mod === 'S' ? -size * 0.4 : run.mod === 'b' ? size * 0.12 : 0;
+  const out = [], push = (s, italic, sz = base, dy = dy0) => {
+    const f = `${italic ? 'italic ' : ''}400 ${sz.toFixed(2)}px ${F.math}`; ctx.font = f;
+    out.push({ s, font: f, sz, dy, col, italic, w: ctx.measureText(s).width }); };
+  const s = run.s.normalize('NFD'); let i = 0;          // ẑ → z + ̂ , so accented letters are typeset like the rest
+  while (i < s.length) {
+    const ch = s[i];
+    if (M_SUB[ch] || M_SUP[ch]) { const map = M_SUB[ch] ? M_SUB : M_SUP; let t = ''; while (i < s.length && map[s[i]]) t += map[s[i++]];
+      const sup = map === M_SUP; push(t, /[a-z]/.test(t) && t.length === 1, base * 0.7, dy0 + (sup ? -size * 0.4 : size * 0.24)); continue; }
+    if (/\s/.test(ch)) { let n = 0; while (i < s.length && /\s/.test(s[i])) { n++; i++; } out.push({ space: true, w: n * base * 0.27 }); continue; }
+    if (/[A-Za-zα-ωΑ-Ωϑϕϵ]/.test(ch)) {
+      // a word of Latin letters, or a single Greek letter; combining accents (x̂, p̃) stay with their letter
+      let w = ''; const greek = /[α-ωΑ-Ωϑϕϵ]/.test(ch);
+      if (greek) w = s[i++]; else while (i < s.length && /[A-Za-z]/.test(s[i])) w += s[i++];
+      let acc = ''; while (i < s.length && /[\u0300-\u036f]/.test(s[i])) acc += s[i++];
+      const single = w.length === 1, upperGreek = /^[Α-Ω]$/.test(w), dvar = /^d[a-zθ]$/.test(w);
+      const ital = !(M_FUNC.has(w) || (!single && !dvar) || upperGreek || run.mod === 'b');
+      if (dvar) { push('d', true); push(w.slice(1), true); } else push(w, ital);
+      if (acc) { const g = out[out.length - 1], mark = { '\u0302': 'ˆ', '\u0303': '˜', '\u0304': '¯', '\u0307': '˙', '\u0308': '¨', '\u0301': '´' }[acc[0]] || '';
+        if (mark) { ctx.font = g.font; const mw = ctx.measureText(mark).width;
+          out.push({ s: mark, font: g.font, sz: g.sz, dy: g.dy - g.sz * 0.12, col: g.col, italic: false, w: 0, dx: (g.w - mw) / 2 + (g.italic ? g.sz * 0.08 : 0) - g.w }); } }
+      continue; }
+    if (/[0-9]/.test(ch)) { let w = ''; while (i < s.length && /[0-9.,]/.test(s[i]) && !(s[i] === ',' && !/[0-9]/.test(s[i + 1] || ''))) w += s[i++]; push(w, false); continue; }
+    push(ch === '-' && /[\s(=]/.test(s[i - 1] || ' ') ? '−' : ch, false); i++;
+  }
+  return out;
+}
+// nodes → {boxes:[{…, x}], w, asc, desc}
+function mathLayout(nodes, size, col0) {
+  const boxes = []; let x = 0, asc = size * 0.75, desc = size * 0.25, prev = null, scr = null;
+  for (const n of nodes) {
+    if (n.t === 'run') {
+      // a superscript straight after a subscript (or the reverse) stacks above it, like x₁² or ∫ₐᵇ
+      const isScr = n.mod === 's' || n.mod === 'S', x0 = x;
+      if (isScr && scr && scr.mod !== n.mod && scr.end === x) x = scr.x0;
+      for (const g of mathGlyphs(n, size, col0)) {
+        if (prev && prev.italic && g.dy < prev.dy - 1) x += size * 0.06;        // italic correction before a superscript
+        if (!g.space) { boxes.push({ ...g, x: x + (g.dx || 0) }); asc = Math.max(asc, size * 0.75 - g.dy); desc = Math.max(desc, size * 0.25 + g.dy); }
+        x += g.w; prev = g.space ? null : g;
+      }
+      if (isScr && scr && scr.mod !== n.mod && scr.end === x0) { x = Math.max(x, scr.end); scr = null; }
+      else scr = isScr && !/^\s*$/.test(n.s) ? { mod: n.mod, x0, end: x } : null;
+    } else {
+      const fs = size * 0.86, nu = mathLayout(n.num, fs, col0), de = mathLayout(n.den, fs, col0), w = Math.max(nu.w, de.w) + size * 0.3;
+      const axis = -size * 0.3, gap = size * 0.14;
+      nu.boxes.forEach(b => boxes.push({ ...b, x: b.x + x + (w - nu.w) / 2, dy: b.dy + axis - gap - nu.desc }));
+      de.boxes.forEach(b => boxes.push({ ...b, x: b.x + x + (w - de.w) / 2, dy: b.dy + axis + gap + de.asc }));
+      boxes.push({ rule: true, x: x + size * 0.06, w: w - size * 0.12, dy: axis, th: Math.max(1.5, size * 0.055), col: col0 });
+      asc = Math.max(asc, -axis + gap + nu.asc + nu.desc); desc = Math.max(desc, axis + gap + de.asc + de.desc);
+      x += w + size * 0.08; prev = null; scr = null;
+    }
+  }
+  return { boxes, w: x, asc, desc };
+}
+const MCACHE = new Map();
+function mathBox(str, size) {
+  const key = size + '|' + str; let L = MCACHE.get(key);
+  if (!L) { if (MCACHE.size > 3000) MCACHE.clear(); L = mathLayout(parseMath(str), size * M_SCALE, P.stone); MCACHE.set(key, L); }
+  return L;
 }
 function M(str, x, y, size = 34, o = {}) {
   const { align = 'left', a = 1 } = o;
-  const parts = parseM(str).map(([s, col, mod]) => {
-    const sz = mod === 's' || mod === 'S' ? size * 0.66 : mod === 'b' ? size * 1.3 : size;
-    ctx.font = `400 ${sz}px ${F.mono}`;
-    return { s, col, sz, dy: mod === 's' ? size * 0.26 : mod === 'S' ? -size * 0.42 : mod === 'b' ? size * 0.1 : 0, w: ctx.measureText(s).width };
-  });
-  const total = parts.reduce((acc, p) => acc + p.w, 0);
-  if (GA * a <= 0.002) return total;
-  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
-  setA(a); ctx.textAlign = 'left';
-  for (const p of parts) { ctx.font = `400 ${p.sz}px ${F.mono}`; ctx.fillStyle = p.col; ctx.fillText(p.s, cx, y + p.dy); cx += p.w; }
-  setA(1); return total;
+  const L = mathBox(str, size);
+  if (GA * a <= 0.002) return L.w;
+  const x0 = align === 'center' ? x - L.w / 2 : align === 'right' ? x - L.w : x;
+  setA(a); ctx.textAlign = 'left'; let font = '';
+  for (const b of L.boxes) {
+    if (b.rule) { ctx.fillStyle = b.col; ctx.fillRect(x0 + b.x, y + b.dy - b.th / 2, b.w, b.th); continue; }
+    if (b.font !== font) { ctx.font = font = b.font; }
+    ctx.fillStyle = b.col; ctx.fillText(b.s, x0 + b.x, y + b.dy);
+  }
+  setA(1); return L.w;
 }
+const mathWidth = (str, size = 34) => mathBox(str, size).w;
 function dot(x, y, r, col, a = 1) { if (GA * a <= 0.002) return; setA(a); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.fill(); setA(1); }
 function glow(x, y, r, col, a = 1) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = r * 3.5; dot(x, y, r, col, a); ctx.restore(); }
 function ring(x, y, r, col, a = 1, lw = 2) { if (GA * a <= 0.002) return; setA(a); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); ctx.stroke(); setA(1); }
@@ -1225,7 +1305,7 @@ function season() {
 window.DURATION = DURATION;
 window.renderAt = T => render(T);
 (async () => {
-  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`)]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  try { await Promise.race([Promise.all([document.fonts.load(`400 40px Newsreader`), document.fonts.load(`italic 400 40px Newsreader`), document.fonts.load(`400 40px Karla`), document.fonts.load(`400 40px 'JetBrains Mono'`), document.fonts.load(`400 40px 'STIX Two Text'`, 'xθ1'), document.fonts.load(`italic 400 40px 'STIX Two Text'`, 'xθσμ'), document.fonts.load(`400 40px 'Noto Sans Math'`, '∈∼ℝ∂∑≈→∇√')]), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
   ON_READY.forEach(f => f());
   if (!capture) season();
   fit(); draw(); window.READY = true;

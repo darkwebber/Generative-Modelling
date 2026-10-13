@@ -111,7 +111,7 @@ SC.push({ dur: 46, chapter: 'asking', title: 'What asking means', sub: 'From p(x
     const c2 = eout(prog(t, 15.5, 0.8)); if (c2 > 0) { card(830, 400, 1000, 150, P.ink, c2 * (1 - ease(prog(t, 37.5, 0.8)))); label('a request', 864, 446, c2 * (1 - ease(prog(t, 37.5, 0.8))), P.ink);
       M('[d|x]  ∼  p([d|x] | [p|y] = 3)', 864, 504, 32, { a: c2 * (1 - ease(prog(t, 37.5, 0.8))) }); text('“the probability of x, given y = 3”', 1300, 504, { font: F.mono, size: 16, color: P.dust, a: c2 * (1 - ease(prog(t, 37.5, 0.8))) }); }
     const c3 = eout(prog(t, 30.5, 0.8)); if (c3 > 0) { card(830, 570, 1000, 130, P.sage, c3 * (1 - ease(prog(t, 37.5, 0.8)))); label('Bayes’ rule', 864, 616, c3 * (1 - ease(prog(t, 37.5, 0.8))), P.sage);
-      M('p([d|x] | [p|y]) = p([p|y] | [d|x]) · p([d|x]) / p([p|y])', 864, 670, 30, { a: c3 * (1 - ease(prog(t, 37.5, 0.8))) }); }
+      M('p([d|x] | [p|y]) = [/|p([p|y] | [d|x]) · p([d|x])¦p([p|y])]', 864, 670, 30, { a: c3 * (1 - ease(prog(t, 37.5, 0.8))) }); }
     if (ca > 0) { card(830, 400, 1000, 190, P.plum, ca); label('a classifier', 864, 446, ca, P.plum); M('p([p|y] | [d|x])', 864, 504, 34, { a: ca });
       para('Point in, one probability per label out. Here: the exact answer for our blobs, drawn a little blurred.', 864, 548, 930, { size: 22, a: ca }); }
   } });

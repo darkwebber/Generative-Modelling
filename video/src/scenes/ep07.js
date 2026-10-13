@@ -145,29 +145,29 @@ SC.push({ dur: 54, chapter: 'boltzmann', title: 'From energy to probability', su
     const ea = eout(prog(t, 30, 1)), pmax = Math.exp(-Efn(-2.1)), Yb = v => 900 - v / pmax * 230;
     if (ea > 0) { axes1(X0, X1, 900, ea); const za = eout(prog(t, 40, 1));
       curve(x => Math.exp(-Efn(x)), -3.3, 3.3, X, Yb, P.ink, 4, ea, 240, [za > 0 ? mixc(P.ink, P.amber, za) : P.ink, 0.12 + 0.2 * za], 900);
-      text('e^−E(x)', X1 - 150, 680, { font: F.mono, size: 20, color: P.ink, a: ea });
+      M('[p|e][p^|−E(x)]', X1 - 150, 680, 22, { a: ea });
       if (za > 0) M('area = [a|Z]', X(-0.1), 870, 26, { align: 'center', a: za }); }
     // two probes: a valley and the hilltop
     const va = eout(prog(t, 33, 0.8)) * (1 - ease(prog(t, 40, 0.8)));
     if (va > 0) { [[-2.1, P.sage], [0, P.rose]].forEach(([x, col]) => { ball1(X, Yt, Efn, x, 12, col, va); line(X(x), Yt(Efn(x)) + 14, X(x), Yb(Math.exp(-Efn(x))) - 8, col, 1.5, va * 0.6, [4, 5]); dot(X(x), Yb(Math.exp(-Efn(x))), 6, col, va); });
       pill(X(-2.1) + 24, Yb(Math.exp(-Efn(-2.1))) - 16, `${Math.exp(Efn(0) - Efn(-2.1)).toFixed(0)}× more likely`, P.sage, va, { size: 20 }); }
     // the three demands
-    const dem = [[7, 'p(x) ≥ 0', 'a positive function of E'], [13, 'lower E  ⇒  higher p', 'downhill = likely'], [19, 'E₁ + E₂  ⇒  p₁ · p₂', 'independent parts: energies add']];
+    const dem = [[7, '[p|p]([d|x]) ≥ 0', 'a positive function of E'], [13, 'lower [m|E]   ⇒   higher [p|p]', 'downhill = likely'], [19, '[m|E]₁ + [m|E]₂   ⇒   [p|p]₁ · [p|p]₂', 'independent parts: energies add']];
     const da = eout(prog(t, 6.5, 0.8)) * (1 - ease(prog(t, 46.5, 1)));
     card(1080, 250, 750, 440, P.plum, da); label('three demands', 1114, 296, da, P.plum);
     dem.forEach(([t0, f, s], i) => { const ai = da * eout(prog(t, t0, 0.7)), y = 360 + i * 84; text(`${i + 1}`, 1116, y + 4, { font: F.serif, italic: true, size: 34, color: P.amber, a: ai });
-      text(f, 1160, y, { font: F.mono, size: 26, color: P.chalk, a: ai }); text(s, 1160, y + 32, { font: F.mono, size: 16, color: P.dust, a: ai }); });
+      M(f, 1160, y, 28, { a: ai }); text(s, 1160, y + 32, { font: F.mono, size: 16, color: P.dust, a: ai }); });
     const xa = eout(prog(t, 26, 0.8)) * (1 - ease(prog(t, 46.5, 1)));
     M('e[m^|−(E₁+E₂)] = e[m^|−E₁] · e[m^|−E₂]', 1114, 640, 28, { a: xa });
     const ba = eout(prog(t, 40.5, 0.8));
-    card(1080, 720, 750, 200, P.ink, ba * (1 - ease(prog(t, 46.5, 1)))); M('[p|p]([d|x]) = e[m^|−E(x)] / [a|Z]', 1114, 800, 40, { a: ba * (1 - ease(prog(t, 46.5, 1))) });
+    card(1080, 720, 750, 200, P.ink, ba * (1 - ease(prog(t, 46.5, 1)))); M('[p|p]([d|x]) = [/|e[m^|−E(x)]¦[a|Z]]', 1114, 800, 40, { a: ba * (1 - ease(prog(t, 46.5, 1))) });
     M('[a|Z] = [pB|∫] e[m^|−E(x)] d[d|x]', 1114, 872, 28, { a: eout(prog(t, 43, 0.8)) * (1 - ease(prog(t, 46.5, 1))) });
     // callback: softmax
     const sa = eout(prog(t, 47, 0.8));
     if (sa > 0) { card(1080, 250, 750, 670, P.amber, sa); label('seen it before: episode 2', 1114, 296, sa, P.amber);
       M('softmax:   [p|p](letter) = e[a^|z] / [kB|Σ] e[a^|z]', 1114, 380, 28, { a: sa }); text('logits z = −E   ·   Z = a sum over 27 letters', 1114, 430, { font: F.mono, size: 18, color: P.dust, a: sa });
       M('temperature:   [p|p] ∝ e[m^|−E/τ]', 1114, 520, 28, { a: eout(prog(t, 49, 0.8)) }); text('the Boltzmann distribution of physics', 1114, 570, { font: F.serif, italic: true, size: 26, color: P.sage, a: eout(prog(t, 50, 0.8)) });
-      M('[p|p]([d|x]) = e[m^|−E(x)] / [a|Z]', 1114, 720, 44, { a: sa }); }
+      M('[p|p]([d|x]) = [/|e[m^|−E(x)]¦[a|Z]]', 1114, 720, 44, { a: sa }); }
   } });
 
 // 03 — the price tag: Z
@@ -319,9 +319,9 @@ SC.push({ dur: 54, chapter: 'metropolis', title: 'Sampling with ratios', sub: 'P
     // rule cards
     const c1 = eout(prog(t, 1, 0.8)) * (1 - ease(prog(t, 38.5, 1)));
     card(1120, 250, 710, 300, P.sage, c1); label('the ratio trick', 1154, 296, c1, P.sage);
-    M('[p|p]([n|x′]) / [p|p]([d|x]) = e[m^|−(E(x′) − E(x))] = e[m^|−ΔE]', 1154, 370, 26, { a: c1 }); text('Z cancels', 1154, 414, { font: F.mono, size: 16, color: P.sage, a: c1 });
+    M('[/|[p|p]([n|x′])¦[p|p]([d|x])] = e[m^|−(E(x′) − E(x))] = e[m^|−ΔE]', 1154, 370, 26, { a: c1 }); text('Z cancels', 1154, 426, { font: F.mono, size: 16, color: P.sage, a: c1 });
     text('downhill (ΔE ≤ 0):  always move', 1154, 470, { font: F.mono, size: 20, color: P.chalk, a: c1 * eout(prog(t, 9, 0.7)) });
-    text('uphill:  move with probability e^−ΔE', 1154, 512, { font: F.mono, size: 20, color: P.chalk, a: c1 * eout(prog(t, 16, 0.7)) });
+    M('[w|uphill:  move with probability e][w^|−ΔE]', 1154, 512, 22, { a: c1 * eout(prog(t, 16, 0.7)) });
     const c2 = eout(prog(t, 23, 0.8)) * (1 - ease(prog(t, 38.5, 1)));
     card(1120, 580, 710, 150, P.amber, c2); text(`step ${Math.min(k, MET.length).toLocaleString('en-US')}`, 1154, 640, { font: F.mono, size: 24, color: P.chalk, a: c2 });
     const acc = k > 0 ? MET.slice(0, Math.min(k, MET.length)).filter(s => s[4]).length / Math.min(k, MET.length) : 0; text(`accepted ${(acc * 100).toFixed(0)}%`, 1154, 688, { font: F.mono, size: 20, color: P.amber, a: c2 });
@@ -403,7 +403,7 @@ SC.push({ dur: 42, chapter: 'result', title: 'Eight valleys, no bridges', sub: '
     const L = square(110, 250, 620), Rm = square(1190, 250, 620), a0 = eout(prog(t, 0.6, 0.8));
     frame(L, a0); drawMap(L, densCanvas(A.dens, P.ink), A.dens.n, a0);
     const la = eout(prog(t, 16, 1)) * (1 - 0.75 * ease(prog(t, 31, 1.5))); if (la > 0) drawMarbles(L, A.lang, NL, P.terracotta, la * 0.8, 2.4, 1e9, k => prog(t, 16 + (k % 60) * 0.02, 0.4));
-    text('energy-based model · e^−E / Z', 110, 910, { font: F.mono, size: 18, color: P.chalk, a: a0 });
+    M('[w|energy-based model · e][w^|−E] [w|/ Z]', 110, 910, 20, { a: a0 });
     const ra = eout(prog(t, 8, 1)); frame(Rm, ra); drawMap(Rm, densCanvas(A.flowRing, P.ink), A.flowRing.n, ra);
     text('normalizing flow (episode 6)', 1190, 910, { font: F.mono, size: 18, color: P.chalk, a: ra });
     const ba = eout(prog(t, 10, 0.8)) * (1 - ease(prog(t, 24, 1))); if (ba > 0) { ring(Rm.X(0.6), Rm.Y(-1.85), 34, P.rose, ba, 2.5); pill(Rm.X(0.6) + 44, Rm.Y(-1.85) + 50, 'a bridge', P.rose, ba); }

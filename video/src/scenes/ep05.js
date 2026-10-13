@@ -116,7 +116,7 @@ SC.push({ dur: 46, chapter: 'the judge', title: "The judge's perfect strategy", 
     M('max[k_|y]  a·log y + b·log(1 − y)', 1284, 566, 24, { a: c2 }); M('a/y − b/(1−y) = 0  ⇒  y = a/(a+b)', 1284, 620, 24, { a: eout(prog(t, 26, 0.8)) });
     const c3 = eout(prog(t, 32, 0.8));
     card(1250, 690, 580, 150, P.sage, c3);
-    M('[m|D]*([d|x]) = [p|p][p_|data] / ([p|p][p_|data] + [p|p][p_|g])', 1284, 780, 25, { a: c3 });
+    M('[m|D]*([d|x]) = [/|[p|p][p_|data]¦[p|p][p_|data] + [p|p][p_|g]]', 1284, 780, 25, { a: c3 });
   } });
 
 // 03 — what the generator really minimises

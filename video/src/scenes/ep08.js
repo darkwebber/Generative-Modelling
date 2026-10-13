@@ -99,11 +99,11 @@ SC.push({ dur: 50, chapter: 'score', title: 'The score: an arrow at every point'
       if (pa > 0) marble(X(xp), 830, 7, P.amber, pa); }
     // cards
     const c1 = eout(prog(t, 8.5, 0.8)); card(1100, 250, 730, 170, P.sage, c1); label('the score', 1134, 296, c1, P.sage);
-    M('[s|s]([d|x]) = d/d[d|x] log [p|p]([d|x]) = [p|p]′([d|x]) / [p|p]([d|x])', 1134, 360, 28, { a: c1 }); text('a relative slope: growth as a fraction of p itself', 1134, 400, { font: F.mono, size: 15, color: P.dust, a: eout(prog(t, 22, 0.8)) });
+    M('[s|s]([d|x]) = [/|d¦d[d|x]] log [p|p]([d|x]) = [/|[p|p]′([d|x])¦[p|p]([d|x])]', 1134, 360, 28, { a: c1 }); text('a relative slope: growth as a fraction of p itself', 1134, 400, { font: F.mono, size: 15, color: P.dust, a: eout(prog(t, 22, 0.8)) });
     const c2 = eout(prog(t, 29, 0.8)); card(1100, 440, 730, 170, P.amber, c2); label('no z', 1134, 486, c2, P.amber);
     M('log [p|p] = log [p|p̃] − log [a|Z]   ⇒   [s|s] = ∇ log [p|p̃] − [a|0]', 1134, 548, 24, { a: c2 }); text('any unnormalised p̃ gives the exact score', 1134, 588, { font: F.mono, size: 15, color: P.dust, a: c2 });
     const c3 = eout(prog(t, 36, 0.8)); card(1100, 630, 730, 170, P.ink, c3); label('a bell curve', 1134, 676, c3, P.ink);
-    M('[s|s]([d|x]) = −([d|x] − μ) / [a|σ]²', 1134, 740, 30, { a: c3 }); text('a spring to the centre, stiffer when σ is small', 1134, 780, { font: F.mono, size: 15, color: P.dust, a: c3 });
+    M('[s|s]([d|x]) = −[/|[d|x] − μ¦[a|σ]²]', 1134, 730, 30, { a: c3 }); text('a spring to the centre, stiffer when σ is small', 1134, 786, { font: F.mono, size: 15, color: P.dust, a: c3 });
     const c4 = eout(prog(t, 43, 0.8)); if (c4 > 0) { card(1100, 820, 730, 110, P.plum, c4); M('2-D:  [s|s]([d|x]) = ∇ₓ log [p|p]([d|x])  — a vector field', 1134, 885, 24, { a: c4 }); }
   } });
 

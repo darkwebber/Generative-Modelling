@@ -102,7 +102,7 @@ SC.push({ dur: 50, chapter: 'motion', title: 'Generation is motion', sub: 'A win
     text('sage: the wind at this moment', 750, 925, { font: F.mono, size: 16, color: P.dust, align: 'right', a: a0 * eout(prog(t, 8, 1)) });
     const c0 = eout(prog(t, 1, 0.8)); card(830, 250, 1000, 130, P.plum, c0); M('[n|z] ∼ N(0, I)   →   [d|x] = [m|g]([n|z])', 864, 322, 30, { a: c0 }); text('episode 1: noise in, data out', 864, 360, { font: F.mono, size: 16, color: P.dust, a: c0 });
     const c1 = eout(prog(t, 16, 0.8)); card(830, 400, 1000, 150, P.sage, c1); label('a flow (episode 6)', 864, 446, c1, P.sage);
-    M('d[d|x] / dt = [m|v]([d|x], t)       t: 0 (noise) → 1 (data)', 864, 510, 30, { a: c1 });
+    M('[/|d[d|x]¦dt] = [m|v]([d|x], t)       t: 0 (noise) → 1 (data)', 864, 510, 30, { a: c1 });
     const c2 = eout(prog(t, 24, 0.8)); card(830, 570, 1000, 130, P.amber, c2); label('euler’s method', 864, 616, c2, P.amber);
     M('[d|x] ← [d|x] + Δt · [m|v]([d|x], t)       K steps of size Δt = 1/K', 864, 670, 28, { a: c2 });
     // the curved-road demo: a quarter circle, followed with 1, 2, 4 and 32 Euler steps
@@ -145,7 +145,7 @@ SC.push({ dur: 46, chapter: 'roads', title: 'The simplest road', sub: 'A straigh
     const c1 = eout(prog(t, 8, 0.8)); card(830, 250, 1000, 180, P.amber, c1); label('a point on the road', 864, 296, c1, P.amber);
     M('[d|x][d_|t] = (1 − [a|t])·[n|z] + [a|t]·[d|x]', 864, 370, 40, { a: c1 }); text('t = 0: the noise · t = 1: the data', 864, 414, { font: F.mono, size: 16, color: P.dust, a: c1 });
     const c2 = eout(prog(t, 16, 0.8)); card(830, 450, 1000, 160, P.sage, c2); label('its velocity', 864, 496, c2, P.sage);
-    M('d[d|x][d_|t] / dt = [d|x] − [n|z]', 864, 556, 34, { a: c2 }); text('constant: a straight road at steady speed', 864, 594, { font: F.mono, size: 16, color: P.dust, a: c2 });
+    M('[/|d[d|x][d_|t]¦dt] = [d|x] − [n|z]', 864, 556, 34, { a: c2 }); text('constant: a straight road at steady speed', 864, 594, { font: F.mono, size: 16, color: P.dust, a: c2 });
     const c3 = eout(prog(t, 24, 0.8)) * (1 - ease(prog(t, 31.5, 1))); if (c3 > 0) { card(830, 630, 1000, 150, P.plum, c3); para('If each z knew its x, learning the arrows would be easy — and one Euler step would be exact.', 864, 684, 930, { size: 26, a: c3 }); }
     const c4 = eout(prog(t, 32, 0.8)); if (c4 > 0) { card(830, 630, 1000, 300, P.rose, c4); label('but who pairs them?', 864, 676, c4, P.rose);
       M('[n|z] ∼ N(0, I)   and   [d|x] ∼ data,   independently', 864, 740, 28, { a: c4 }); para('Nothing tells us which noise point belongs to which data point. So we pair them at random — and the roads cross.', 864, 800, 930, { size: 25, a: eout(prog(t, 34, 0.8)) }); }

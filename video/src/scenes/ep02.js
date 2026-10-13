@@ -365,7 +365,7 @@ SC.push({ dur: 52, chapter: 'counting', title: 'The simplest model: just count',
     }
     const fa = eout(prog(t, 36, 0.8));
     card(140, 250, 900, 180, P.amber, fa);
-    M('[p|p]([d|b] | [d|a]) = [a|N]([d|a], [d|b]) / [kB|Σ][k_|b′] [a|N]([d|a], [d|b′])', 180, 330, 34, { a: fa });
+    M('[p|p]([d|b] | [d|a]) = [/|[a|N]([d|a], [d|b])¦[kB|Σ][k_|b′] [a|N]([d|a], [d|b′])]', 180, 330, 34, { a: fa });
     M('counting  =  argmax[a_|θ] [kB|Σ] log [p|p][a_|θ]([d|x])   ✓', 180, 395, 24, { a: eout(prog(t, 44, 0.8)) });
   } });
 
@@ -522,7 +522,7 @@ SC.push({ dur: 56, chapter: 'neural net', title: 'Replace the table with a funct
       const lab = ph1 < 0.5 ? '[m|z]  logits: any real number' : ph2 < 0.5 ? '[m|e][m^|z]  exponentiate: all positive' : '[p|p] = [m|e][m^|z] / [kB|Σ] [m|e][m^|z]  normalise: sums to 1';
       M(lab, bx, y - 190, 26);
       card(840, 800 - 20, 960, 110, P.ink, eout(prog(t, 24, 0.8)));
-      M('softmax:  [p|p][d_|i] = [m|e][m^|zᵢ] / [kB|Σ][k_|j] [m|e][m^|zⱼ]', 880, 846, 32, { a: eout(prog(t, 24, 0.8)) });
+      M('softmax:  [p|p][d_|i] = [/|[m|e][m^|zᵢ]¦[kB|Σ][k_|j] [m|e][m^|zⱼ]]', 880, 846, 32, { a: eout(prog(t, 24, 0.8)) });
       GA = 1;
     }
     // C: surprise
@@ -577,7 +577,7 @@ SC.push({ dur: 38, chapter: 'temperature', title: 'Temperature: the creativity k
     text(`τ = ${tau.toFixed(2)}`, sx + sw * pos, sy - 24, { font: F.mono, size: 24, color: P.amber, align: 'center', a });
     const ca = eout(prog(t, 7, 0.8));
     card(1240, 250, 590, 170, P.amber, ca); label('temperature', 1276, 296, ca, P.amber);
-    M('[p|p][d_|i] = [m|e][m^|zᵢ/τ] / [kB|Σ][k_|j] [m|e][m^|zⱼ/τ]', 1276, 372, 32, { a: ca });
+    M('[p|p][d_|i] = [/|[m|e][m^|zᵢ/τ]¦[kB|Σ][k_|j] [m|e][m^|zⱼ/τ]]', 1276, 372, 32, { a: ca });
     [0.3, 1, 2].forEach((tt, c) => { const x = 1240 + c * 200, aa = eout(prog(t, 21 + c * 0.6, 0.8));
       text(`τ = ${tt}`, x + 10, 480, { font: F.mono, size: 22, color: P.amber, a: aa });
       TEMP_NAMES[c].forEach((nm, i) => text(nm.length > 10 ? nm.slice(0, 10) + '…' : nm, x + 10, 530 + i * 44, { font: F.mono, size: 24, color: P.terracotta, a: aa * eout(prog(t, 21.5 + c * 0.6 + i * 0.15, 0.4)) })); });
