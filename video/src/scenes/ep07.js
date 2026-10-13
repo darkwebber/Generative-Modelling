@@ -426,15 +426,26 @@ SC.push({ dur: 54, chapter: 'catch', title: 'The catch: marbles get stuck', sub:
          [40, 47, 'Third: in high dimensions Z stays unknown, so there is no exact likelihood to report. Here, in 2-D, we cheated with a grid.'],
          [47, 53.6, 'Flexible and elegant — but hard to train, and slow to sample. Yet the idea is hiding everywhere.']],
   draw(t) {
-    const m = square(110, 250, 660), a0 = eout(prog(t, 0.6, 0.8)); landscape(m, A.E, a0);
+    const m = square(110, 250, 660), a0 = eout(prog(t, 0.6, 0.8));
+    // the map tilts up into terrain: valleys you can see into, ridges that wall the marble in
+    const tl = ease(prog(t, 2.6, 3.2)), yaw = tl * -0.3, flat = { h: heights(A.E), n: A.E.n, R: RR, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * RR), hs: 3 * tl, yaw, pitch: tl * 0.86 };
+    const fit = surfFit(flat, 90, 240, 720, 690), view = { ...flat, cx: lerp(flat.cx, fit.cx, tl), cy: lerp(flat.cy, fit.cy, tl), scale: lerp(flat.scale, fit.scale, tl) };   // from the map's square to the best fit
+    const cam = surfCam(view), at = (x, y, lift = 0.05) => cam.P(x, y, cam.z(x, y) + lift);
+    // one long chain (its trail and marble sit on the terrain, hidden behind ridges)
+    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));        // gone before the next cards land
+    const items = [];
+    if (ca > 0) { const f = chT(t), n = Math.floor(f), i0 = Math.max(0, n - 400);
+      for (let i = i0; i < n; i++) { const p = CH[i], q = CH[i + 1]; items.push({ x: p[0], y: p[1], z: cam.z(p[0], p[1]) + 0.05, draw: (sx, sy) => { const e = at(q[0], q[1]); line(sx, sy, e[0], e[1], P.amber, 2.2, ca * 0.85); } }); }
+      const p = CH[n], q = CH[Math.min(CH.length - 1, n + 1)], u = f - n, x = lerp(p[0], q[0], u), y = lerp(p[1], q[1], u);
+      items.push({ x, y, z: cam.z(x, y) + 0.12, lift: 0.3, draw: (sx, sy) => { glow(sx, sy, 7, P.terracotta, ca * 0.5); marble(sx, sy, 10, P.terracotta, ca); } }); }
+    if (tl < 0.2) landscape(m, A.E, a0 * (1 - tl * 5));          // the flat map hands over as soon as the tilt starts
+    if (tl > 0) surf3d({ ...view, items, a: a0 * Math.min(1, tl * 4), wire: 0.25 * tl, cache: tl >= 1 && a0 >= 1 ? 'ep7-catch' : null });   // still camera after the tilt: reuse the terrain
+    else items.forEach(it => { const p = at(it.x, it.y); it.draw(p[0], p[1]); });
     // each valley's share of probability
     const sa = eout(prog(t, 1.5, 0.8)) * (1 - 0.7 * ease(prog(t, 14, 1)));
     SH.forEach((s, j) => { const x = 2 * Math.cos(j * Math.PI / 4), y = 2 * Math.sin(j * Math.PI / 4), ai = sa * eout(prog(t, 1.8 + j * 0.25, 0.5)), col = s > 0.14 ? P.amber : s < 0.11 ? P.rose : P.sage;
-      pill(m.X(x * 1.33), m.Y(y * 1.33) + 8, `${(s * 100).toFixed(1)}%`, col, ai, { align: 'center', size: 18 }); });
-    // one long chain
-    const ca = eout(prog(t, 14, 0.8)) * (1 - ease(prog(t, 31.2, 0.8)));        // gone before the next cards land
-    if (ca > 0) { const f = chT(t), n = Math.floor(f); setA(ca * 0.55); ctx.strokeStyle = P.amber; ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = Math.max(0, n - 400); i <= n; i++) { const p = CH[i]; i > Math.max(0, n - 400) ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1);
-      const p = CH[n], q = CH[Math.min(CH.length - 1, n + 1)], u = f - n; marble(m.X(lerp(p[0], q[0], u)), m.Y(lerp(p[1], q[1], u)), 8, P.terracotta, ca);
+      const q = at(x * 1.33, y * 1.33, 0.5); pill(q[0], q[1] + 8, `${(s * 100).toFixed(1)}%`, col, ai, { align: 'center', size: 18 }); });
+    if (ca > 0) { const f = chT(t), n = Math.floor(f);
       card(850, 250, 980, 200, P.amber, ca); label('one marble, one long run', 884, 296, ca, P.amber);
       text(`step ${(Math.round(n / (CH.length - 1) * A.chainSteps)).toLocaleString('en-US')}`, 884, 360, { font: F.mono, size: 28, color: P.chalk, a: ca });
       text(`ridges crossed: ${CROSS[n]}`, 1300, 360, { font: F.mono, size: 28, color: P.amber, a: ca });

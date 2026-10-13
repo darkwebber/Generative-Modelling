@@ -345,15 +345,31 @@ SC.push({ dur: 56, chapter: 'reflow', title: 'Straighten the roads', sub: 'Reflo
          [40, 48, `On digits, one step goes from FID ${J.fm1.FID.toFixed(0)} to ${J.rf1.FID.toFixed(0)}. The price: with many steps, reflow levels off near ${J.rf16.FID.toFixed(0)}.`],
          [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or train a student network to copy it in one jump: one-step generators.']],
   draw(t) {
-    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))));
+    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))) * (1 - ease(prog(t, 18.5, 1))));   // the flat frame gives way to the space-time box
     const ca = eout(prog(t, 1.5, 1)) * (1 - ease(prog(t, 15.5, 1)));
     if (ca > 0) clipTo(m, () => CP.z.forEach((z, k) => { const x = CP.x[k], u = eout(prog(t, 2 + k * 0.03, 1)); dot(m.X(z[0]), m.Y(z[1]), 2.6, P.rose, ca); if (u <= 0) return;
       line(m.X(z[0]), m.Y(z[1]), m.X(lerp(z[0], x[0], u)), m.Y(lerp(z[1], x[1], u)), P.sage, 1.2, ca * 0.6); if (u > 0.98) dot(m.X(x[0]), m.Y(x[1]), 2.6, P.terracotta, ca); }));
     const pa = eout(prog(t, 16, 1)) * (1 - ease(prog(t, 31.5, 1)));
-    if (pa > 0) { clipTo(m, () => { for (let k = 0; k < RG.n; k += 15) { for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+    const st = ease(prog(t, 18.5, 3));                  // the roads lift into space-time: height = time t
+    if (pa > 0 && st < 0.2) { const pa_ = pa, pa2 = pa * (1 - st * 5); ((pa) => { clipTo(m, () => { for (let k = 0; k < RG.n; k += 15) { for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
         const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); for (let s = 0; s <= n; s++) { const p = ptAt(PP, k, s); s ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1); }
         const z = ptAt(P1, k, 0), x = ptAt(P1, k, P1.S - 1); dot(m.X(z[0]), m.Y(z[1]), 3, P.rose, pa); dot(m.X(x[0]), m.Y(x[1]), 3.5, P.terracotta, pa); } });
-      text('rose: round 1 (dives to the middle, then turns)  ·  sage: after reflow', m.x0, m.y0 + m.S + 26, { font: F.mono, size: 15, color: P.dust, a: pa }); }
+      })(pa2); }
+    if (pa > 0 && st > 0) {
+      const top = Float32Array.from([1, 1, 1, 1]), flat = { h: top, n: 2, R: WR, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * WR), hs: 2.6 * st, yaw: st * (-0.62 + 0.18 * Math.sin(t / 56 * Math.PI)), pitch: st * 1.0 };
+      const fit = surfFit(flat, 90, 250, 680, 610), cam = surfCam({ ...flat, cx: lerp(flat.cx, fit.cx, st), cy: lerp(flat.cy, fit.cy, st), scale: lerp(flat.scale, fit.scale, st) }), HT = 2.6 * st, a3 = pa * Math.min(1, st * 4);
+      const C = [[-WR, -WR], [WR, -WR], [WR, WR], [-WR, WR]], Q = (x, y, z) => cam.P(x, y, z);
+      for (const z of [0, HT]) { setA(a3 * (z ? 0.5 : 0.8)); ctx.fillStyle = rgba(z ? P.terracotta : P.rose, 0.05); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.beginPath(); C.forEach(([x, y], q) => { const p = Q(x, y, z); q ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.fill(); ctx.stroke(); setA(1); }
+      C.forEach(([x, y]) => { const p0 = Q(x, y, 0), p1 = Q(x, y, HT); line(p0[0], p0[1], p1[0], p1[1], P.border, 1, a3 * 0.6, [4, 6]); });
+      const inside = k => [P1, P2].every(PP => { for (let s2 = 0; s2 < PP.S; s2++) { const p = ptAt(PP, k, s2); if (Math.abs(p[0]) > WR || Math.abs(p[1]) > WR) return false; } return true; });   // the box shows what the flat view's frame showed
+      for (let k = 0; k < RG.n; k += 15) if (inside(k)) for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) {
+        const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); setA(a3 * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+        for (let s2 = 0; s2 <= n; s2++) { const p = ptAt(PP, k, s2), q = Q(p[0], p[1], HT * s2 / (PP.S - 1)); s2 ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); } ctx.stroke(); setA(1);
+        if (PP === P1) { const z = ptAt(P1, k, 0), x = ptAt(P1, k, P1.S - 1), qz = Q(z[0], z[1], 0), qx = Q(x[0], x[1], HT); dot(qz[0], qz[1], 3, P.rose, a3); dot(qx[0], qx[1], 3.5, P.terracotta, a3); } }
+      const b = Q(WR, -WR, 0), tp = Q(WR, -WR, HT);
+      const la = a3 * clamp((st - 0.6) * 2.5); text('t = 0 · noise', b[0] + 12, b[1] - 16, { font: F.mono, size: 15, color: P.rose, a: la }); text('t = 1 · data', tp[0] + 12, tp[1] + 6, { font: F.mono, size: 15, color: P.terracotta, a: la });
+    }
+    if (pa > 0) text(st > 0.5 ? 'height is time: rose round 1 bends, sage after reflow runs straight, and no two meet' : 'rose: round 1 (dives to the middle, then turns)  ·  sage: after reflow', m.x0, m.y0 + m.S + 26, { font: F.mono, size: 15, color: P.dust, a: pa });
     const oa = eout(prog(t, 32, 0.8));
     if (oa > 0) { GA = oa; const L = sq(110, 250, 300), Rm = sq(450, 250, 300);
       [[L, 'r1_1', 'round 1 · 1 step', P.rose], [Rm, 'r2_1', 'after reflow · 1 step', P.sage]].forEach(([mm, key, nm, col], j) => { const st = RG.steps[key].stages, f = hopF(t, 33 + j * 1.2, 1.4, 1);

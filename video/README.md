@@ -338,6 +338,16 @@ Greek in maths italic; numbers, `log`/`exp`/`det`…, words and upper-case Greek
 `k` dim, `w` chalk); `[c_|…]` / `[c^|…]` sub/superscript (a sub then a sup stack, like ∫ₐᵇ); `[cB|Σ]` big operator;
 `[/|num¦den]` a stacked fraction (num and den are formulas themselves); `₁ ²`-style characters become real scripts and
 accents (x̂, p̃) sit on their letter. `M()` returns the width, so layouts can chain formulas.
+
+**3-D surfaces (`kit.js`)**: `surf3d(o)` draws a height field over a square, lit and depth-sorted on the 2-D canvas (so
+it works in the player, in MP4 renders and on phones), with `items` (marbles, arrows, trails) sorted in with the tiles
+so ridges hide them. `surfCam(o)` gives the same camera without drawing (`P(x, y, z)` to screen, `z(x, y)` on the
+surface), `surfFit(o, x, y, w, h)` frames the whole surface in a box at its current angle, and `cache: key` reuses a
+surface that isn't changing (still camera, same heights), redrawing only the items. At `pitch: 0` a surface lines up
+with the flat `square()` map of the same range, so a scene can tilt its map up into terrain. Used where depth teaches:
+Ep 7 *The catch* (the learned energy as terrain, a marble trapped between its walls), Ep 8 *Noise at many scales*
+(log p of the blurred data at every σ, score arrows on the slopes), Ep 9 *Destroy it slowly* (the exact density of the
+forward process melting into N(0, I)), Ep 10 *Straighten the roads* (the roads in space-time, height = t).
 Everything is seeded and time-driven, so any frame can be re-rendered exactly.
 
 ### Adding an episode

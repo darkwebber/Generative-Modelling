@@ -13,6 +13,15 @@ function lerpField(F0, F1, u) { return F0.map((v, k) => [lerp(v[0], F1[k][0], u)
 function stagePts(S, f) { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); }
 function particles(m, S, f, col, a, r = 3, count = 1e9) { const pts = stagePts(S, f); clipTo(m, () => pts.forEach((p, k) => { if (k < count) marble(m.X(p[0]), m.Y(p[1]), r, col, a); })); }
 const levelOf = f => clamp(Math.floor((clamp(f, 0, NS) - 1e-9) / (A.T / A.keep)), 0, SIG.length - 1);
+// log p_σ of the 400 data points at every σ, as terrain for the 3-D view (exact; one height scale for all levels,
+// so a big σ is a low broad hill and a small σ tall peaks over a flat desert). Smoothed to the grid it is drawn on.
+const LPN = 49, LPS = (() => { let L = null; return () => L || (L = (() => { const out = SIG.map(s0 => { const s = Math.hypot(s0, 0.16), h = new Float32Array(LPN * LPN);
+    for (let j = 0; j < LPN; j++) for (let i = 0; i < LPN; i++) { const x = -A.R + 2 * A.R * i / (LPN - 1), y = A.R - 2 * A.R * j / (LPN - 1); let acc = 0;
+      for (const p of A.data) acc += Math.exp(-((x - p[0]) ** 2 + (y - p[1]) ** 2) / (2 * s * s));
+      h[j * LPN + i] = Math.log(acc / A.data.length / (2 * Math.PI * s * s) + 1e-300); } return h; });
+  const top = Math.max(...out.map(h => Math.max(...h))), floor = top - 9;
+  return out.map(h => h.map(v => clamp((v - floor) / (top - floor)))); })()); })();
+function logpAtLevel(fl) { const L = LPS(), i = clamp(Math.floor(fl), 0, SIG.length - 1), j = Math.min(SIG.length - 1, i + 1), u = ease(clamp(fl - i)); return L[i].map((v, q) => lerp(v, L[j][q], u)); }
 function fieldAtLevel(fl) { const i = clamp(Math.floor(fl), 0, SIG.length - 1), j = Math.min(SIG.length - 1, i + 1); return lerpField(A.fields[i], A.fields[j], ease(clamp(fl - i))); }
 const errCanvas = (() => { let c = null; return () => { if (c) return c; const n = A.err.n, u = b64bytes(A.err.u8); c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), rgb = hx(P.rose);
   for (let k = 0; k < n * n; k++) { im.data[k * 4] = rgb[0]; im.data[k * 4 + 1] = rgb[1]; im.data[k * 4 + 2] = rgb[2]; im.data[k * 4 + 3] = Math.round(Math.pow(u[k] / 255, 0.7) * 235); } g.putImageData(im, 0, 0); return c; }; })();
@@ -295,10 +304,20 @@ SC.push({ dur: 60, chapter: 'many scales', title: 'Noise at many scales', sub: '
   draw(t) {
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)), f = anF(t);
     const fl = t < 22 ? (SIG.length - 1) * ease(prog(t, 8, 13)) : clamp(f / (A.T / A.keep), 0, SIG.length - 1), sg = SIG[Math.min(SIG.length - 1, Math.round(fl))];
-    frame(m, a0); const r = rng(3), g = gaussian(r); clipTo(m, () => A.data.forEach(p => { const e1 = g(), e2 = g(); dot(m.X(p[0] + sg * e1), m.Y(p[1] + sg * e2), 2.2, P.terracotta, a0 * 0.35); }));
-    field(m, fieldAtLevel(fl), a0, P.sage, 26);
-    if (t > 21.5) particles(m, A.ann, f, P.chalk, eout(prog(t, 21.5, 0.6)), 3);
-    text(`σ = ${sg.toFixed(2)}   ·   faint dots: the data blurred by that much noise`, 110, 922, { font: F.mono, size: 16, color: P.dust, a: a0 });
+    // from 8 s the arrow map tilts up: log p_σ becomes terrain and the score arrows lie on its slopes, pointing uphill
+    const tl = ease(prog(t, 8.2, 3)), F = fieldAtLevel(fl);
+    if (tl < 0.2) { const a2 = a0 * (1 - tl * 5); frame(m, a2); const r = rng(3), g = gaussian(r); clipTo(m, () => A.data.forEach(p => { const e1 = g(), e2 = g(); dot(m.X(p[0] + sg * e1), m.Y(p[1] + sg * e2), 2.2, P.terracotta, a2 * 0.35); }));
+      field(m, F, a2, P.sage, 26); if (t > 21.5) particles(m, A.ann, f, P.chalk, eout(prog(t, 21.5, 0.6)) * a2, 3); }
+    if (tl > 0) {
+      const flat = { h: logpAtLevel(fl), n: LPN, R: A.R, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * A.R), hs: 2.6 * tl, yaw: tl * (-0.5 + 0.25 * Math.sin(t / 60 * Math.PI)), pitch: tl * 0.9, lo: '#1a1d22', hi: '#8fb0d2' };
+      const fit = surfFit(flat, 80, 250, 690, 650), view = { ...flat, cx: lerp(flat.cx, fit.cx, tl), cy: lerp(flat.cy, fit.cy, tl), scale: lerp(flat.scale, fit.scale, tl) }, cam = surfCam(view);
+      const at = (x, y, l = 0.06) => cam.P(x, y, cam.z(x, y) + l), items = [];
+      F.forEach((v, k) => { const [x, y] = gpt(k), n = Math.hypot(v[0], v[1]); if (n < 1e-6 || Math.abs(x) > A.R || Math.abs(y) > A.R) return; const L = 0.34 * Math.tanh(n / 1.2), dx = v[0] / n * L / 2, dy = v[1] / n * L / 2;
+        items.push({ x, y, draw: () => { const p0 = at(x - dx, y - dy), p1 = at(x + dx, y + dy); arr(p0[0], p0[1], p1[0], p1[1], P.sage, 1.6, a0 * 0.9, 4); } }); });
+      if (t > 21.5) { const pa = eout(prog(t, 21.5, 0.6)); stagePts(A.ann, f).forEach(p => { if (Math.abs(p[0]) < A.R && Math.abs(p[1]) < A.R) items.push({ x: p[0], y: p[1], lift: 0.1, draw: () => { const q = at(p[0], p[1], 0.08); marble(q[0], q[1], 3.2, P.chalk, pa); } }); }); }
+      surf3d({ ...view, items, a: a0 * Math.min(1, tl * 4), wire: 0.14 * tl });
+    }
+    text(t < 9 ? `σ = ${sg.toFixed(2)}   ·   faint dots: the data blurred by that much noise` : `σ = ${sg.toFixed(2)}   ·   height: log p of the data blurred by that much noise`, 110, 922, { font: F.mono, size: 16, color: P.dust, a: a0 });
     // the σ ladder
     const la = eout(prog(t, 2, 0.8)); card(790, 250, 150, 670, P.amber, la); label('σ', 850, 290, la, P.amber);
     SIG.forEach((s, k) => { const y = 330 + k * 58, on = Math.round(fl) === k; if (on && la > 0) rbox(806, y - 22, 118, 36, 10, rgba(P.amber, 0.18), P.amber, la, 1.5); text(s.toFixed(2), 865, y + 4, { font: F.mono, size: 18, color: on ? P.chalk : P.dust, align: 'center', a: la }); });

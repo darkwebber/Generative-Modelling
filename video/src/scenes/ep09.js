@@ -25,6 +25,14 @@ function noisyDigit(t) { const x0 = digitAt(NDS, 0), ab = abar(t), out = new Uin
 // the forward process on the 8 blobs, computed here
 const RING0 = A.ring.x[A.ring.x.length - 1], RING_EPS = (() => { const g = gaussian(rng(23)); return RING0.map(() => [g(), g()]); })();
 const ringFwd = t => { const ab = abar(t), a = Math.sqrt(ab), b = Math.sqrt(1 - ab); return RING0.map((p, k) => [a * p[0] + b * RING_EPS[k][0], a * p[1] + b * RING_EPS[k][1]]); };
+// the exact density of the forward process on the 8 blobs (radius 1, std 0.06, as diffusion.py scales them), as terrain:
+// each blob slides in by √ᾱₜ and spreads to variance ᾱₜ·0.06² + 1 − ᾱₜ, until one bell N(0, I) is left
+const FDN = 49, FD_PEAK = 1 / 8 / (TAU * 0.15 * 0.15);    // heights on a square-root scale, so the final low bell still shows
+function fwdDensity(t) { const ab = abar(t), a = Math.sqrt(ab), v = Math.max(ab * 0.0036 + 1 - ab, 0.0225), h = new Float32Array(FDN * FDN);
+  for (let j = 0; j < FDN; j++) for (let i = 0; i < FDN; i++) { const x = -WR + 2 * WR * i / (FDN - 1), y = WR - 2 * WR * j / (FDN - 1); let acc = 0;
+    for (let k = 0; k < 8; k++) { const mx = a * Math.cos(k * Math.PI / 4), my = a * Math.sin(k * Math.PI / 4); acc += Math.exp(-((x - mx) ** 2 + (y - my) ** 2) / (2 * v)); }
+    h[j * FDN + i] = Math.sqrt(Math.min(1, acc / 8 / (TAU * v) / FD_PEAK)); }
+  return h; }
 // 1-D reverse-step illustration
 const N1 = (x, m, v) => Math.exp(-0.5 * (x - m) ** 2 / v) / Math.sqrt(TAU * v);
 const P1 = y => 0.5 * N1(y, -1.107, 0.2265) + 0.5 * N1(y, 1.107, 0.2265);
@@ -82,8 +90,16 @@ SC.push({ dur: 56, chapter: 'forward', title: 'Destroy it slowly', sub: 'The for
          [40, 48, 'The same on a digit: a little noise, then more, and by step 1000 nothing of it is left.'],
          [48, 55.6, 'No learning so far. This direction is fixed and free. All the magic is in going back.']],
   draw(t) {
-    const m = square(110, 250, 560), a0 = eout(prog(t, 0.6, 0.8)), tt = tF1(t); frame(m, a0);
-    clipTo(m, () => ringFwd(tt).forEach(p => marble(m.X(p[0]), m.Y(p[1]), 2.6, mixc(P.terracotta, P.rose, clamp(1 - abar(tt))), a0)));
+    const m = square(110, 250, 560), a0 = eout(prog(t, 0.6, 0.8)), tt = tF1(t), col = mixc(P.terracotta, P.rose, clamp(1 - abar(tt)));
+    // the dots tilt up onto their exact density: eight peaks sink and spread into one low bell
+    const tl = ease(prog(t, 3.2, 3));
+    if (tl < 0.2) { const a2 = a0 * (1 - tl * 5); frame(m, a2); clipTo(m, () => ringFwd(tt).forEach(p => marble(m.X(p[0]), m.Y(p[1]), 2.6, col, a2))); }
+    if (tl > 0) {
+      const flat = { h: fwdDensity(tt), n: FDN, R: WR, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * WR), hs: 1.9 * tl, gamma: 0.6, yaw: tl * (-0.55 + 0.25 * Math.sin(t / 56 * Math.PI)), pitch: tl * 0.85, lo: '#2b211d', hi: '#e3967b' };
+      const fit = surfFit(flat, 90, 250, 600, 560), view = { ...flat, cx: lerp(flat.cx, fit.cx, tl), cy: lerp(flat.cy, fit.cy, tl), scale: lerp(flat.scale, fit.scale, tl) }, cam = surfCam(view);
+      surf3d({ ...view, a: a0 * Math.min(1, tl * 4), wire: 0.14 * tl });
+      ringFwd(tt).forEach(p => { if (Math.abs(p[0]) < WR && Math.abs(p[1]) < WR) { const q = cam.P(p[0], p[1], cam.z(p[0], p[1]) + 0.04); marble(q[0], q[1], 2.6, col, a0); } });   // samples, on their density
+    }
     text(`step t = ${Math.round(tt)}   ·   ᾱₜ = ${abar(tt).toFixed(3)}`, 110, 850, { font: F.mono, size: 20, color: P.chalk, a: a0 });
     // ᾱ curve
     const ca = eout(prog(t, 32, 0.8)); if (ca > 0) { const x0 = 110, y0 = 930, w = 560, h = 50; line(x0, y0, x0 + w, y0, P.border, 1, ca);

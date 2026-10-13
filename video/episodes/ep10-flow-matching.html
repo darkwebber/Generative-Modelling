@@ -482,6 +482,77 @@ function seasonStrip(cur, t0, t, y = 830) {
 }
 // ── "try it yourself": the episode's playground, named in the header area of the build-it scene
 function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
+
+// ── 3-D surfaces ─────────────────────────────────────────────
+// surf3d(o) draws a height field z = h(x, y) over the square [−R, R]², lit and depth-sorted, and returns a camera
+// for anything that sits on it: { P(x, y, z) → [sx, sy, depth], z(x, y) → surface height }.
+//   o.h: Float32Array of n×n heights (0..1, row 0 at y = +R) · o.n · o.R
+//   o.cx, o.cy: screen centre · o.scale: pixels per world unit · o.hs: world height of h = 1
+//   o.yaw: turn about the vertical (0 = map orientation) · o.pitch: 0 = straight down (a flat map), π/2 = side-on
+//   o.lo, o.hi: colours for low and high ground (lit) · o.step: grid subsampling · o.wire: mesh-line alpha
+//   o.items: [{ x, y, z, draw(sx, sy, depth) }] drawn in depth order with the surface, so ridges hide them
+//   o.gamma: colour contrast by height (below 1 lifts low ground) · o.a: alpha.  At pitch 0 the surface lines up exactly with square(…) maps of the same R, so a flat map can tilt up.
+function surfCam(o) {             // the camera alone (to place things on the surface before drawing it)
+  const { h, n, R, cx, cy, scale, hs = 1, yaw = 0, pitch = 0, persp = 0.18 } = o;
+  const cy_ = Math.cos(yaw), sy_ = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), D = R * (1 / Math.max(persp, 1e-3) + 1);
+  const P_ = (x, y, z) => { const x1 = x * cy_ - y * sy_, y1 = x * sy_ + y * cy_, d = z * cp - y1 * sp, f = 1 + (persp ? D / (D - d) - 1 : 0) * sp;   // perspective grows with the tilt
+    return [cx + scale * x1 * f, cy - scale * (y1 * cp + z * sp - hs * 0.45 * sp) * f, d]; };
+  const H = (i, j) => h[Math.min(n - 1, j) * n + Math.min(n - 1, i)];
+  const zAt = (x, y) => { const fi = clamp((x + R) / (2 * R) * (n - 1), 0, n - 1.001), fj = clamp((R - y) / (2 * R) * (n - 1), 0, n - 1.001), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+    return ((H(i, j) * (1 - u) + H(i + 1, j) * u) * (1 - v) + (H(i, j + 1) * (1 - u) + H(i + 1, j + 1) * u) * v) * hs; };
+  return { P: P_, z: zAt, H };
+}
+// size and centre a view so the whole surface (heights included) fits the box x0, y0, w, h at its current angle
+function surfFit(o, x0, y0, w, h) {
+  const c = surfCam({ ...o, cx: 0, cy: 0, scale: 1 }); let a = 1e9, b = -1e9, cmin = 1e9, cmax = -1e9;
+  for (let j = 0; j <= 12; j++) for (let i = 0; i <= 12; i++) { const x = -o.R + 2 * o.R * i / 12, y = o.R - 2 * o.R * j / 12;
+    for (const z of [0, c.z(x, y)]) { const p = c.P(x, y, z); a = Math.min(a, p[0]); b = Math.max(b, p[0]); cmin = Math.min(cmin, p[1]); cmax = Math.max(cmax, p[1]); } }
+  const sc = Math.min(w / (b - a), h / (cmax - cmin));
+  return { ...o, scale: sc, cx: x0 + w / 2 - sc * (a + b) / 2, cy: y0 + h / 2 - sc * (cmin + cmax) / 2 };
+}
+const SURF_COLS = {};
+function surf3d(o) {
+  const { h, n, R, hs = 1, lo = '#151110', hi = '#7a6ca6', step = 2, wire = 0.16, items = [], a = 1, gamma = 1.3 } = o;
+  const cam = surfCam(o), P_ = cam.P, H = cam.H, zAt = cam.z;
+  if (GA * a <= 0.002) return cam;
+  // o.cache: a key for a surface that is not changing (same heights, camera and alpha). The finished surface is kept
+  // as an image and reused, and only the items are drawn each frame (on top: fine for a still camera)
+  const C_ = o.cache && SURF_CACHE[o.cache];
+  if (C_) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.drawImage(C_.img, C_.x, C_.y); ctx.restore();
+    items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); it.draw(p[0], p[1], p[2]); }); return cam; }
+  const m = Math.floor((n - 1) / step) + 1, X = k => -R + 2 * R * Math.min(n - 1, k * step) / (n - 1), Y = k => R - 2 * R * Math.min(n - 1, k * step) / (n - 1);
+  const V = new Array(m * m);
+  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) V[j * m + i] = P_(X(i), Y(j), H(i * step, j * step) * hs);
+  const L = [-0.45, 0.5, 0.74], c0 = hx(lo), c1 = hx(hi), cell = 2 * R * step / (n - 1), list = [], cache = SURF_COLS[lo + hi] || (SURF_COLS[lo + hi] = new Map());
+  for (let j = 0; j < m - 1; j++) for (let i = 0; i < m - 1; i++) {
+    const z00 = H(i * step, j * step), z10 = H((i + 1) * step, j * step), z01 = H(i * step, (j + 1) * step), z11 = H((i + 1) * step, (j + 1) * step);
+    const gx = ((z10 + z11) - (z00 + z01)) / 2 * hs / cell, gy = ((z00 + z10) - (z01 + z11)) / 2 * hs / cell, nl = Math.hypot(gx, gy, 1);
+    const lam = Math.max(0, (-gx * L[0] - gy * L[1] + L[2]) / nl), lit = 0.28 + 0.78 * lam + 0.25 * Math.pow(lam, 12), u = Math.pow((z00 + z10 + z01 + z11) / 4, gamma);   // soft key light + a little sheen
+    const key = (Math.round(u * 63) << 7) | Math.round(Math.min(lit, 1.6) * 79);       // colours come from a small cache, not a string per tile
+    let col = cache.get(key); if (!col) { const uq = (key >> 7) / 63, lq = (key & 127) / 79; col = `rgb(${clamp((c0[0] + (c1[0] - c0[0]) * uq) * lq, 0, 255) | 0},${clamp((c0[1] + (c1[1] - c0[1]) * uq) * lq, 0, 255) | 0},${clamp((c0[2] + (c1[2] - c0[2]) * uq) * lq, 0, 255) | 0})`; cache.set(key, col); }
+    const q = [V[j * m + i], V[j * m + i + 1], V[(j + 1) * m + i + 1], V[(j + 1) * m + i]];
+    list.push({ d: (q[0][2] + q[1][2] + q[2][2] + q[3][2]) / 4, q, col });
+  }
+  if (!o.cache) items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); list.push({ d: p[2] + (it.lift ?? 0.02), it, p }); });
+  list.sort((A_, B_) => A_.d - B_.d);
+  const wc = `rgba(10,8,7,${wire})`; let ga = -1;
+  for (const e of list) {
+    if (e.it) { e.it.draw(e.p[0], e.p[1], e.p[2]); ga = -1; continue; }                 // items set their own style; ours is restored below
+    if (ga < 0) { setA(a); ctx.lineJoin = 'round'; ctx.lineWidth = wire > 0 ? 0.8 : 0.6; ctx.setLineDash([]); ga = 1; }
+    const q = e.q; ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); ctx.lineTo(q[3][0], q[3][1]); ctx.closePath();
+    ctx.fillStyle = e.col; ctx.fill(); ctx.strokeStyle = wire > 0 ? wc : e.col; ctx.stroke();
+  }
+  setA(1);
+  if (o.cache) {                                    // keep the finished surface (its bounding box, as drawn) for the next frames
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const v of V) { x0 = Math.min(x0, v[0]); y0 = Math.min(y0, v[1]); x1 = Math.max(x1, v[0]); y1 = Math.max(y1, v[1]); }
+    x0 = Math.max(0, Math.floor(x0) - 2); y0 = Math.max(0, Math.floor(y0) - 2); x1 = Math.min(cv.width, Math.ceil(x1) + 2); y1 = Math.min(cv.height, Math.ceil(y1) + 2);
+    const img = document.createElement('canvas'); img.width = x1 - x0; img.height = y1 - y0; img.getContext('2d').drawImage(cv, x0, y0, img.width, img.height, 0, 0, img.width, img.height);
+    for (const k in SURF_CACHE) delete SURF_CACHE[k]; SURF_CACHE[o.cache] = { img, x: x0, y: y0 };
+    items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); it.draw(p[0], p[1], p[2]); });
+  }
+  return cam;
+}
+const SURF_CACHE = {};
 const EPISODE = {"num": "10"};
 
 // ─────────────────────────────────────────────────────────────
@@ -831,15 +902,31 @@ SC.push({ dur: 56, chapter: 'reflow', title: 'Straighten the roads', sub: 'Reflo
          [40, 48, `On digits, one step goes from FID ${J.fm1.FID.toFixed(0)} to ${J.rf1.FID.toFixed(0)}. The price: with many steps, reflow levels off near ${J.rf16.FID.toFixed(0)}.`],
          [48, 55.6, 'This is reflow, or rectified flow. Repeat it, or train a student network to copy it in one jump: one-step generators.']],
   draw(t) {
-    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))));
+    const m = sq(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)); frame(m, a0 * (1 - ease(prog(t, 31.2, 0.8))) * (1 - ease(prog(t, 18.5, 1))));   // the flat frame gives way to the space-time box
     const ca = eout(prog(t, 1.5, 1)) * (1 - ease(prog(t, 15.5, 1)));
     if (ca > 0) clipTo(m, () => CP.z.forEach((z, k) => { const x = CP.x[k], u = eout(prog(t, 2 + k * 0.03, 1)); dot(m.X(z[0]), m.Y(z[1]), 2.6, P.rose, ca); if (u <= 0) return;
       line(m.X(z[0]), m.Y(z[1]), m.X(lerp(z[0], x[0], u)), m.Y(lerp(z[1], x[1], u)), P.sage, 1.2, ca * 0.6); if (u > 0.98) dot(m.X(x[0]), m.Y(x[1]), 2.6, P.terracotta, ca); }));
     const pa = eout(prog(t, 16, 1)) * (1 - ease(prog(t, 31.5, 1)));
-    if (pa > 0) { clipTo(m, () => { for (let k = 0; k < RG.n; k += 15) { for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+    const st = ease(prog(t, 18.5, 3));                  // the roads lift into space-time: height = time t
+    if (pa > 0 && st < 0.2) { const pa_ = pa, pa2 = pa * (1 - st * 5); ((pa) => { clipTo(m, () => { for (let k = 0; k < RG.n; k += 15) { for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) { setA(pa * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
         const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); for (let s = 0; s <= n; s++) { const p = ptAt(PP, k, s); s ? ctx.lineTo(m.X(p[0]), m.Y(p[1])) : ctx.moveTo(m.X(p[0]), m.Y(p[1])); } ctx.stroke(); setA(1); }
         const z = ptAt(P1, k, 0), x = ptAt(P1, k, P1.S - 1); dot(m.X(z[0]), m.Y(z[1]), 3, P.rose, pa); dot(m.X(x[0]), m.Y(x[1]), 3.5, P.terracotta, pa); } });
-      text('rose: round 1 (dives to the middle, then turns)  ·  sage: after reflow', m.x0, m.y0 + m.S + 26, { font: F.mono, size: 15, color: P.dust, a: pa }); }
+      })(pa2); }
+    if (pa > 0 && st > 0) {
+      const top = Float32Array.from([1, 1, 1, 1]), flat = { h: top, n: 2, R: WR, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * WR), hs: 2.6 * st, yaw: st * (-0.62 + 0.18 * Math.sin(t / 56 * Math.PI)), pitch: st * 1.0 };
+      const fit = surfFit(flat, 90, 250, 680, 610), cam = surfCam({ ...flat, cx: lerp(flat.cx, fit.cx, st), cy: lerp(flat.cy, fit.cy, st), scale: lerp(flat.scale, fit.scale, st) }), HT = 2.6 * st, a3 = pa * Math.min(1, st * 4);
+      const C = [[-WR, -WR], [WR, -WR], [WR, WR], [-WR, WR]], Q = (x, y, z) => cam.P(x, y, z);
+      for (const z of [0, HT]) { setA(a3 * (z ? 0.5 : 0.8)); ctx.fillStyle = rgba(z ? P.terracotta : P.rose, 0.05); ctx.strokeStyle = P.border; ctx.lineWidth = 1.5; ctx.beginPath(); C.forEach(([x, y], q) => { const p = Q(x, y, z); q ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.fill(); ctx.stroke(); setA(1); }
+      C.forEach(([x, y]) => { const p0 = Q(x, y, 0), p1 = Q(x, y, HT); line(p0[0], p0[1], p1[0], p1[1], P.border, 1, a3 * 0.6, [4, 6]); });
+      const inside = k => [P1, P2].every(PP => { for (let s2 = 0; s2 < PP.S; s2++) { const p = ptAt(PP, k, s2); if (Math.abs(p[0]) > WR || Math.abs(p[1]) > WR) return false; } return true; });   // the box shows what the flat view's frame showed
+      for (let k = 0; k < RG.n; k += 15) if (inside(k)) for (const [PP, col, al] of [[P1, P.rose, 0.7], [P2, P.sage, 0.95]]) {
+        const n = Math.round((PP.S - 1) * (PP === P2 ? ease(prog(t, 17, 3)) : 1)); setA(a3 * al); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+        for (let s2 = 0; s2 <= n; s2++) { const p = ptAt(PP, k, s2), q = Q(p[0], p[1], HT * s2 / (PP.S - 1)); s2 ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); } ctx.stroke(); setA(1);
+        if (PP === P1) { const z = ptAt(P1, k, 0), x = ptAt(P1, k, P1.S - 1), qz = Q(z[0], z[1], 0), qx = Q(x[0], x[1], HT); dot(qz[0], qz[1], 3, P.rose, a3); dot(qx[0], qx[1], 3.5, P.terracotta, a3); } }
+      const b = Q(WR, -WR, 0), tp = Q(WR, -WR, HT);
+      const la = a3 * clamp((st - 0.6) * 2.5); text('t = 0 · noise', b[0] + 12, b[1] - 16, { font: F.mono, size: 15, color: P.rose, a: la }); text('t = 1 · data', tp[0] + 12, tp[1] + 6, { font: F.mono, size: 15, color: P.terracotta, a: la });
+    }
+    if (pa > 0) text(st > 0.5 ? 'height is time: rose round 1 bends, sage after reflow runs straight, and no two meet' : 'rose: round 1 (dives to the middle, then turns)  ·  sage: after reflow', m.x0, m.y0 + m.S + 26, { font: F.mono, size: 15, color: P.dust, a: pa });
     const oa = eout(prog(t, 32, 0.8));
     if (oa > 0) { GA = oa; const L = sq(110, 250, 300), Rm = sq(450, 250, 300);
       [[L, 'r1_1', 'round 1 · 1 step', P.rose], [Rm, 'r2_1', 'after reflow · 1 step', P.sage]].forEach(([mm, key, nm, col], j) => { const st = RG.steps[key].stages, f = hopF(t, 33 + j * 1.2, 1.4, 1);

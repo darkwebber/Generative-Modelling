@@ -482,6 +482,77 @@ function seasonStrip(cur, t0, t, y = 830) {
 }
 // ── "try it yourself": the episode's playground, named in the header area of the build-it scene
 function playPill(file, t0, t) { pill(1840, 150, `▶ playground · labs/${file}`, P.amber, eout(prog(t, t0, 0.6)), { size: 17, align: 'right' }); }
+
+// ── 3-D surfaces ─────────────────────────────────────────────
+// surf3d(o) draws a height field z = h(x, y) over the square [−R, R]², lit and depth-sorted, and returns a camera
+// for anything that sits on it: { P(x, y, z) → [sx, sy, depth], z(x, y) → surface height }.
+//   o.h: Float32Array of n×n heights (0..1, row 0 at y = +R) · o.n · o.R
+//   o.cx, o.cy: screen centre · o.scale: pixels per world unit · o.hs: world height of h = 1
+//   o.yaw: turn about the vertical (0 = map orientation) · o.pitch: 0 = straight down (a flat map), π/2 = side-on
+//   o.lo, o.hi: colours for low and high ground (lit) · o.step: grid subsampling · o.wire: mesh-line alpha
+//   o.items: [{ x, y, z, draw(sx, sy, depth) }] drawn in depth order with the surface, so ridges hide them
+//   o.gamma: colour contrast by height (below 1 lifts low ground) · o.a: alpha.  At pitch 0 the surface lines up exactly with square(…) maps of the same R, so a flat map can tilt up.
+function surfCam(o) {             // the camera alone (to place things on the surface before drawing it)
+  const { h, n, R, cx, cy, scale, hs = 1, yaw = 0, pitch = 0, persp = 0.18 } = o;
+  const cy_ = Math.cos(yaw), sy_ = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), D = R * (1 / Math.max(persp, 1e-3) + 1);
+  const P_ = (x, y, z) => { const x1 = x * cy_ - y * sy_, y1 = x * sy_ + y * cy_, d = z * cp - y1 * sp, f = 1 + (persp ? D / (D - d) - 1 : 0) * sp;   // perspective grows with the tilt
+    return [cx + scale * x1 * f, cy - scale * (y1 * cp + z * sp - hs * 0.45 * sp) * f, d]; };
+  const H = (i, j) => h[Math.min(n - 1, j) * n + Math.min(n - 1, i)];
+  const zAt = (x, y) => { const fi = clamp((x + R) / (2 * R) * (n - 1), 0, n - 1.001), fj = clamp((R - y) / (2 * R) * (n - 1), 0, n - 1.001), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+    return ((H(i, j) * (1 - u) + H(i + 1, j) * u) * (1 - v) + (H(i, j + 1) * (1 - u) + H(i + 1, j + 1) * u) * v) * hs; };
+  return { P: P_, z: zAt, H };
+}
+// size and centre a view so the whole surface (heights included) fits the box x0, y0, w, h at its current angle
+function surfFit(o, x0, y0, w, h) {
+  const c = surfCam({ ...o, cx: 0, cy: 0, scale: 1 }); let a = 1e9, b = -1e9, cmin = 1e9, cmax = -1e9;
+  for (let j = 0; j <= 12; j++) for (let i = 0; i <= 12; i++) { const x = -o.R + 2 * o.R * i / 12, y = o.R - 2 * o.R * j / 12;
+    for (const z of [0, c.z(x, y)]) { const p = c.P(x, y, z); a = Math.min(a, p[0]); b = Math.max(b, p[0]); cmin = Math.min(cmin, p[1]); cmax = Math.max(cmax, p[1]); } }
+  const sc = Math.min(w / (b - a), h / (cmax - cmin));
+  return { ...o, scale: sc, cx: x0 + w / 2 - sc * (a + b) / 2, cy: y0 + h / 2 - sc * (cmin + cmax) / 2 };
+}
+const SURF_COLS = {};
+function surf3d(o) {
+  const { h, n, R, hs = 1, lo = '#151110', hi = '#7a6ca6', step = 2, wire = 0.16, items = [], a = 1, gamma = 1.3 } = o;
+  const cam = surfCam(o), P_ = cam.P, H = cam.H, zAt = cam.z;
+  if (GA * a <= 0.002) return cam;
+  // o.cache: a key for a surface that is not changing (same heights, camera and alpha). The finished surface is kept
+  // as an image and reused, and only the items are drawn each frame (on top: fine for a still camera)
+  const C_ = o.cache && SURF_CACHE[o.cache];
+  if (C_) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.drawImage(C_.img, C_.x, C_.y); ctx.restore();
+    items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); it.draw(p[0], p[1], p[2]); }); return cam; }
+  const m = Math.floor((n - 1) / step) + 1, X = k => -R + 2 * R * Math.min(n - 1, k * step) / (n - 1), Y = k => R - 2 * R * Math.min(n - 1, k * step) / (n - 1);
+  const V = new Array(m * m);
+  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) V[j * m + i] = P_(X(i), Y(j), H(i * step, j * step) * hs);
+  const L = [-0.45, 0.5, 0.74], c0 = hx(lo), c1 = hx(hi), cell = 2 * R * step / (n - 1), list = [], cache = SURF_COLS[lo + hi] || (SURF_COLS[lo + hi] = new Map());
+  for (let j = 0; j < m - 1; j++) for (let i = 0; i < m - 1; i++) {
+    const z00 = H(i * step, j * step), z10 = H((i + 1) * step, j * step), z01 = H(i * step, (j + 1) * step), z11 = H((i + 1) * step, (j + 1) * step);
+    const gx = ((z10 + z11) - (z00 + z01)) / 2 * hs / cell, gy = ((z00 + z10) - (z01 + z11)) / 2 * hs / cell, nl = Math.hypot(gx, gy, 1);
+    const lam = Math.max(0, (-gx * L[0] - gy * L[1] + L[2]) / nl), lit = 0.28 + 0.78 * lam + 0.25 * Math.pow(lam, 12), u = Math.pow((z00 + z10 + z01 + z11) / 4, gamma);   // soft key light + a little sheen
+    const key = (Math.round(u * 63) << 7) | Math.round(Math.min(lit, 1.6) * 79);       // colours come from a small cache, not a string per tile
+    let col = cache.get(key); if (!col) { const uq = (key >> 7) / 63, lq = (key & 127) / 79; col = `rgb(${clamp((c0[0] + (c1[0] - c0[0]) * uq) * lq, 0, 255) | 0},${clamp((c0[1] + (c1[1] - c0[1]) * uq) * lq, 0, 255) | 0},${clamp((c0[2] + (c1[2] - c0[2]) * uq) * lq, 0, 255) | 0})`; cache.set(key, col); }
+    const q = [V[j * m + i], V[j * m + i + 1], V[(j + 1) * m + i + 1], V[(j + 1) * m + i]];
+    list.push({ d: (q[0][2] + q[1][2] + q[2][2] + q[3][2]) / 4, q, col });
+  }
+  if (!o.cache) items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); list.push({ d: p[2] + (it.lift ?? 0.02), it, p }); });
+  list.sort((A_, B_) => A_.d - B_.d);
+  const wc = `rgba(10,8,7,${wire})`; let ga = -1;
+  for (const e of list) {
+    if (e.it) { e.it.draw(e.p[0], e.p[1], e.p[2]); ga = -1; continue; }                 // items set their own style; ours is restored below
+    if (ga < 0) { setA(a); ctx.lineJoin = 'round'; ctx.lineWidth = wire > 0 ? 0.8 : 0.6; ctx.setLineDash([]); ga = 1; }
+    const q = e.q; ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[1][0], q[1][1]); ctx.lineTo(q[2][0], q[2][1]); ctx.lineTo(q[3][0], q[3][1]); ctx.closePath();
+    ctx.fillStyle = e.col; ctx.fill(); ctx.strokeStyle = wire > 0 ? wc : e.col; ctx.stroke();
+  }
+  setA(1);
+  if (o.cache) {                                    // keep the finished surface (its bounding box, as drawn) for the next frames
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const v of V) { x0 = Math.min(x0, v[0]); y0 = Math.min(y0, v[1]); x1 = Math.max(x1, v[0]); y1 = Math.max(y1, v[1]); }
+    x0 = Math.max(0, Math.floor(x0) - 2); y0 = Math.max(0, Math.floor(y0) - 2); x1 = Math.min(cv.width, Math.ceil(x1) + 2); y1 = Math.min(cv.height, Math.ceil(y1) + 2);
+    const img = document.createElement('canvas'); img.width = x1 - x0; img.height = y1 - y0; img.getContext('2d').drawImage(cv, x0, y0, img.width, img.height, 0, 0, img.width, img.height);
+    for (const k in SURF_CACHE) delete SURF_CACHE[k]; SURF_CACHE[o.cache] = { img, x: x0, y: y0 };
+    items.forEach(it => { const p = P_(it.x, it.y, it.z ?? zAt(it.x, it.y)); it.draw(p[0], p[1], p[2]); });
+  }
+  return cam;
+}
+const SURF_CACHE = {};
 const EPISODE = {"num": "08"};
 
 // ─────────────────────────────────────────────────────────────
@@ -499,6 +570,15 @@ function lerpField(F0, F1, u) { return F0.map((v, k) => [lerp(v[0], F1[k][0], u)
 function stagePts(S, f) { const n = S.length - 1, fi = clamp(f, 0, n), i = Math.min(n - 1, Math.floor(fi)), u = fi - i; return S[i].map((p, k) => [lerp(p[0], S[i + 1][k][0], u), lerp(p[1], S[i + 1][k][1], u)]); }
 function particles(m, S, f, col, a, r = 3, count = 1e9) { const pts = stagePts(S, f); clipTo(m, () => pts.forEach((p, k) => { if (k < count) marble(m.X(p[0]), m.Y(p[1]), r, col, a); })); }
 const levelOf = f => clamp(Math.floor((clamp(f, 0, NS) - 1e-9) / (A.T / A.keep)), 0, SIG.length - 1);
+// log p_σ of the 400 data points at every σ, as terrain for the 3-D view (exact; one height scale for all levels,
+// so a big σ is a low broad hill and a small σ tall peaks over a flat desert). Smoothed to the grid it is drawn on.
+const LPN = 49, LPS = (() => { let L = null; return () => L || (L = (() => { const out = SIG.map(s0 => { const s = Math.hypot(s0, 0.16), h = new Float32Array(LPN * LPN);
+    for (let j = 0; j < LPN; j++) for (let i = 0; i < LPN; i++) { const x = -A.R + 2 * A.R * i / (LPN - 1), y = A.R - 2 * A.R * j / (LPN - 1); let acc = 0;
+      for (const p of A.data) acc += Math.exp(-((x - p[0]) ** 2 + (y - p[1]) ** 2) / (2 * s * s));
+      h[j * LPN + i] = Math.log(acc / A.data.length / (2 * Math.PI * s * s) + 1e-300); } return h; });
+  const top = Math.max(...out.map(h => Math.max(...h))), floor = top - 9;
+  return out.map(h => h.map(v => clamp((v - floor) / (top - floor)))); })()); })();
+function logpAtLevel(fl) { const L = LPS(), i = clamp(Math.floor(fl), 0, SIG.length - 1), j = Math.min(SIG.length - 1, i + 1), u = ease(clamp(fl - i)); return L[i].map((v, q) => lerp(v, L[j][q], u)); }
 function fieldAtLevel(fl) { const i = clamp(Math.floor(fl), 0, SIG.length - 1), j = Math.min(SIG.length - 1, i + 1); return lerpField(A.fields[i], A.fields[j], ease(clamp(fl - i))); }
 const errCanvas = (() => { let c = null; return () => { if (c) return c; const n = A.err.n, u = b64bytes(A.err.u8); c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), im = g.createImageData(n, n), rgb = hx(P.rose);
   for (let k = 0; k < n * n; k++) { im.data[k * 4] = rgb[0]; im.data[k * 4 + 1] = rgb[1]; im.data[k * 4 + 2] = rgb[2]; im.data[k * 4 + 3] = Math.round(Math.pow(u[k] / 255, 0.7) * 235); } g.putImageData(im, 0, 0); return c; }; })();
@@ -781,10 +861,20 @@ SC.push({ dur: 60, chapter: 'many scales', title: 'Noise at many scales', sub: '
   draw(t) {
     const m = square(110, 250, 640), a0 = eout(prog(t, 0.6, 0.8)), f = anF(t);
     const fl = t < 22 ? (SIG.length - 1) * ease(prog(t, 8, 13)) : clamp(f / (A.T / A.keep), 0, SIG.length - 1), sg = SIG[Math.min(SIG.length - 1, Math.round(fl))];
-    frame(m, a0); const r = rng(3), g = gaussian(r); clipTo(m, () => A.data.forEach(p => { const e1 = g(), e2 = g(); dot(m.X(p[0] + sg * e1), m.Y(p[1] + sg * e2), 2.2, P.terracotta, a0 * 0.35); }));
-    field(m, fieldAtLevel(fl), a0, P.sage, 26);
-    if (t > 21.5) particles(m, A.ann, f, P.chalk, eout(prog(t, 21.5, 0.6)), 3);
-    text(`σ = ${sg.toFixed(2)}   ·   faint dots: the data blurred by that much noise`, 110, 922, { font: F.mono, size: 16, color: P.dust, a: a0 });
+    // from 8 s the arrow map tilts up: log p_σ becomes terrain and the score arrows lie on its slopes, pointing uphill
+    const tl = ease(prog(t, 8.2, 3)), F = fieldAtLevel(fl);
+    if (tl < 0.2) { const a2 = a0 * (1 - tl * 5); frame(m, a2); const r = rng(3), g = gaussian(r); clipTo(m, () => A.data.forEach(p => { const e1 = g(), e2 = g(); dot(m.X(p[0] + sg * e1), m.Y(p[1] + sg * e2), 2.2, P.terracotta, a2 * 0.35); }));
+      field(m, F, a2, P.sage, 26); if (t > 21.5) particles(m, A.ann, f, P.chalk, eout(prog(t, 21.5, 0.6)) * a2, 3); }
+    if (tl > 0) {
+      const flat = { h: logpAtLevel(fl), n: LPN, R: A.R, cx: m.x0 + m.S / 2, cy: m.y0 + m.S / 2, scale: m.S / (2 * A.R), hs: 2.6 * tl, yaw: tl * (-0.5 + 0.25 * Math.sin(t / 60 * Math.PI)), pitch: tl * 0.9, lo: '#1a1d22', hi: '#8fb0d2' };
+      const fit = surfFit(flat, 80, 250, 690, 650), view = { ...flat, cx: lerp(flat.cx, fit.cx, tl), cy: lerp(flat.cy, fit.cy, tl), scale: lerp(flat.scale, fit.scale, tl) }, cam = surfCam(view);
+      const at = (x, y, l = 0.06) => cam.P(x, y, cam.z(x, y) + l), items = [];
+      F.forEach((v, k) => { const [x, y] = gpt(k), n = Math.hypot(v[0], v[1]); if (n < 1e-6 || Math.abs(x) > A.R || Math.abs(y) > A.R) return; const L = 0.34 * Math.tanh(n / 1.2), dx = v[0] / n * L / 2, dy = v[1] / n * L / 2;
+        items.push({ x, y, draw: () => { const p0 = at(x - dx, y - dy), p1 = at(x + dx, y + dy); arr(p0[0], p0[1], p1[0], p1[1], P.sage, 1.6, a0 * 0.9, 4); } }); });
+      if (t > 21.5) { const pa = eout(prog(t, 21.5, 0.6)); stagePts(A.ann, f).forEach(p => { if (Math.abs(p[0]) < A.R && Math.abs(p[1]) < A.R) items.push({ x: p[0], y: p[1], lift: 0.1, draw: () => { const q = at(p[0], p[1], 0.08); marble(q[0], q[1], 3.2, P.chalk, pa); } }); }); }
+      surf3d({ ...view, items, a: a0 * Math.min(1, tl * 4), wire: 0.14 * tl });
+    }
+    text(t < 9 ? `σ = ${sg.toFixed(2)}   ·   faint dots: the data blurred by that much noise` : `σ = ${sg.toFixed(2)}   ·   height: log p of the data blurred by that much noise`, 110, 922, { font: F.mono, size: 16, color: P.dust, a: a0 });
     // the σ ladder
     const la = eout(prog(t, 2, 0.8)); card(790, 250, 150, 670, P.amber, la); label('σ', 850, 290, la, P.amber);
     SIG.forEach((s, k) => { const y = 330 + k * 58, on = Math.round(fl) === k; if (on && la > 0) rbox(806, y - 22, 118, 36, 10, rgba(P.amber, 0.18), P.amber, la, 1.5); text(s.toFixed(2), 865, y + 4, { font: F.mono, size: 18, color: on ? P.chalk : P.dust, align: 'center', a: la }); });
